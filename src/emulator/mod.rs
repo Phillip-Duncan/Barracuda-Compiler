@@ -1,5 +1,6 @@
 pub(crate) mod ops;
 pub(crate) mod instructions;
+mod test;
 
 use crate::emulator::ops::MathStackOperators;
 use crate::emulator::instructions::MathStackInstructions;
@@ -34,10 +35,10 @@ pub struct ThreadContext {
     /// with RCA..RCZ
     env_vars: [f64; ENV_VAR_COUNT],
 
-    /// Value lists loaded with instruction VALUE
+    /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
     values: Vec<f64>,
 
-    /// Operation list loaded with instruction OP
+    /// Operation list loaded with instruction OP. This list is padded to align with instructions
     operations: Vec<MathStackOperators>,
 
     /// Instruction list denotes the execution of the program from top to bottom
@@ -65,11 +66,45 @@ impl ThreadContext {
             stack_pointer: 0,
             stack_maxsize: stack_size,
             env_vars: [0.0; ENV_VAR_COUNT],
-            values,
-            operations,
+            values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
+            operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
             instructions,
             stack: Vec::new()
         }
+    }
+
+    /// Generic padding function for the values/operations list to be padded to align with the instruction list
+    /// This will create a new aligned list where each value is found where the alignment_instr is found
+    /// This allows for the stack pointer to be used for all lists without misalignment.
+    /// @alignment_instr: Expected either OP or VALUE
+    /// @instructions: The list of instructions for the program
+    /// @unaligned_list: Either the inputted values or operations list
+    /// @null_value: what the padded spaces should be filled with
+    /// @return: unaligned_list padded to size of instructions.len()
+    fn pad_list_to_size_of_instructions<T: std::clone::Clone>(alignment_instr: MathStackInstructions, instructions: &Vec<MathStackInstructions>, unaligned_list: &Vec<T>, null_value: T) -> Vec<T> {
+        // Check if the lists are already the same size.
+        // Note: It is impossible to verify if the alignment is correct as the null_value can
+        // be used for padding as well as a unaligned value. Best is to just verify length.
+        if instructions.len() == unaligned_list.len() {
+            return unaligned_list.clone();
+        }
+
+        // Pad list with null_value where instructions matches alignment_instr the unaligned_list
+        // value is substituted.
+        let mut aligned_list: Vec<T> = Vec::new();
+        let mut unaligned_index: usize = 0;
+
+        for i in 0..instructions.len() {
+            let instr = instructions[i];
+            if instr == alignment_instr {
+                aligned_list.push(unaligned_list[unaligned_index].clone());
+                unaligned_index += 1;
+            } else {
+                aligned_list.push(null_value.clone());
+            }
+        };
+
+        aligned_list
     }
 
     /// Pushes a value onto the execution stack.
@@ -91,37 +126,40 @@ impl ThreadContext {
         }
     }
 
-    /// Returns next value in value list
+    /// Returns current value at pc in value list
     /// @return: value: f64 is successful, otherwise if the value_pointer is at the end of the
     ///          value list ErrorKind::AddrNotAvailable
-    fn next_value(&mut self) -> Result<f64, Error> {
-        match self.values.pop() {
-            Some(value) => Ok(value),
+    fn get_value(&mut self) -> Result<f64, Error> {
+        match self.values.get(self.values.len() - self.stack_pointer - 1) {
+            Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next value. Reached end of value list"))
         }
     }
 
-    /// Returns next operation in operation list
+    /// Returns current operation at pc in operation list
     /// @return: MathStackOperator if successful, otherwise if the stack_pointer is at the end of
     ///          operation list ErrorKind::AddrNotAvailable
-    fn next_operation(&mut self) -> Result<MathStackOperators, Error> {
-        match self.operations.pop() {
-            Some(value) => Ok(value),
+    fn get_operation(&mut self) -> Result<MathStackOperators, Error> {
+        match self.operations.get(self.operations.len() - self.stack_pointer - 1) {
+            Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next operation. Reached end of operation list"))
         }
     }
 
-    /// Returns next instruction in instruction list
+    /// Returns current instruction at pc in instruction list
     /// @return: MathStackInstruction if successful, otherwise if the stack_pointer is at the
     ///          end of program list ErrorKind::AddrNotAvailable
-    fn next_instruction(&mut self) -> Result<MathStackInstructions, Error> {
+    fn get_instruction(&mut self) -> Result<MathStackInstructions, Error> {
         match self.instructions.get(self.instructions.len() - self.stack_pointer - 1) {
             Some(value) => {
-                self.stack_pointer += 1;
                 Ok(*value)
             },
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next instruction. Reached end of program list"))
         }
+    }
+
+    fn step_pc(&mut self) {
+        self.stack_pointer += 1;
     }
 
     /// Sets an environment variable of the program denoted by var_id
@@ -160,12 +198,11 @@ impl ThreadContext {
         self.stack_pointer == self.instructions.len()
     }
 
-
     ///    Will step a single instruction of the program loaded.
     ///    @return: nothing if successful, an io error if an unrecoverable error was encountered during
     ///           execution
     pub(crate) fn step(&mut self) -> Result<(), Error> {
-        let instruction = self.next_instruction()?;
+        let instruction = self.get_instruction()?;
         instruction.execute(self)
     }
 
@@ -181,3 +218,6 @@ impl ThreadContext {
         Ok(())
     }
 }
+
+
+// UTILITY FUNCTIONS

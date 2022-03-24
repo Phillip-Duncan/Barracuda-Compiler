@@ -8,12 +8,19 @@ pub struct FuncPointerContext {
     ptr_offset : u8
 }
 
+impl PartialEq for FuncPointerContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr_offset==other.ptr_offset
+    }
+}
+impl Eq for FuncPointerContext {}
+
 /// MathStackInstruction is an enum of program instructions that are valid for the MathStack VM.
 /// Each instruction has .execute(context: ThreadContext) function to run the instruction on the
 /// current thread context.
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MathStackInstructions {
     OP,
     VALUE ,
@@ -34,12 +41,16 @@ impl MathStackInstructions {
         println!("INSTR {:?}", self);
         match self {
             Self::VALUE => {
-                let value: f64 = context.next_value()?;
-                context.push(value)
+                let value: f64 = context.get_value()?;
+                context.push(value)?;
+                context.step_pc();
+                Ok(())
             },
             Self::OP => {
-                let op: MathStackOperators = context.next_operation()?;
-                op.execute(context)
+                let op: MathStackOperators = context.get_operation()?;
+                op.execute(context)?;
+                context.step_pc();
+                Ok(())
             },
             _ => {Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented instruction used {:?}", self))) }
         }
