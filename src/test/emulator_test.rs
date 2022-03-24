@@ -61,14 +61,15 @@ fn vm_example_3() {
 #[test]
 fn vm_example_4() {
     let mut context = emulator::ThreadContext::new(6,
-                                                   vec![10.0, 1.0, 3.0, 0.0, 7.0, 5.0],
-                                                   vec![ADD],
-                                                   vec![/* 20?, */ GOTO_IF, VALUE, VALUE, GOTO, VALUE, OP, VALUE, GOTO, VALUE, VALUE],
+                                                   vec![0.0, 0.0, 3.0, 0.0, 0.0, 10.0, 0.0, 1.0, 0.0, 7.0, 5.0],
+                                                   vec![NULL, ADD],
+                                                               // 10    9        8      7      6    5      4    3     2     1       0
+                                                   vec![OP, GOTO_IF, VALUE, VALUE, GOTO, VALUE, OP, VALUE, GOTO, VALUE, VALUE],
                                                    Box::new(io::stdout()));
     context.run_till_halt().unwrap();
 
     // TODO(Connor): Find out what the expected output here should be
-    assert!(false);
+    assert_stack_equal(context, vec![6.0], 0.001);
 }
 
 #[test]

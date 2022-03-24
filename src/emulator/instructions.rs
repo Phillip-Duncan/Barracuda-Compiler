@@ -52,6 +52,21 @@ impl MathStackInstructions {
                 context.step_pc();
                 Ok(())
             },
+            Self::GOTO => {
+                let address = context.pop()? as i64;
+                context.set_pc(address as usize)?;
+                Ok(())
+            },
+            Self::GOTO_IF => {
+                let b = context.pop()? as i64;
+                let a = context.pop()? as i64;
+                if a == 0 {
+                    context.set_pc(b as usize)?;
+                } else {
+                    context.step_pc();
+                }
+                Ok(())
+            }
             _ => {Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented instruction used {:?}", self))) }
         }
     }

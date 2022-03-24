@@ -242,6 +242,9 @@ impl MathStackOperators {
         println!("OP {:?}", self);
 
         match self {
+            Self::NULL => {
+                Ok(())
+            },
             Self::ADD => {
                 let b = context.pop()?;
                 let a = context.pop()?;

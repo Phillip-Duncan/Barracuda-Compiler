@@ -158,6 +158,19 @@ impl ThreadContext {
         }
     }
 
+    /// Sets the program counter to a new value
+    /// @new_pc: New program counter value
+    /// @return: Ok if successful, otherwise if the @new_pc is out of range ErrorKind::AddrNotAvailable
+    fn set_pc(&mut self, new_pc: usize) -> Result<(), Error> {
+        if new_pc <= self.instructions.len() {
+            self.stack_pointer = new_pc;
+            Ok(())
+        } else {
+            Err(Error::new(ErrorKind::AddrNotAvailable, format!("Tried to set program counter out of range {} > {}.", new_pc, self.instructions.len())))
+        }
+    }
+
+    /// Steps the program counter + 1
     fn step_pc(&mut self) {
         self.stack_pointer += 1;
     }
