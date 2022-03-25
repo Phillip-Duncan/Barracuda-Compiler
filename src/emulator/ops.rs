@@ -4,6 +4,8 @@ use statrs::function::erf::{erf, erfc, erfc_inv, erf_inv};
 use libm::{ilogb, lgamma, tgamma};
 use scilib::math::bessel;
 use float_next_after::NextAfter;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 /// MathStackOperators is a enum of all the operations of the MathStack VM.
 /// Each enum is set to the associated opcode.
@@ -15,7 +17,7 @@ use float_next_after::NextAfter;
 /// Refer to the opcode documentation for more information.
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, FromPrimitive)]
 #[repr(u32)]
 pub enum MathStackOperators {
     NULL       = 0x0000 , 
@@ -233,14 +235,17 @@ pub enum MathStackOperators {
 }
 
 impl MathStackOperators {
+    pub(crate) fn from(opcode: u32) -> Option<Self> {
+        FromPrimitive::from_u32(opcode)
+    }
+
+
     /// Executes relevant operation on a thread context.
     /// The enum will match and apply the appropriate "micro-code" of the operation
     /// @context: The thread_context to apply the operation to
     /// @return: Ok() on success, relevant Error if the operation fails. If the operation
     /// is not implemented or unknown it will return ErrorKind::NotFound
     pub(crate) fn execute(&self, context: &mut ThreadContext) -> Result<(), Error> {
-        println!("OP {:?}", self);
-
         match self {
             Self::NULL => {
                 Ok(())
@@ -660,25 +665,29 @@ impl MathStackOperators {
             // BESYN ?
             Self::PRINTC => {
                 let a = context.pop()? as u8 as char;
-                writeln!(context.output_handle, "{}", a)
+                let mut out = context.output_handle.borrow_mut();
+                write!(out, "{}", a)
             },
             Self::PRINTCT => {
                 let b = context.pop()? as u8 as char;
                 let a = context.pop()? as u64;
                 if a == context.thread_id {
-                    writeln!(context.output_handle, "{}", b)?;
+                    let mut out = context.output_handle.borrow_mut();
+                    write!(out, "{}", b)?;
                 }
                 Ok(())
             },
             Self::PRINTFF => {
                 let a = context.pop()?;
-                writeln!(context.output_handle, "{}", a)
+                let mut out = context.output_handle.borrow_mut();
+                write!(out, "{}", a)
             },
             Self::PRINTFFT => {
                 let b = context.pop()?;
                 let a = context.pop()? as u64;
                 if a == context.thread_id {
-                    writeln!(context.output_handle, "{}", b)?;
+                    let mut out = context.output_handle.borrow_mut();
+                    write!(out, "{}", b)?;
                 }
                 Ok(())
             },

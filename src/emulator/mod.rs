@@ -4,8 +4,11 @@ mod test;
 
 use crate::emulator::ops::MathStackOperators;
 use crate::emulator::instructions::MathStackInstructions;
-use std::io::{Error, ErrorKind};
+use std::io::{Error, ErrorKind, Write};
 use std::io::{self};
+use crate::emulator::ops::MathStackOperators::LDA;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Environment var count as given by the operations. This needs to be updated manually if adding
 /// more env var load instructions.
@@ -20,7 +23,7 @@ pub struct ThreadContext {
     thread_id: u64,
 
     /// Output handle is used to redirect output of operations such as PRINTFF, PRINTC
-    output_handle: Box<dyn io::Write>,
+    output_handle: Rc<RefCell<dyn Write>>,
 
     /// Stack pointer points to the next instruction to execute in instructions list.
     /// Since instructions are loaded top to bottom this
@@ -59,10 +62,10 @@ impl ThreadContext {
     /// @instructions: Vector of instructions that are executed from top to bottom.
     /// @output_stream: Object that implements std::io::Write. This is used for output operations
     ///                 such as PRINTFF, PRINTC.
-    pub(crate) fn new(stack_size: usize, values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>, output_stream: Box<dyn io::Write>) -> ThreadContext {
+    pub(crate) fn new(stack_size: usize, values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>, output_stream: Rc<RefCell<dyn Write>>) -> ThreadContext {
         ThreadContext {
             thread_id: 0,
-            output_handle: Box::new(io::BufWriter::new(output_stream)),
+            output_handle: output_stream,
             stack_pointer: 0,
             stack_maxsize: stack_size,
             env_vars: [0.0; ENV_VAR_COUNT],
@@ -158,6 +161,11 @@ impl ThreadContext {
         }
     }
 
+    /// Gets the current program counter
+    pub(crate) fn get_pc(&self) -> usize {
+        self.stack_pointer
+    }
+
     /// Sets the program counter to a new value
     /// @new_pc: New program counter value
     /// @return: Ok if successful, otherwise if the @new_pc is out of range ErrorKind::AddrNotAvailable
@@ -193,7 +201,7 @@ impl ThreadContext {
     /// Currently there are 56 env variables available
     /// @var_id: env variable index inclusive of 0-55
     /// @return: env_vars[var_id] if ok otherwise ErrorKind::AddrNotAvailable
-    pub(crate) fn get_env_var(&mut self, var_id: usize) -> Result<f64, Error>  {
+    pub(crate) fn get_env_var(&self, var_id: usize) -> Result<f64, Error>  {
         if var_id < ENV_VAR_COUNT {
             Ok(self.env_vars[var_id])
         } else {
@@ -201,9 +209,49 @@ impl ThreadContext {
         }
     }
 
+    /// Returns the associated environment variable name from the load opcodes
+    /// @var_id: env variable index inclusive of 0-55
+    /// @return: name of env_vars[var_id] if ok otherwise ErrorKind::AddrNotAvailable
+    pub(crate) fn get_env_var_name(&self, var_id: usize) -> Result<String, Error> {
+        if var_id < ENV_VAR_COUNT {
+            // Bit of a dirty solution but just taking the name from the load opcodes
+            match MathStackOperators::from(LDA as u32 + var_id as u32) {
+                Some(load_op) => {
+                    let load_op_name = format!("{:?}", load_op);
+                    Ok(String::from(&load_op_name[2..]))
+                }
+                None => Err(Error::new(ErrorKind::NotFound, "Could not find the load env var op name"))
+            }
+        } else {
+            Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to get env var name that does not exist."))
+        }
+    }
+
+    /// Sets the output stream for instructions like PRINTC.
+    /// @output_stream: Object that implements std::io::Write. This is used for output operations
+    ///                 such as PRINTFF, PRINTC.
+    pub(crate) fn set_output_stream(&mut self, output_stream: Rc<RefCell<dyn Write>>) {
+        self.output_handle = output_stream
+    }
+
     /// Returns a clone of the current stack state
     pub(crate) fn get_stack(&self) -> Vec<f64> {
         self.stack.clone()
+    }
+
+    /// Returns a clone of the instructions
+    pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
+        &self.instructions
+    }
+
+    /// Returns a clone of the operations
+    pub(crate) fn get_operations(&self) -> &Vec<MathStackOperators> {
+        &self.operations
+    }
+
+    /// Returns a clone of the values
+    pub(crate) fn get_values(&self) -> &Vec<f64> {
+        &self.values
     }
 
     /// Returns if the stack pointer has reached the end of the instruction list
@@ -215,8 +263,12 @@ impl ThreadContext {
     ///    @return: nothing if successful, an io error if an unrecoverable error was encountered during
     ///           execution
     pub(crate) fn step(&mut self) -> Result<(), Error> {
-        let instruction = self.get_instruction()?;
-        instruction.execute(self)
+        if self.stack_pointer < self.instructions.len() {
+            let instruction = self.get_instruction()?;
+            instruction.execute(self)
+        } else {
+            Ok(())
+        }
     }
 
     ///    Will run the program loaded until the execution is finished.

@@ -38,7 +38,6 @@ impl MathStackInstructions {
     /// @return: Ok() on Success, otherwise a io::Error if an instruction fails. ErrorKind::NotFound
     ///          if the instruction is unknown or unimplemented
     pub(crate) fn execute(&self, context: &mut ThreadContext) -> Result<(), Error> {
-        println!("INSTR {:?}", self);
         match self {
             Self::VALUE => {
                 let value: f64 = context.get_value()?;
