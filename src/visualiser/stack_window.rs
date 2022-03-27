@@ -32,11 +32,14 @@ impl StackWindow {
         }
     }
 
-    pub(crate) fn draw<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
-        let block = Block::default()
+    pub(crate) fn draw<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect, highlighted: bool) {
+        let mut block = Block::default()
             .title("Stack")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Plain);
+            .borders(Borders::ALL);
+
+        if highlighted {
+            block = block.border_type(BorderType::Thick);
+        }
 
         let items: Vec<ListItem>= self.stack.iter().map(|i| ListItem::new(i.as_ref())).collect();
         let list = List::new(items)

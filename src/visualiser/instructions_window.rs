@@ -1,6 +1,6 @@
 use tui::widgets::{ListItem, ListState, Block, Borders, BorderType, List};
 use crate::emulator::ThreadContext;
-use crate::emulator::instructions::MathStackInstructions::{VALUE, OP};
+use crate::emulator::instructions::MathStackInstructions::{VALUE, OP, LOOP_ENTRY};
 use tui::backend::Backend;
 use tui::Frame;
 use tui::layout::Rect;
@@ -34,6 +34,18 @@ impl InstructionsWindow {
                 OP => {
                     format!("{:?}", operations[index])
                 },
+                LOOP_ENTRY => {
+                    match context.get_loop_counter_stack()
+                        .binary_search_by(|loop_counter| i.cmp(loop_counter.loop_start())) {
+                        Ok(loop_counter_index) => {
+                            let loop_counter = context.get_loop_counter_stack().get(loop_counter_index).unwrap();
+                            format!("LOOP_ENTRY({} < {})", loop_counter.current(), loop_counter.max())
+                        },
+                        Err(_) => {
+                            format!("{:?}", instructions[index])
+                        }
+                    }
+                },
                 _ => {
                     format!("{:?}", instructions[index])
                 }
@@ -47,11 +59,14 @@ impl InstructionsWindow {
         self.instructions_state.select(Some(program_counter))
     }
 
-    pub(crate) fn draw<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
-        let block = Block::default()
+    pub(crate) fn draw<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect, highlighted: bool) {
+        let mut block = Block::default()
             .title("Instructions")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Plain);
+            .borders(Borders::ALL);
+
+        if highlighted {
+            block = block.border_type(BorderType::Thick);
+        }
 
         let items: Vec<ListItem>= self.instructions.iter().map(|i| ListItem::new(i.as_ref())).collect();
         let list = List::new(items)

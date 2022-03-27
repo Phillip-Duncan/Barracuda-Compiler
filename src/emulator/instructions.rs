@@ -1,6 +1,7 @@
 use crate::emulator::ThreadContext;
 use crate::emulator::ops::MathStackOperators;
 use std::io::{Error, ErrorKind};
+use crate::emulator::LoopTracker;
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
@@ -64,6 +65,18 @@ impl MathStackInstructions {
                 } else {
                     context.step_pc();
                 }
+                Ok(())
+            },
+            Self::LOOP_ENTRY => {
+                let b = context.pop()? as i64;
+                let a = context.pop()? as i64;
+                context.loop_counters.push(LoopTracker::new(a,b, context.stack_pointer));
+                context.step_pc();
+                Ok(())
+            },
+            Self::LOOP_END => {
+                context.iterate_loop()?;
+                context.step_pc();
                 Ok(())
             }
             _ => {Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented instruction used {:?}", self))) }

@@ -713,7 +713,7 @@ impl MathStackOperators {
 
                 // Unknown Opcode
                 } else {
-                    Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented opcode used {:?}({})", self, opcode)))
+                    Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented opcode used {:?}({:#06X})", self, opcode)))
                 }
             }
         }

@@ -1,11 +1,15 @@
 mod instructions_window;
 mod env_vars_window;
 mod stack_window;
+mod scrollable_list;
+mod program_output_window;
+mod event_widget;
 
 use crate::emulator::ThreadContext;
 use crate::visualiser::instructions_window::InstructionsWindow;
 use crate::visualiser::stack_window::StackWindow;
 use crate::visualiser::env_vars_window::EnvVarWindow;
+use crate::visualiser::program_output_window::ProgramOutputWindow;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -17,9 +21,35 @@ use tui::widgets::{Block, Borders, BorderType, Paragraph};
 use tui::layout::{Layout, Direction, Constraint, Rect};
 use std::io::{Cursor, Seek, BufRead, SeekFrom, Write};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use tui::text::{Span, Spans};
+use std::cell::{RefCell, RefMut, Ref};
+use tui::text::{Span, Spans, Text};
 use tui::style::{Style, Color, Modifier};
+use crossterm::event::KeyEvent;
+use std::ops::Deref;
+use crate::visualiser::VisualiserUIWindows::{OUTPUT, INSTRUCTIONS, STACK, ENV_VARS};
+use std::borrow::BorrowMut;
+use crate::visualiser::event_widget::EventWidget;
+
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+enum VisualiserUIWindows {
+    INSTRUCTIONS,
+    STACK,
+    ENV_VARS,
+    OUTPUT
+}
+
+impl VisualiserUIWindows {
+    fn next(&self) -> VisualiserUIWindows {
+        match self {
+            VisualiserUIWindows::INSTRUCTIONS => {VisualiserUIWindows::STACK}
+            VisualiserUIWindows::STACK => {VisualiserUIWindows::ENV_VARS}
+            VisualiserUIWindows::ENV_VARS => {VisualiserUIWindows::OUTPUT}
+            VisualiserUIWindows::OUTPUT => {VisualiserUIWindows::INSTRUCTIONS}
+        }
+    }
+}
+
 
 
 pub(crate) struct MathStackVisualiser {
@@ -27,10 +57,14 @@ pub(crate) struct MathStackVisualiser {
     instruction_window: InstructionsWindow,
     stack_window: StackWindow,
     env_vars_window: EnvVarWindow,
+    program_output_window: ProgramOutputWindow,
+
+    focus_window: VisualiserUIWindows,
 
     program_output: Rc<RefCell<Cursor<Vec<u8>>>>,
     should_quit: bool
 }
+
 
 impl MathStackVisualiser {
     pub(crate) fn new(context: ThreadContext) -> Self {
@@ -39,6 +73,8 @@ impl MathStackVisualiser {
             instruction_window: InstructionsWindow::new(),
             stack_window: StackWindow::new(),
             env_vars_window: EnvVarWindow::new(),
+            program_output_window: ProgramOutputWindow::new(),
+            focus_window: VisualiserUIWindows::INSTRUCTIONS,
             program_output: Rc::new(RefCell::new(Cursor::new(Vec::new()))),
             should_quit: false
         }
@@ -93,13 +129,17 @@ impl MathStackVisualiser {
             if crossterm::event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
                     match key.code {
-                        KeyCode::Left => self.on_key_left(),
-                        KeyCode::Right => self.on_key_right(),
-                        KeyCode::Up => self.on_key_up(),
-                        KeyCode::Down => self.on_key_down(),
                         KeyCode::Esc => self.should_quit=true,
-                        KeyCode::Char(c) => self.on_key(c),
-                        _ => {}
+                        KeyCode::Tab => {
+                            self.focus_window = self.focus_window.next();
+                        }
+                        KeyCode::Char(c) => {
+                            self.on_key(c);
+                            self.forward_key_event(key);
+                        },
+                        _ => {
+                            self.forward_key_event(key);
+                        }
                     }
                 }
             }
@@ -115,20 +155,13 @@ impl MathStackVisualiser {
         }
     }
 
-    fn on_key_up(&mut self) {
-
-    }
-
-    fn on_key_down(&mut self) {
-
-    }
-
-    fn on_key_left(&mut self) {
-
-    }
-
-    fn on_key_right(&mut self) {
-
+    fn forward_key_event(&mut self, key: KeyEvent) {
+        match self.focus_window {
+            VisualiserUIWindows::INSTRUCTIONS => {}
+            VisualiserUIWindows::STACK => {}
+            VisualiserUIWindows::ENV_VARS => {self.env_vars_window.on_key_event(key)}
+            VisualiserUIWindows::OUTPUT => {self.program_output_window.on_key_event(key)}
+        }
     }
 
     fn on_key(&mut self, character: char) {
@@ -144,10 +177,13 @@ impl MathStackVisualiser {
         match self.thread_context.step() {
             Ok(_) => {}
             Err(error) => {
-                let mut out = self.program_output.borrow_mut() as RefMut<dyn Write>;
-                write!(out, "ERROR: {}({:?})\n", error.to_string(), error.kind());
+                let mut out = (&*self.program_output).borrow_mut();
+                // Okay to panic if cannot write errors to program output
+                write!(out, "ERROR: {}({:?})\n", error.to_string(), error.kind()).unwrap();
             }
         }
+
+        self.instruction_window.update_instructions(&self.thread_context);
         self.instruction_window.update_program_counter(&self.thread_context);
         self.stack_window.update_stack(&self.thread_context);
         self.env_vars_window.update_env_vars(&self.thread_context);
@@ -155,6 +191,10 @@ impl MathStackVisualiser {
 
     fn on_tick(&mut self) {
 
+    }
+
+    fn in_focus(&self, window: VisualiserUIWindows) -> bool {
+        self.focus_window == window
     }
 
     fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
@@ -170,7 +210,9 @@ impl MathStackVisualiser {
             .split(f.size());
 
         self.draw_execution_window(f, chunks[0]);
-        self.draw_output_window(f, chunks[1]);
+
+        let output_buffer = self.program_output.borrow().deref().clone();
+        self.program_output_window.draw(f, chunks[1], output_buffer, self.in_focus(OUTPUT));
     }
 
     fn draw_execution_window<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
@@ -186,36 +228,8 @@ impl MathStackVisualiser {
             )
             .split(area);
 
-        self.instruction_window.draw(f, chunks[0]);
-        self.stack_window.draw(f, chunks[1]);
-        self.env_vars_window.draw(f, chunks[2]);
-    }
-
-    fn get_program_output_as_span(&mut self) -> Vec<Span> {
-        let mut text: Vec<Span> = Vec::new();
-        let mut program_out = self.program_output.borrow_mut();
-        program_out.seek(SeekFrom::Start(0));
-        for line in program_out.get_ref().lines() {
-            let line_text: String = line.unwrap();
-            if line_text.starts_with("ERROR") {
-                let style = Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
-                text.push(Span::styled(line_text, style));
-            } else {
-                text.push(Span::raw(line_text));
-            }
-        }
-
-        text
-    }
-
-    fn draw_output_window<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
-        let block = Block::default()
-            .title("Program Output")
-            .borders(Borders::ALL);
-
-        let text = Spans::from(self.get_program_output_as_span());
-        let paragraph = Paragraph::new(text).block(block);
-
-        f.render_widget(paragraph, area);
+        self.instruction_window.draw(f, chunks[0], self.in_focus(INSTRUCTIONS));
+        self.stack_window.draw(f, chunks[1], self.in_focus(STACK));
+        self.env_vars_window.draw(f, chunks[2], self.in_focus(ENV_VARS));
     }
 }

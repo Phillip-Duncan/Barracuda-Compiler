@@ -14,6 +14,25 @@ use std::rc::Rc;
 /// more env var load instructions.
 pub const ENV_VAR_COUNT: usize = 56;
 
+/// Loop tracker holds the current value of iteration of a loop and the max value of the loop
+/// The max value is exclusive
+#[derive(Getters)]
+pub(crate) struct LoopTracker {
+    current: i64,
+    max: i64,
+    loop_start: usize
+}
+
+impl LoopTracker {
+    pub(crate) fn new(start: i64, end: i64, loop_start: usize) -> Self {
+        LoopTracker {
+            current: start,
+            max: end,
+            loop_start
+        }
+    }
+}
+
 
 /// Thread context is a struct that represents all the information an individual thread would
 /// have access to. It also includes functions with step() and run_till_halt() to emulate the
@@ -48,7 +67,10 @@ pub struct ThreadContext {
     instructions: Vec<MathStackInstructions>,
 
     /// Computation stack. Initializes as empty on construction.
-    stack: Vec<f64>
+    stack: Vec<f64>,
+
+    /// Loop tracker stack used for tracking nested loops
+    loop_counters: Vec<LoopTracker>
 }
 
 impl ThreadContext {
@@ -72,7 +94,8 @@ impl ThreadContext {
             values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
             operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
             instructions,
-            stack: Vec::new()
+            stack: Vec::new(),
+            loop_counters: Vec::new()
         }
     }
 
@@ -181,6 +204,38 @@ impl ThreadContext {
     /// Steps the program counter + 1
     fn step_pc(&mut self) {
         self.stack_pointer += 1;
+    }
+
+    /// Will check if the top loop_counter current has reached max. If it hasn't it will increment
+    /// current and set pc to loop start. Otherwise it will do nothing.
+    fn iterate_loop(&mut self) -> Result<(), Error> {
+        let mut loop_finished = false;
+
+        // Update loop
+        match self.loop_counters.last_mut() {
+            Some(counter) => {
+                counter.current += 1;
+                if counter.current >= counter.max {
+                    loop_finished = true;
+                }
+            },
+            None => return Err(Error::new(ErrorKind::NotFound, "Tried to iterate on a non-existent loop counter"))
+        }
+
+        // Update pc and loop counters
+        if loop_finished {
+            self.loop_counters.pop();
+            Ok(())
+        } else {
+            // Can assume it is safe here
+            self.set_pc(self.loop_counters.last().unwrap().loop_start)
+        }
+    }
+
+    /// Gets loop counters stack
+    /// @returns loop counter stack
+    pub(crate) fn get_loop_counter_stack(&self) -> &Vec<LoopTracker> {
+        &self.loop_counters
     }
 
     /// Sets an environment variable of the program denoted by var_id
