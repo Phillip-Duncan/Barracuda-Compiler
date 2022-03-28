@@ -215,7 +215,11 @@ impl EmulatorHeap {
         Ok(())
     }
 
-    pub(crate) fn write_word<T: Primitive>(&mut self, address_virtual: usize, value: T) -> Result<(), io::Error> {
+    /// Writes primitive value into virtual heap in little endian format
+    /// @address_virtual: Virtual address of byte pointer to store value
+    /// @value: Of type T which can be any rust primitive
+    /// @return: #BytesWritten if Ok, otherwise NotFound if out of bounds occured during write
+    pub(crate) fn write_word<T: Primitive>(&mut self, address_virtual: usize, value: T) -> Result<usize, io::Error> {
         let mut byte_buffer = Vec::new();
         byte_buffer.try_write::<LittleEndian, T>(value)?;
         let byte_count = byte_buffer.len();
@@ -224,17 +228,20 @@ impl EmulatorHeap {
         let address_end = HeapAddress::from_virtual(address_virtual + byte_count);
 
         let memory_region = self.heap.get(&address_start.region_index)
-            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory write region was not found {:?}", address_start)))?;
         let mut memory_region = memory_region.borrow_mut();
 
         let memory_bytes = memory_region.get_mut((address_start.byte_index as usize)..(address_end.byte_index as usize))
-            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory write bytes out of bounds {:?}", address_start)))?;
 
 
         memory_bytes.clone_from_slice(&byte_buffer);
-        Ok(())
+        Ok(byte_count)
     }
 
+    /// Reads primitive value from virtual heap in little endian format
+    /// @address_virtual: Virtual address of byte pointer where value is stored
+    /// @return: value as type T if Ok, otherwise NotFound if out of bounds occurred during read
     pub(crate) fn read_word<T: Primitive>(&mut self, address_virtual: usize) -> Result<T, io::Error> {
         let byte_count = size_of::<T>();
         let address_start = HeapAddress::from_virtual(address_virtual);
@@ -245,9 +252,8 @@ impl EmulatorHeap {
         let memory_region = memory_region.borrow_mut();
 
         let mut memory_bytes = memory_region.get((address_start.byte_index as usize)..(address_end.byte_index as usize))
-            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;
-
-
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read bytes out of bounds  {:?}", address_start)))?;
+        
         let value: T = memory_bytes.try_read::<LittleEndian, T>()?;
         Ok(value)
     }
