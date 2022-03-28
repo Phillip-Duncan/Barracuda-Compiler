@@ -235,10 +235,13 @@ pub enum MathStackOperators {
 }
 
 impl MathStackOperators {
+
+    /// Converts opcode value into Operation enums.
+    /// @opcode: MathStack op code value.
+    /// @returns Some(MathStackOperator) representing opcode value, None otherwise
     pub(crate) fn from(opcode: u32) -> Option<Self> {
         FromPrimitive::from_u32(opcode)
     }
-
 
     /// Executes relevant operation on a thread context.
     /// The enum will match and apply the appropriate "micro-code" of the operation
@@ -532,7 +535,7 @@ impl MathStackOperators {
                 context.push(bessel::j(a, 1).re)
             },
             Self::BESJN => {
-                let b = context.pop? as i32;
+                let b = context.pop()? as i32;
                 let a = context.pop()?;
                 context.push(bessel::j(a, b).re)
             },

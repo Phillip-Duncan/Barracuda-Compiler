@@ -1,6 +1,7 @@
 pub(crate) mod ops;
 pub(crate) mod instructions;
 mod test;
+mod emulator_heap;
 
 use crate::emulator::ops::MathStackOperators;
 use crate::emulator::instructions::MathStackInstructions;
@@ -9,6 +10,8 @@ use std::io::{self};
 use crate::emulator::ops::MathStackOperators::LDA;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
+use crate::emulator::emulator_heap::EmulatorHeap;
 
 /// Environment var count as given by the operations. This needs to be updated manually if adding
 /// more env var load instructions.
@@ -69,6 +72,9 @@ pub struct ThreadContext {
     /// Computation stack. Initializes as empty on construction.
     stack: Vec<f64>,
 
+    /// Memory heap
+    pub heap: EmulatorHeap,
+
     /// Loop tracker stack used for tracking nested loops
     loop_counters: Vec<LoopTracker>
 }
@@ -95,6 +101,7 @@ impl ThreadContext {
             operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
             instructions,
             stack: Vec::new(),
+            heap: EmulatorHeap::new(),
             loop_counters: Vec::new()
         }
     }
@@ -185,6 +192,7 @@ impl ThreadContext {
     }
 
     /// Gets the current program counter
+    /// @return: Current program counter.
     pub(crate) fn get_pc(&self) -> usize {
         self.stack_pointer
     }
@@ -314,9 +322,9 @@ impl ThreadContext {
         self.stack_pointer == self.instructions.len()
     }
 
-    ///    Will step a single instruction of the program loaded.
-    ///    @return: nothing if successful, an io error if an unrecoverable error was encountered during
-    ///           execution
+    ///  Will step a single instruction of the program loaded.
+    ///  @return: nothing if successful, an io error if an unrecoverable error was encountered
+    ///           during execution
     pub(crate) fn step(&mut self) -> Result<(), Error> {
         if self.stack_pointer < self.instructions.len() {
             let instruction = self.get_instruction()?;
@@ -326,10 +334,10 @@ impl ThreadContext {
         }
     }
 
-    ///    Will run the program loaded until the execution is finished.
-    ///    Execution is finished when the program counter reaches the end of the instruction stack.
-    ///    @return nothing if successful an io error if an unrecoverable error was encountered during
-    ///            execution.
+    /// Will run the program loaded until the execution is finished.
+    /// Execution is finished when the program counter reaches the end of the instruction stack.
+    /// @return nothing if successful an io error if an unrecoverable error was encountered during
+    ///         execution.
     pub(crate) fn run_till_halt(&mut self) -> Result<(), Error> {
         while !self.is_execution_finished() {
             self.step()?;
