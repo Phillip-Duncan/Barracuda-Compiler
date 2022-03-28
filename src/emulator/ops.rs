@@ -419,8 +419,14 @@ impl MathStackOperators {
                 let a = context.pop()?;
                 Ok(context.push(f64::cos(a * std::f64::consts::PI))?)
             },
-            // BESI0 ? TODO(Connor): Clarify how complex numbers are handled
-            // BESI1 ?
+            Self::BESI0 => {
+                let a = context.pop()?;
+                context.push(bessel::i(a, 0).re)
+            },
+            Self::BESI1 => {
+                let a = context.pop()?;
+                context.push(bessel::i(a, 1).re)
+            },
             Self::ERF => {
                 let a = context.pop()?;
                 context.push(erf(a))
@@ -517,9 +523,19 @@ impl MathStackOperators {
                 let a = context.pop()?;
                 context.push(f64::is_nan(a) as i64 as f64)
             },
-            // BESJ0 ?
-            // BESJ1 ?
-            // BESJN ?
+            Self::BESJ0 => {
+                let a = context.pop()?;
+                context.push(bessel::j(a, 0).re)
+            },
+            Self::BESJ1 => {
+                let a = context.pop()?;
+                context.push(bessel::j(a, 1).re)
+            },
+            Self::BESJN => {
+                let b = context.pop? as i32;
+                let a = context.pop()?;
+                context.push(bessel::j(a, b).re)
+            },
             Self::LDEXP => {
                 let b = context.pop()?;
                 let a = context.pop()?;
@@ -660,9 +676,19 @@ impl MathStackOperators {
                 let a = context.pop()?;
                 context.push(f64::trunc(a))
             },
-            // BESY0 ?
-            // BESY1 ?
-            // BESYN ?
+            Self::BESY0 => {
+                let a = context.pop()?;
+                context.push(bessel::y(a, 0).re)
+            },
+            Self::BESY1 => {
+                let a = context.pop()?;
+                context.push(bessel::y(a, 1).re)
+            },
+            Self::BESYN => {
+                let b = context.pop()? as i32;
+                let a = context.pop()?;
+                context.push(bessel::y(a, b).re)
+            },
             Self::PRINTC => {
                 let a = context.pop()? as u8 as char;
                 let mut out = context.output_handle.borrow_mut();
