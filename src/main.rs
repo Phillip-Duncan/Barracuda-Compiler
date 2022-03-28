@@ -10,6 +10,7 @@ extern crate num_traits;
 #[macro_use]
 extern crate derive_getters;
 extern crate scilib;
+extern crate endiannezz;
 
 mod emulator;
 mod test;

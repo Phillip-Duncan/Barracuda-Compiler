@@ -123,3 +123,43 @@ fn test_memcpy() {
     let value = heap.read(address_dest+byte_count).unwrap();
     assert_eq!(value, 0);
 }
+
+#[test]
+fn test_write_word() {
+    let mut heap = EmulatorHeap::new();
+    let address_start = heap.malloc(256).unwrap();
+    let value: u32  = 0xDEAD_BEEF;
+
+    heap.write_word(address_start, value);
+    assert_eq!(heap.read(address_start).unwrap(), 0xEF);
+    assert_eq!(heap.read(address_start+1).unwrap(), 0xBE);
+    assert_eq!(heap.read(address_start+2).unwrap(), 0xAD);
+    assert_eq!(heap.read(address_start+3).unwrap(), 0xDE);
+}
+
+#[test]
+fn test_read_word() {
+    let mut heap = EmulatorHeap::new();
+    let address_start = heap.malloc(256).unwrap();
+    let expected_value: u32  = 0xDEAD_BEEF;
+
+    heap.write(address_start, 0xEF);
+    heap.write(address_start+1, 0xBE);
+    heap.write(address_start+2, 0xAD);
+    heap.write(address_start+3, 0xDE);
+    let value: u32 = heap.read_word(address_start).unwrap();
+
+    assert_eq!(value, expected_value);
+}
+
+#[test]
+fn test_read_write_64bit_word() {
+    let mut heap = EmulatorHeap::new();
+    let address_start = heap.malloc(256).unwrap();
+    let expected_value: u64  = 0xDEAD_BEEF_DEAD_BEEF;
+
+    heap.write_word(address_start, expected_value);
+    let value: u64 = heap.read_word(address_start).unwrap();
+
+    assert_eq!(value, expected_value);
+}

@@ -3,6 +3,9 @@ use std::{io, fmt};
 use std::io::{ErrorKind, Write};
 use std::cell::RefCell;
 use std::borrow::Borrow;
+use endiannezz::{Primitive, NativeEndian, LittleEndian};
+use endiannezz::ext::{EndianWriter, EndianReader};
+use std::mem::size_of;
 
 /// Memory heap used by MathStack program code
 /// ## Summary
@@ -215,6 +218,43 @@ impl EmulatorHeap {
 
         *memory_byte = value;
         Ok(())
+    }
+
+    pub(crate) fn write_word<T: Primitive>(&mut self, address_virtual: usize, value: T) -> Result<(), io::Error> {
+        let mut byte_buffer = Vec::new();
+        byte_buffer.try_write::<LittleEndian, T>(value)?;
+        let byte_count = byte_buffer.len();
+
+        let address_start = HeapAddress::from_virtual(address_virtual);
+        let address_end = HeapAddress::from_virtual(address_virtual + byte_count);
+
+        let memory_region = self.heap.get(&address_start.region_index)
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;
+        let mut memory_region = memory_region.borrow_mut();
+
+        let mut memory_bytes = memory_region.get_mut((address_start.byte_index as usize)..(address_end.byte_index as usize))
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;
+
+
+        memory_bytes.clone_from_slice(&byte_buffer);
+        Ok(())
+    }
+
+    pub(crate) fn read_word<T: Primitive>(&mut self, address_virtual: usize) -> Result<T, io::Error> {
+        let byte_count = size_of::<T>();
+        let address_start = HeapAddress::from_virtual(address_virtual);
+        let address_end = HeapAddress::from_virtual(address_virtual + byte_count);
+
+        let memory_region = self.heap.get(&address_start.region_index)
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;
+        let mut memory_region = memory_region.borrow_mut();
+
+        let mut memory_bytes = memory_region.get((address_start.byte_index as usize)..(address_end.byte_index as usize))
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;
+
+
+        let value: T = memory_bytes.try_read::<LittleEndian, T>()?;
+        Ok(value)
     }
 
 }
