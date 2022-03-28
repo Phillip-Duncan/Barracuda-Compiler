@@ -687,15 +687,15 @@ impl MathStackOperators {
                 let a = context.pop()?.into_f64();
                 context.push(REAL(1.0 / f64::sqrt(a)))
             },
-            Self::SCALBLN => {
-                let b = context.pop()?.into_u64();
+            Self::SCALBLN => { // TODO(Connor): This implementation is surely wrong but need more details
+                let b = context.pop()?.into_f64();
                 let a = context.pop()?.into_f64();
-                context.push(REAL(a * u64::pow(2, b as u32)))
+                context.push(REAL(a * f64::powf(2.0, b)))
             },
-            Self::SCALBN => {
-                let b = context.pop()?.into_u64();
+            Self::SCALBN => { // TODO(Connor): This implementation is surely wrong but need more details
+                let b = context.pop()?.into_f64();
                 let a = context.pop()?.into_f64();
-                context.push(REAL(a * u64::pow(2, b as u32)))
+                context.push(REAL(a * f64::powf(2.0, b)))
             },
             Self::SGNBIT => {
                 let a = context.pop()?.into_f64();
