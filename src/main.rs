@@ -41,9 +41,9 @@ fn main()  {
                                          vec![PRINTC, PRINTC, PRINTC, LDA, LDB, LDC],
                                          vec![LOOP_END, LOOP_END, OP, OP, OP, OP, OP, OP,LOOP_ENTRY, VALUE, VALUE],
                                          Rc::new(RefCell::new(io::stdout())));
-    context.set_env_var(0, ('H' as u8) as f64);
-    context.set_env_var(1, ('i' as u8) as f64);
-    context.set_env_var(2, ('\n' as u8) as f64);
+    context.set_env_var(0, ('H' as u8) as f64).unwrap();
+    context.set_env_var(1, ('i' as u8) as f64).unwrap();
+    context.set_env_var(2, ('\n' as u8) as f64).unwrap();
     let mut visualiser = visualiser::MathStackVisualiser::new(context);
-    visualiser.run();
+    visualiser.run().unwrap();
 }

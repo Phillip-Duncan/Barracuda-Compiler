@@ -3,7 +3,6 @@ use tui::widgets::{ListState, Block, Borders, BorderType, ListItem, List};
 use tui::backend::Backend;
 use tui::Frame;
 use tui::layout::Rect;
-use tui::style::{Modifier, Style};
 
 pub struct StackWindow {
     stack_state: ListState,

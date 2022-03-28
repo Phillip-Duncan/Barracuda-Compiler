@@ -15,22 +15,19 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io, time::{Duration, Instant}, thread};
+use std::{io, time::{Duration, Instant}};
 use tui::{backend::{Backend, CrosstermBackend}, Terminal, Frame};
-use tui::widgets::{Block, Borders, BorderType, Paragraph};
 use tui::layout::{Layout, Direction, Constraint, Rect};
-use std::io::{Cursor, Seek, BufRead, SeekFrom, Write};
+use std::io::{Cursor, Write};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut, Ref};
-use tui::text::{Span, Spans, Text};
-use tui::style::{Style, Color, Modifier};
+use std::cell::{RefCell};
 use crossterm::event::KeyEvent;
 use std::ops::Deref;
 use crate::visualiser::VisualiserUIWindows::{OUTPUT, INSTRUCTIONS, STACK, ENV_VARS};
-use std::borrow::BorrowMut;
 use crate::visualiser::event_widget::EventWidget;
 
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum VisualiserUIWindows {
     INSTRUCTIONS,

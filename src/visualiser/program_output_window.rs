@@ -5,7 +5,6 @@ use tui::Frame;
 use tui::layout::Rect;
 use tui::widgets::{Block, Borders, BorderType, Paragraph};
 use tui::style::{Style, Color, Modifier};
-use std::borrow::BorrowMut;
 use crate::visualiser::event_widget::EventWidget;
 use crossterm::event::{KeyEvent, KeyCode};
 
@@ -54,7 +53,7 @@ impl ProgramOutputWindow {
         // Set scroll offset to bottom of paragraph if size has changed since last draw call.
         if text.height() != self.last_output_len {
             self.last_output_len = text.height();
-            self.scroll_offset = (self.last_output_len as u16 - inner_area.height.min(self.last_output_len as u16));
+            self.scroll_offset = self.last_output_len as u16 - inner_area.height.min(self.last_output_len as u16);
         } else {
             // Truncate scroll offset to scroll window. Only known during draw call
             self.scroll_offset = self.scroll_offset.min((self.last_output_len as i32 - inner_area.height as i32).max(0) as u16)

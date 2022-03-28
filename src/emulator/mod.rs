@@ -6,13 +6,10 @@ mod emulator_heap;
 use crate::emulator::ops::MathStackOperators;
 use crate::emulator::instructions::MathStackInstructions;
 use std::io::{Error, ErrorKind, Write};
-use std::io::{self};
 use crate::emulator::ops::MathStackOperators::LDA;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::collections::HashMap;
 use crate::emulator::emulator_heap::EmulatorHeap;
-use std::ops::Add;
 use std::fmt;
 
 

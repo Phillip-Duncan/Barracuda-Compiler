@@ -1,11 +1,10 @@
 use crate::emulator::{ThreadContext, ENV_VAR_COUNT};
 use crate::visualiser::scrollable_list::ScrollableList;
 use crate::visualiser::event_widget::EventWidget;
-use tui::widgets::{ListState, Block, Borders, BorderType, ListItem, List};
+use tui::widgets::{Block, Borders, BorderType, ListItem};
 use tui::backend::Backend;
 use tui::Frame;
 use tui::layout::Rect;
-use tui::style::{Modifier, Style};
 use crossterm::event::{KeyEvent, KeyCode};
 
 pub struct EnvVarWindow {

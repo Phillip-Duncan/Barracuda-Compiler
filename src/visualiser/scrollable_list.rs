@@ -52,13 +52,13 @@ impl ScrollableList {
 
     pub fn scroll_up(&mut self) {
         if self.scroll_offset > 0 {
-            self.scroll_offset = (self.scroll_offset - 1)
+            self.scroll_offset = self.scroll_offset - 1
         }
     }
 
     pub fn scroll_down(&mut self) {
         // If scroll offset is greater than the item list it is truncated during the draw call.
-        self.scroll_offset = (self.scroll_offset + 1);
+        self.scroll_offset = self.scroll_offset + 1;
     }
 
     fn get_scroll_range(list_height: usize, scroll_offset: usize, frame_height: usize) -> (usize, usize) {

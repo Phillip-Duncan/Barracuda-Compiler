@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::{io, fmt};
-use std::io::{ErrorKind, Write};
+use std::io::ErrorKind;
 use std::cell::RefCell;
-use std::borrow::Borrow;
-use endiannezz::{Primitive, NativeEndian, LittleEndian};
+use endiannezz::{Primitive, LittleEndian};
 use endiannezz::ext::{EndianWriter, EndianReader};
 use std::mem::size_of;
 
@@ -34,10 +33,6 @@ struct HeapAddress {
 }
 
 impl HeapAddress {
-    fn max_region_count() -> u64 {
-       u64::pow(2, 16)
-    }
-
     fn max_byte_count() -> u64 {
         u64::pow(2, 48)
     }
@@ -213,7 +208,7 @@ impl EmulatorHeap {
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address)))?;
         let mut memory_region = memory_region.borrow_mut();
 
-        let mut memory_byte = memory_region.get_mut(address.byte_index as usize)
+        let memory_byte = memory_region.get_mut(address.byte_index as usize)
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address)))?;
 
         *memory_byte = value;
@@ -232,7 +227,7 @@ impl EmulatorHeap {
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;
         let mut memory_region = memory_region.borrow_mut();
 
-        let mut memory_bytes = memory_region.get_mut((address_start.byte_index as usize)..(address_end.byte_index as usize))
+        let memory_bytes = memory_region.get_mut((address_start.byte_index as usize)..(address_end.byte_index as usize))
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;
 
 
@@ -247,7 +242,7 @@ impl EmulatorHeap {
 
         let memory_region = self.heap.get(&address_start.region_index)
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;
-        let mut memory_region = memory_region.borrow_mut();
+        let memory_region = memory_region.borrow_mut();
 
         let mut memory_bytes = memory_region.get((address_start.byte_index as usize)..(address_end.byte_index as usize))
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read byte was not found {:?}", address_start)))?;

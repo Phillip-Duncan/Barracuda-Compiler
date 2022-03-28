@@ -25,7 +25,7 @@ fn test_max_malloc_byte_size() {
 fn test_max_alloc_regions() {
     let mut heap = EmulatorHeap::new();
 
-    for i in 0..usize::pow(2, 16) {
+    for _i in 0..u64::pow(2, 16) {
         heap.malloc(0).unwrap();
     }
 
@@ -49,8 +49,8 @@ fn test_write_read() {
     let address_end = address_start + 255;
 
     let expected_value: u8 = 42;
-    heap.write(address_start, expected_value);
-    heap.write(address_end, expected_value);
+    heap.write(address_start, expected_value).unwrap();
+    heap.write(address_end, expected_value).unwrap();
 
     assert_eq!(expected_value, heap.read(address_start).unwrap());
     assert_eq!(0, heap.read(address_mid).unwrap());
@@ -88,7 +88,7 @@ fn test_memset() {
     let address_start = heap.malloc(256).unwrap();
     let buffer_start = address_start + 128;
     let byte_count: usize = 64;
-    heap.memset(buffer_start, 42, byte_count);
+    heap.memset(buffer_start, 42, byte_count).unwrap();
 
     for i in 0..byte_count {
         let value = heap.read(buffer_start + i).unwrap();
@@ -107,7 +107,7 @@ fn test_memcpy() {
 
     // Write bytes
     for i in 0..byte_count {
-        heap.write(address_src+i, i as u8);
+        heap.write(address_src+i, i as u8).unwrap();
     }
 
     // Copy bytes
@@ -130,7 +130,7 @@ fn test_write_word() {
     let address_start = heap.malloc(256).unwrap();
     let value: u32  = 0xDEAD_BEEF;
 
-    heap.write_word(address_start, value);
+    heap.write_word(address_start, value).unwrap();
     assert_eq!(heap.read(address_start).unwrap(), 0xEF);
     assert_eq!(heap.read(address_start+1).unwrap(), 0xBE);
     assert_eq!(heap.read(address_start+2).unwrap(), 0xAD);
@@ -143,10 +143,10 @@ fn test_read_word() {
     let address_start = heap.malloc(256).unwrap();
     let expected_value: u32  = 0xDEAD_BEEF;
 
-    heap.write(address_start, 0xEF);
-    heap.write(address_start+1, 0xBE);
-    heap.write(address_start+2, 0xAD);
-    heap.write(address_start+3, 0xDE);
+    heap.write(address_start, 0xEF).unwrap();
+    heap.write(address_start+1, 0xBE).unwrap();
+    heap.write(address_start+2, 0xAD).unwrap();
+    heap.write(address_start+3, 0xDE).unwrap();
     let value: u32 = heap.read_word(address_start).unwrap();
 
     assert_eq!(value, expected_value);
@@ -158,7 +158,7 @@ fn test_read_write_64bit_word() {
     let address_start = heap.malloc(256).unwrap();
     let expected_value: u64  = 0xDEAD_BEEF_DEAD_BEEF;
 
-    heap.write_word(address_start, expected_value);
+    heap.write_word(address_start, expected_value).unwrap();
     let value: u64 = heap.read_word(address_start).unwrap();
 
     assert_eq!(value, expected_value);
