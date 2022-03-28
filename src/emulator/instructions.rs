@@ -2,6 +2,7 @@ use crate::emulator::ThreadContext;
 use crate::emulator::ops::MathStackOperators;
 use std::io::{Error, ErrorKind};
 use crate::emulator::LoopTracker;
+use crate::emulator::StackValue::*;
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
@@ -42,7 +43,7 @@ impl MathStackInstructions {
         match self {
             Self::VALUE => {
                 let value: f64 = context.get_value()?;
-                context.push(value)?;
+                context.push(REAL(value))?;
                 context.step_pc();
                 Ok(())
             },
@@ -53,13 +54,13 @@ impl MathStackInstructions {
                 Ok(())
             },
             Self::GOTO => {
-                let address = context.pop()? as i64;
+                let address = context.pop()?.into_u64();
                 context.set_pc(address as usize)?;
                 Ok(())
             },
             Self::GOTO_IF => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_i64();
                 if a == 0 {
                     context.set_pc(b as usize)?;
                 } else {
@@ -68,8 +69,8 @@ impl MathStackInstructions {
                 Ok(())
             },
             Self::LOOP_ENTRY => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
+                let b = context.pop()?.into_i64();
+                let a = context.pop()?.into_i64();
                 context.loop_counters.push(LoopTracker::new(a,b, context.stack_pointer));
                 context.step_pc();
                 Ok(())

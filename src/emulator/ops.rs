@@ -1,4 +1,4 @@
-use crate::emulator::ThreadContext;
+use crate::emulator::{ThreadContext, StackValue::*};
 use std::io::{Error, ErrorKind};
 use statrs::function::erf::{erf, erfc, erfc_inv, erf_inv};
 use libm::{ilogb, lgamma, tgamma};
@@ -245,6 +245,7 @@ impl MathStackOperators {
 
     /// Executes relevant operation on a thread context.
     /// The enum will match and apply the appropriate "micro-code" of the operation
+    /// The enum will match and apply the appropriate "micro-code" of the operation
     /// @context: The thread_context to apply the operation to
     /// @return: Ok() on success, relevant Error if the operation fails. If the operation
     /// is not implemented or unknown it will return ErrorKind::NotFound
@@ -254,61 +255,61 @@ impl MathStackOperators {
                 Ok(())
             },
             Self::ADD => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(a+b)?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(a+b))?)
             },
             Self::SUB => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(a-b)?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(a-b))?)
             },
             Self::MUL => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(a*b)?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(a*b))?)
             },
             Self::DIV => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(a/b)?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(a/b))?)
             },
             Self::AND => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a & b) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a & b))?)
             },
             Self::NAND => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((!(a & b)) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(!(a & b)))?)
             },
             Self::OR => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a | b) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a | b))?)
             },
             Self::NOR => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((!(a | b)) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(!(a | b)))?)
             },
             Self::XOR => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a ^ b) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a ^ b))?)
             },
             Self::NOT => {
-                let a = context.pop()? as i64;
-                Ok(context.push((!a) as f64)?)
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(!a))?)
             },
             Self::INC => {
-                let a = context.pop()? as i64;
-                Ok(context.push((a + 1) as f64)?)
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a + 1))?)
             },
             Self::DEC => {
-                let a = context.pop()? as i64;
-                Ok(context.push((a - 1) as f64)?)
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a - 1))?)
             },
             Self::SWAP => {
                 let b = context.pop()?;
@@ -333,14 +334,14 @@ impl MathStackOperators {
                 Ok(())
             },
             Self::LSHIFT => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a << b) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a << b))?)
             },
             Self::RSHIFT => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a >> b) as f64)?)
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                Ok(context.push(UINT(a >> b))?)
             },
             // Malloc ?
             // Free ?
@@ -349,19 +350,19 @@ impl MathStackOperators {
             // Read ?
             // Write ?
             Self::ADD_PTR => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a + b) as f64)?)
+                let b = context.pop()?.into_i64();
+                let a = context.pop()?.into_i64();
+                Ok(context.push(INT(a + b))?)
             },
             Self::SUB_PTR => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                Ok(context.push((a - b) as f64)?)
+                let b = context.pop()?.into_i64();
+                let a = context.pop()?.into_i64();
+                Ok(context.push(INT(a - b))?)
             }
             Self::TERNARY => {
                 let c = context.pop()?;
                 let b = context.pop()?;
-                let a = context.pop()?;
+                let a = context.pop()?.into_f64();
                 if a > 0.0 {
                     Ok(context.push(b)?)
                 } else {
@@ -369,237 +370,236 @@ impl MathStackOperators {
                 }
             },
             Self::ACOS => {
-                let a = context.pop()?;
-                Ok(context.push(f64::acos(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::acos(a)))?)
             },
             Self::ACOSH => {
-                let a = context.pop()?;
-                Ok(context.push(f64::acosh(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::acosh(a)))?)
             },
             Self::ASIN => {
-                let a = context.pop()?;
-                Ok(context.push(f64::asin(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::asin(a)))?)
             },
             Self::ASINH => {
-                let a = context.pop()?;
-                Ok(context.push(f64::asinh(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::asinh(a)))?)
             },
             Self::ATAN => {
-                let a = context.pop()?;
-                Ok(context.push(f64::atan(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::atan(a)))?)
             },
             Self::ATAN2 => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(f64::atan2(a, b))?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::atan2(a, b)))?)
             },
             Self::ATANH => {
-                let a = context.pop()?;
-                Ok(context.push(f64::atanh(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::atanh(a)))?)
             },
             Self::CBRT => {
-                let a = context.pop()?;
-                Ok(context.push(f64::cbrt(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::cbrt(a)))?)
             },
             Self::CEIL => {
-                let a = context.pop()?;
-                Ok(context.push(f64::ceil(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::ceil(a)))?)
             },
             Self::CPYSGN => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                Ok(context.push(f64::copysign(a, b))?)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::copysign(a, b)))?)
             },
             Self::COS => {
-                let a = context.pop()?;
-                Ok(context.push(f64::cos(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::cos(a)))?)
             },
             Self::COSH => {
-                let a = context.pop()?;
-                Ok(context.push(f64::cosh(a))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::cosh(a)))?)
             },
             Self::COSPI => {
-                let a = context.pop()?;
-                Ok(context.push(f64::cos(a * std::f64::consts::PI))?)
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(f64::cos(a * std::f64::consts::PI)))?)
             },
             Self::BESI0 => {
-                let a = context.pop()?;
-                context.push(bessel::i(a, 0).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::i(a, 0).re))
             },
             Self::BESI1 => {
-                let a = context.pop()?;
-                context.push(bessel::i(a, 1).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::i(a, 1).re))
             },
             Self::ERF => {
-                let a = context.pop()?;
-                context.push(erf(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(erf(a)))
             },
             Self::ERFC => {
-                let a = context.pop()?;
-                context.push(erfc(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(erfc(a)))
             },
             Self::ERFCI => {
-                let a = context.pop()?;
-                context.push(erfc_inv(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(erfc_inv(a)))
             },
             Self::ERFCX => {
-                let a = context.pop()?;
-                context.push(f64::exp(a*a) * erfc(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::exp(a*a) * erfc(a)))
             },
             Self::ERFI => {
-                let a = context.pop()?;
-                context.push(erf_inv(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(erf_inv(a)))
             },
             Self::EXP => {
-                let a = context.pop()?;
-                context.push(f64::exp(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::exp(a)))
             },
             Self::EXP10 => {
-                let a = context.pop()?;
-                context.push(f64::powf(10.0, a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::powf(10.0, a)))
             },
             Self::EXP2 => {
-                let a = context.pop()?;
-                context.push(f64::powf(2.0, a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::powf(2.0, a)))
             },
             Self::EXPM1 => {
-                let a = context.pop()?;
-                context.push(f64::exp_m1(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::exp_m1(a)))
             },
             Self::FABS => {
-                let a = context.pop()?;
-                context.push(f64::abs(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::abs(a)))
             },
             Self::FDIM => {
-                let b = context.pop()?;
-                let a = context.pop()?;
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
                 if a > b {
-                    context.push(a-b)
+                    context.push(REAL(a-b))
                 } else {
-                    context.push(0.0)
+                    context.push(REAL(0.0))
                 }
             },
             Self::FLOOR => {
-                let a = context.pop()?;
-                context.push(f64::floor(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::floor(a)))
             },
             Self::FMA => {
-                let c = context.pop()?;
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(a * b + c)
+                let c = context.pop()?.into_f64();
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a * b + c))
             },
             Self::FMAX => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(f64::max(a, b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::max(a, b)))
             },
             Self::FMIN => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(f64::min(a, b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::min(a, b)))
             },
             Self::FMOD => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(a % b)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a % b))
             },
-            // FREXP ? https://www.cplusplus.com/reference/cmath/frexp/ requires pointer resolution
             Self::HYPOT => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(f64::hypot(a,b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::hypot(a,b)))
             },
             Self::ILOGB => {
-                let a = context.pop()?;
-                context.push(ilogb(a) as f64)
+                let a = context.pop()?.into_f64();
+                context.push(INT(ilogb(a) as i64))
             },
             Self::ISFIN => {
-                let a = context.pop()?;
-                context.push(f64::is_finite(a) as i64 as f64)
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::is_finite(a) as i64))
             },
             Self::ISINF => {
-                let a = context.pop()?;
-                context.push(f64::is_infinite(a) as i64 as f64)
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::is_infinite(a) as i64))
             },
             Self::ISNAN => {
-                let a = context.pop()?;
-                context.push(f64::is_nan(a) as i64 as f64)
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::is_nan(a) as i64))
             },
             Self::BESJ0 => {
-                let a = context.pop()?;
-                context.push(bessel::j(a, 0).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::j(a, 0).re))
             },
             Self::BESJ1 => {
-                let a = context.pop()?;
-                context.push(bessel::j(a, 1).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::j(a, 1).re))
             },
             Self::BESJN => {
-                let b = context.pop()? as i32;
-                let a = context.pop()?;
-                context.push(bessel::j(a, b).re)
+                let b = context.pop()?.into_i64() as i32;
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::j(a, b).re))
             },
             Self::LDEXP => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(a * f64::powf(2.0, b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a * f64::powf(2.0, b)))
             },
             Self::LGAMMA => {
-                let a = context.pop()?;
-                context.push(lgamma(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(lgamma(a)))
             },
             Self::LLRINT => {
-                let a = context.pop()?;
-                context.push(f64::floor(a))
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::floor(a) as i64))
             },
             Self::LLROUND => {
-                let a = context.pop()?;
-                context.push(f64::round(a))
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::round(a) as i64))
             },
             Self::LOG => {
-                let a = context.pop()?;
-                context.push(f64::ln(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::ln(a)))
             },
             Self::LOG10 => {
-                let a = context.pop()?;
-                context.push(f64::log(a, 10.0))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::log(a, 10.0)))
             },
             Self::LOG1P => {
-                let a = context.pop()?;
-                context.push(f64::ln(1.0+a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::ln(1.0+a)))
             },
             Self::LOG2 => {
-                let a = context.pop()?;
-                context.push(f64::log(a, 2.0))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::log(a, 2.0)))
             },
             Self::LOGB => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(f64::log(a, b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::log(a, b)))
             },
             Self::LRINT => {
-                let a = context.pop()?;
-                context.push(f64::floor(a)) // TODO(Connor): This should respect 32bit truncation
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::floor(a) as i32 as i64))
             },
             Self::LROUND => {
-                let a = context.pop()?;
-                context.push(f64::round(a)) // TODO(Connor): This should respect 32bit truncation
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::round(a) as i32 as i64))
             },
             Self::MAX => {
-                let a = context.pop()?;
-                context.push(f64::max(a, 0.0)) // TODO(Connor): Review if this is the expected functionality
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::max(a, 0.0))) // TODO(Connor): Review if this is the expected functionality
             },
             Self::MIN => {
-                let a = context.pop()?;
-                context.push(f64::min(a, 1.0)) // TODO(Connor): Review if this is the expected functionality
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::min(a, 1.0))) // TODO(Connor): Review if this is the expected functionality
             },
             // MODF ?
             // NAN ?
             // NEARINT ?
             Self::NXTAFT => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(a.next_after(b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a.next_after(b)))
             },
             // NORM ?
             // NORM3D ?
@@ -607,99 +607,99 @@ impl MathStackOperators {
             // NORMCDF ? Single value for cdf?
             // NORMCDFINV ?
             Self::POW => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(f64::powf(a,b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::powf(a,b) as i64))
             },
             Self::RCBRT => {
-                let a = context.pop()?;
-                context.push(1.0/f64::cbrt(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(1.0/f64::cbrt(a)))
             },
             Self::REM => {
-                let b = context.pop()? as i64;
-                let a = context.pop()? as i64;
-                context.push((a % b) as f64)
+                let b = context.pop()?.into_i64();
+                let a = context.pop()?.into_i64();
+                context.push(INT(a % b))
             },
             // REMQUO ?
             Self::RHYPOT => {
-                let b = context.pop()?;
-                let a = context.pop()?;
-                context.push(1.0/f64::hypot(a,b))
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(1.0/f64::hypot(a,b)))
             },
             Self::RINT => {
-                let a = context.pop()?;
-                context.push(f64::round(a))
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::round(a) as i64))
             },
             // RNORM ?
             // RNORM3D ?
             // RNORM4D ?
             Self::ROUND => {
-                let a = context.pop()?;
-                context.push(f64::round(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::round(a)))
             },
             Self::RSQRT => {
-                let a = context.pop()?;
-                context.push(1.0 / f64::sqrt(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(1.0 / f64::sqrt(a)))
             },
             // SCALBLN ? TODO(Connor): Figure out how to best handle different number representations
             // SCALBN ?
             Self::SGNBIT => {
-                let a = context.pop()?;
-                context.push(f64::is_sign_negative(a) as i64 as f64)
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::is_sign_negative(a) as i64))
             }
             Self::SIN => {
-                let a = context.pop()?;
-                Ok(context.push(f64::sin(a))?)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::sin(a)))
             },
             Self::SINH => {
-                let a = context.pop()?;
-                context.push(f64::sinh(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::sinh(a)))
             },
             Self::SINPI => {
-                let a = context.pop()?;
-                context.push(f64::sin(a * std::f64::consts::PI))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::sin(a * std::f64::consts::PI)))
             },
             Self::SQRT => {
-                let a = context.pop()?;
-                context.push(f64::sqrt(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::sqrt(a)))
             },
             Self::TAN => {
-                let a = context.pop()?;
-                context.push(f64::tan(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::tan(a)))
             },
             Self::TANH => {
-                let a = context.pop()?;
-                context.push(f64::tanh(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(f64::tanh(a)))
             },
             Self::TGAMMA => {
-                let a = context.pop()?;
-                context.push(tgamma(a))
+                let a = context.pop()?.into_f64();
+                context.push(REAL(tgamma(a)))
             },
             Self::TRUNC => {
-                let a = context.pop()?;
-                context.push(f64::trunc(a))
+                let a = context.pop()?.into_f64();
+                context.push(INT(f64::trunc(a) as i64))
             },
             Self::BESY0 => {
-                let a = context.pop()?;
-                context.push(bessel::y(a, 0).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::y(a, 0).re))
             },
             Self::BESY1 => {
-                let a = context.pop()?;
-                context.push(bessel::y(a, 1).re)
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::y(a, 1).re))
             },
             Self::BESYN => {
-                let b = context.pop()? as i32;
-                let a = context.pop()?;
-                context.push(bessel::y(a, b).re)
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(bessel::y(a, b).re))
             },
             Self::PRINTC => {
-                let a = context.pop()? as u8 as char;
+                let a = context.pop()?.into_u64() as u8 as char;
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },
             Self::PRINTCT => {
-                let b = context.pop()? as u8 as char;
-                let a = context.pop()? as u64;
+                let b = context.pop()?.into_u64() as u8 as char;
+                let a = context.pop()?.into_u64();
                 if a == context.thread_id {
                     let mut out = context.output_handle.borrow_mut();
                     write!(out, "{}", b)?;
@@ -707,13 +707,13 @@ impl MathStackOperators {
                 Ok(())
             },
             Self::PRINTFF => {
-                let a = context.pop()?;
+                let a = context.pop()?.into_f64();
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },
             Self::PRINTFFT => {
-                let b = context.pop()?;
-                let a = context.pop()? as u64;
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_u64();
                 if a == context.thread_id {
                     let mut out = context.output_handle.borrow_mut();
                     write!(out, "{}", b)?;
@@ -721,7 +721,7 @@ impl MathStackOperators {
                 Ok(())
             },
             Self::LDTID => {
-                Ok(context.push(context.thread_id as f64)?)
+                context.push(UINT(context.thread_id))
             },
             _ => {
                 // Match by value if not found above (This simplifies loading env vars)
@@ -731,12 +731,12 @@ impl MathStackOperators {
                 if opcode >= Self::LDA as u32 && opcode <= Self::LDZ0 as u32 {
                     let env_var_index = (opcode - Self::LDA as u32) as usize;
                     let env_var = context.env_vars[env_var_index];
-                    Ok(context.push(env_var)?)
+                    Ok(context.push(REAL(env_var))?)
 
                 // Save env variable
                 } else if opcode >= Self::RCA as u32 && opcode <= Self::RCZ as u32 {
                     let env_var_index = (opcode - Self::RCA as u32) as usize;
-                    let env_var = context.pop()?;
+                    let env_var = context.pop()?.into_f64();
                     context.env_vars[env_var_index] = env_var;
                     Ok(())
 

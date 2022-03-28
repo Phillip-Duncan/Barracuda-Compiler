@@ -23,7 +23,7 @@ impl StackWindow {
 
         self.stack.clear();
         for i in 0..stack.len() {
-            self.stack.push(format!("{}: {}", i, stack[i]));
+            self.stack.push(format!("{}: {:?}", i, stack[i]));
         }
 
         // Select the top of the stack

@@ -19,7 +19,7 @@ fn assert_stack_equal(context: emulator::ThreadContext, other: Vec<f64>, delta: 
     assert_eq!(stack.len(), other.len());
 
     for i in 0..stack.len() {
-        assert_relative_eq!(stack[i], other[i], max_relative=delta);
+        assert_relative_eq!(stack[i].into_f64(), other[i], max_relative=delta);
     }
 }
 
@@ -33,7 +33,7 @@ fn vm_example_1() {
     context.set_env_var(1, 1.5).unwrap();
     context.run_till_halt().unwrap();
 
-    assert_relative_eq!(context.get_stack()[0], -4.444, max_relative=0.001);
+    assert_relative_eq!(context.get_stack()[0].into_f64(), -4.444, max_relative=0.001);
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn vm_example_2() {
                                                    Rc::new(RefCell::new(io::stdout())));
     context.run_till_halt().unwrap();
 
-    assert_relative_eq!(context.get_stack()[0], 205.0, max_relative=0.001);
+    assert_relative_eq!(context.get_stack()[0].into_f64(), 205.0, max_relative=0.001);
 }
 
 #[test]

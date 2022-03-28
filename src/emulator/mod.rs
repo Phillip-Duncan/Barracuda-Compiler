@@ -12,6 +12,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;
 use crate::emulator::emulator_heap::EmulatorHeap;
+use std::ops::Add;
+use std::fmt;
+
 
 /// Environment var count as given by the operations. This needs to be updated manually if adding
 /// more env var load instructions.
@@ -33,6 +36,71 @@ impl LoopTracker {
             max: end,
             loop_start
         }
+    }
+}
+
+/// Represents possible values for StackValue
+/// In the VM this will be done by transmuting the bytes for the emulator however
+/// it is more useful and more safe to directly store the current representation of the value
+#[derive(Copy, Clone)]
+pub enum StackValue {
+    REAL(f64),
+    UINT(u64),
+    INT(i64)
+}
+
+impl StackValue {
+    pub(crate) fn into_u64(self) -> u64 {
+        match self {
+            StackValue::REAL(value) => {
+                value as u64
+            },
+            StackValue::UINT(value) => {
+                value as u64
+            },
+            StackValue::INT(value) => {
+                value as u64
+            }
+        }
+    }
+
+    pub(crate) fn into_f64(self) -> f64 {
+        match self {
+            StackValue::REAL(value) => {
+                value as f64
+            },
+            StackValue::UINT(value) => {
+                value as f64
+            },
+            StackValue::INT(value) => {
+                value as f64
+            }
+        }
+    }
+
+    pub(crate) fn into_i64(self) -> i64 {
+        match self {
+            StackValue::REAL(value) => {
+                value as i64
+            },
+            StackValue::UINT(value) => {
+                value as i64
+            },
+            StackValue::INT(value) => {
+                value as i64
+            }
+        }
+    }
+}
+
+impl fmt::Debug for StackValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StackValue::REAL(value) => {write!(f, "{:<10} F64", *value)}
+            StackValue::UINT(value) => {write!(f, "{:<10} U64", *value)}
+            StackValue::INT(value)  => {write!(f, "{:<10} I64", *value)}
+        }
+
     }
 }
 
@@ -70,10 +138,10 @@ pub struct ThreadContext {
     instructions: Vec<MathStackInstructions>,
 
     /// Computation stack. Initializes as empty on construction.
-    stack: Vec<f64>,
+    stack: Vec<StackValue>,
 
     /// Memory heap
-    pub heap: EmulatorHeap,
+    heap: EmulatorHeap,
 
     /// Loop tracker stack used for tracking nested loops
     loop_counters: Vec<LoopTracker>
@@ -142,7 +210,7 @@ impl ThreadContext {
 
     /// Pushes a value onto the execution stack.
     /// @return Ok if successful, otherwise if the push exceeds the stack size ErrorKind::OutOfMemory
-    fn push(&mut self, value: f64) -> Result<(), Error> {
+    fn push(&mut self, value: StackValue) -> Result<(), Error> {
         if self.stack.len() < self.stack_maxsize {
             Ok(self.stack.push(value))
         } else {
@@ -152,7 +220,7 @@ impl ThreadContext {
 
     /// Pops a value off of the execution stack.
     /// @return value: f64 is successful, otherwise if the stack is empty ErrorKind::AddrNotAvailable
-    fn pop(&mut self) -> Result<f64, Error> {
+    fn pop(&mut self) -> Result<StackValue, Error> {
         match self.stack.pop() {
             Some(value) => Ok(value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to pop value off stack. Reached end of stack"))
@@ -298,7 +366,7 @@ impl ThreadContext {
     }
 
     /// Returns a clone of the current stack state
-    pub(crate) fn get_stack(&self) -> Vec<f64> {
+    pub(crate) fn get_stack(&self) -> Vec<StackValue> {
         self.stack.clone()
     }
 
@@ -346,6 +414,3 @@ impl ThreadContext {
         Ok(())
     }
 }
-
-
-// UTILITY FUNCTIONS
