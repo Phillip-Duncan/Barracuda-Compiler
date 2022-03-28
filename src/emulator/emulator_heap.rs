@@ -253,7 +253,7 @@ impl EmulatorHeap {
 
         let mut memory_bytes = memory_region.get((address_start.byte_index as usize)..(address_end.byte_index as usize))
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read bytes out of bounds  {:?}", address_start)))?;
-        
+
         let value: T = memory_bytes.try_read::<LittleEndian, T>()?;
         Ok(value)
     }

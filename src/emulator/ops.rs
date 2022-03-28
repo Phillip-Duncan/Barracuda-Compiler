@@ -343,12 +343,37 @@ impl MathStackOperators {
                 let a = context.pop()?.into_u64();
                 Ok(context.push(UINT(a >> b))?)
             },
-            // Malloc ?
-            // Free ?
-            // Memcpy ?
-            // Memset ?
-            // Read ?
-            // Write ?
+            Self::MALLOC => {
+                let a = context.pop()?.into_u64() as usize;
+                let region_address = context.heap.malloc(a)?;
+                context.push(UINT(region_address as u64))
+            },
+            Self::FREE => {
+                let a = context.pop()?.into_u64() as usize;
+                context.heap.free(a)
+            },
+            Self::MEMCPY => {
+                let c = context.pop()?.into_u64() as usize;
+                let b = context.pop()?.into_u64() as usize;
+                let a = context.pop()?.into_u64() as usize;
+                context.heap.memcpy(a, b, c)
+            },
+            Self::MEMSET => {
+                let c = context.pop()?.into_u64() as usize;
+                let b = context.pop()?.into_u64() as u8;
+                let a = context.pop()?.into_u64() as usize;
+                context.heap.memset(a, b, c)
+            },
+            Self::READ => {
+                let a = context.pop()?.into_u64() as usize;
+                let value = context.heap.read(a)?;
+                context.push(UINT(value as u64))
+            },
+            Self::WRITE => {
+                let b = context.pop()?.into_u64() as u8;
+                let a = context.pop()?.into_u64() as usize;
+                context.heap.write(a, b)
+            }
             Self::ADD_PTR => {
                 let b = context.pop()?.into_i64();
                 let a = context.pop()?.into_i64();
@@ -505,6 +530,13 @@ impl MathStackOperators {
                 let a = context.pop()?.into_f64();
                 context.push(REAL(a % b))
             },
+            Self::FREXP => {
+                let b = context.pop()?.into_u64() as usize;
+                let a = context.pop()?.into_f64();
+                let (significand, exponent) = libm::frexp(a);
+                context.heap.write_word(b, exponent);
+                context.push(REAL(significand)) // TODO(Connor): Check this is the expected output
+            },
             Self::HYPOT => {
                 let b = context.pop()?.into_f64();
                 let a = context.pop()?.into_f64();
@@ -593,7 +625,13 @@ impl MathStackOperators {
                 let a = context.pop()?.into_f64();
                 context.push(REAL(f64::min(a, 1.0))) // TODO(Connor): Review if this is the expected functionality
             },
-            // MODF ?
+            Self::MODF => {
+                let b = context.pop()?.into_u64() as usize;
+                let a = context.pop()?.into_f64();
+                let (integer, fraction) = libm::modf(a);
+                context.heap.write_word(b, integer);
+                context.push(REAL(fraction)) // TODO(Connor): Review if this is the expected output
+            },
             // NAN ?
             // NEARINT ?
             Self::NXTAFT => {
@@ -620,7 +658,15 @@ impl MathStackOperators {
                 let a = context.pop()?.into_i64();
                 context.push(INT(a % b))
             },
-            // REMQUO ?
+            Self::REMQUO => {
+                let c = context.pop()?.into_u64() as usize;
+                let b = context.pop()?.into_f64();
+                let a = context.pop()?.into_f64();
+                let (remainder, quo) = libm::remquo(a,b);
+
+                context.heap.write_word(c, quo)?;
+                context.push(REAL(remainder))
+            },
             Self::RHYPOT => {
                 let b = context.pop()?.into_f64();
                 let a = context.pop()?.into_f64();
@@ -641,12 +687,20 @@ impl MathStackOperators {
                 let a = context.pop()?.into_f64();
                 context.push(REAL(1.0 / f64::sqrt(a)))
             },
-            // SCALBLN ? TODO(Connor): Figure out how to best handle different number representations
-            // SCALBN ?
+            Self::SCALBLN => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a * u64::pow(2, b as u32)))
+            },
+            Self::SCALBN => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_f64();
+                context.push(REAL(a * u64::pow(2, b as u32)))
+            },
             Self::SGNBIT => {
                 let a = context.pop()?.into_f64();
                 context.push(INT(f64::is_sign_negative(a) as i64))
-            }
+            },
             Self::SIN => {
                 let a = context.pop()?.into_f64();
                 context.push(REAL(f64::sin(a)))
