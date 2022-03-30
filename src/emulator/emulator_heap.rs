@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use endiannezz::{Primitive, LittleEndian};
 use endiannezz::ext::{EndianWriter, EndianReader};
 use std::mem::size_of;
+use std::collections::hash_map::Keys;
 
 /// Memory heap used by MathStack program code
 /// ## Summary
@@ -89,6 +90,14 @@ impl EmulatorHeap {
             heap: HashMap::new(),
             next_region_address: HeapAddress::from_real(0,0)
         }
+    }
+
+    pub(crate) fn get_memory_region_keys(&self) -> Keys<'_, u16, RefCell<Vec<u8>>> {
+        self.heap.keys()
+    }
+
+    pub(crate) fn get_memory_region(&self, index: u16) -> Option<&RefCell<Vec<u8>>> {
+        self.heap.get(&index)
     }
 
     /// Allocates a memory region within the heap and returns a virtual address to refer to when

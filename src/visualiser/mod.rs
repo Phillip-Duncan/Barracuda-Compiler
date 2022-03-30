@@ -4,12 +4,14 @@ mod stack_window;
 mod scrollable_list;
 mod program_output_window;
 mod event_widget;
+mod heap_viewer;
 
 use crate::emulator::ThreadContext;
 use crate::visualiser::instructions_window::InstructionsWindow;
 use crate::visualiser::stack_window::StackWindow;
 use crate::visualiser::env_vars_window::EnvVarWindow;
 use crate::visualiser::program_output_window::ProgramOutputWindow;
+use crate::visualiser::heap_viewer::HeapViewer;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -21,10 +23,13 @@ use tui::layout::{Layout, Direction, Constraint, Rect};
 use std::io::{Cursor, Write};
 use std::rc::Rc;
 use std::cell::{RefCell};
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, KeyModifiers};
 use std::ops::Deref;
-use crate::visualiser::VisualiserUIWindows::{OUTPUT, INSTRUCTIONS, STACK, ENV_VARS};
+use crate::visualiser::VisualiserUIWindows::{OUTPUT, INSTRUCTIONS, STACK, ENV_VARS, HEAP};
 use crate::visualiser::event_widget::EventWidget;
+use tui::widgets::Tabs;
+use tui::text::Spans;
+use tui::style::{Style, Color};
 
 
 #[allow(non_camel_case_types)]
@@ -33,7 +38,8 @@ enum VisualiserUIWindows {
     INSTRUCTIONS,
     STACK,
     ENV_VARS,
-    OUTPUT
+    OUTPUT,
+    HEAP
 }
 
 impl VisualiserUIWindows {
@@ -43,6 +49,37 @@ impl VisualiserUIWindows {
             VisualiserUIWindows::STACK => {VisualiserUIWindows::ENV_VARS}
             VisualiserUIWindows::ENV_VARS => {VisualiserUIWindows::OUTPUT}
             VisualiserUIWindows::OUTPUT => {VisualiserUIWindows::INSTRUCTIONS}
+            VisualiserUIWindows::HEAP => {VisualiserUIWindows::HEAP}
+        }
+    }
+
+    fn next_tab(&self) -> VisualiserUIWindows {
+        match self {
+            INSTRUCTIONS => {VisualiserUIWindows::HEAP}
+            STACK => {VisualiserUIWindows::HEAP}
+            ENV_VARS => {VisualiserUIWindows::HEAP}
+            OUTPUT => {VisualiserUIWindows::HEAP}
+            HEAP => {VisualiserUIWindows::INSTRUCTIONS}
+        }
+    }
+
+    fn help_message(&self) -> &str {
+        match self {
+            INSTRUCTIONS => "Scroll:Up/Down",
+            STACK => "Scroll:Up/Down",
+            ENV_VARS => "Scroll:Up/Down",
+            OUTPUT => "Scroll:Up/Down",
+            HEAP => "Switch Memory Region:Tab, Scroll:Up/Down"
+        }
+    }
+
+    fn tab_index(&self) -> usize {
+        match self {
+            INSTRUCTIONS => 0,
+            STACK => 0,
+            ENV_VARS => 0,
+            OUTPUT => 0,
+            HEAP => 1
         }
     }
 }
@@ -55,6 +92,7 @@ pub(crate) struct MathStackVisualiser {
     stack_window: StackWindow,
     env_vars_window: EnvVarWindow,
     program_output_window: ProgramOutputWindow,
+    heap_window: HeapViewer,
 
     focus_window: VisualiserUIWindows,
 
@@ -71,6 +109,7 @@ impl MathStackVisualiser {
             stack_window: StackWindow::new(),
             env_vars_window: EnvVarWindow::new(),
             program_output_window: ProgramOutputWindow::new(),
+            heap_window: HeapViewer::new(),
             focus_window: VisualiserUIWindows::INSTRUCTIONS,
             program_output: Rc::new(RefCell::new(Cursor::new(Vec::new()))),
             should_quit: false
@@ -129,7 +168,11 @@ impl MathStackVisualiser {
                         KeyCode::Esc => self.should_quit=true,
                         KeyCode::Tab => {
                             self.focus_window = self.focus_window.next();
-                        }
+                            self.forward_key_event(key);
+                        },
+                        KeyCode::BackTab => {
+                            self.focus_window = self.focus_window.next_tab()
+                        },
                         KeyCode::Char(c) => {
                             self.on_key(c);
                             self.forward_key_event(key);
@@ -157,7 +200,8 @@ impl MathStackVisualiser {
             VisualiserUIWindows::INSTRUCTIONS => {}
             VisualiserUIWindows::STACK => {}
             VisualiserUIWindows::ENV_VARS => {self.env_vars_window.on_key_event(key)}
-            VisualiserUIWindows::OUTPUT => {self.program_output_window.on_key_event(key)}
+            VisualiserUIWindows::OUTPUT => {self.program_output_window.on_key_event(key)},
+            VisualiserUIWindows::HEAP => {}
         }
     }
 
@@ -184,6 +228,7 @@ impl MathStackVisualiser {
         self.instruction_window.update_program_counter(&self.thread_context);
         self.stack_window.update_stack(&self.thread_context);
         self.env_vars_window.update_env_vars(&self.thread_context);
+        self.heap_window.update_heap_viewer(&self.thread_context);
     }
 
     fn on_tick(&mut self) {
@@ -200,11 +245,40 @@ impl MathStackVisualiser {
             .margin(1)
             .constraints(
                 [
+                    Constraint::Length(1),
+                    Constraint::Min(0),
+                    Constraint::Length(1)
+                ].as_ref()
+            )
+            .split(f.size());
+
+        // Draw Tab Selector
+        let tab_titles = ["Main", "Memory Heap"].iter().cloned().map(Spans::from).collect();
+        let tab_index = self.focus_window.tab_index();
+        let tabs = Tabs::new(tab_titles)
+            .highlight_style(Style::default().fg(Color::Green))
+            .select(tab_index);
+        f.render_widget(tabs, chunks[0]);
+
+        match tab_index {
+            0 => self.draw_main_tab(f, chunks[1]),
+            1 => self.heap_window.draw(f, chunks[1]),
+            _ => {}
+        }
+
+    }
+
+    fn draw_main_tab<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints(
+                [
                     Constraint::Percentage(70),
                     Constraint::Percentage(30)
                 ].as_ref()
             )
-            .split(f.size());
+            .split(area);
 
         self.draw_execution_window(f, chunks[0]);
 

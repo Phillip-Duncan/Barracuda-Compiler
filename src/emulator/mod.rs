@@ -367,19 +367,24 @@ impl ThreadContext {
         self.stack.clone()
     }
 
-    /// Returns a clone of the instructions
+    /// Returns a reference of the instructions
     pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
         &self.instructions
     }
 
-    /// Returns a clone of the operations
+    /// Returns a reference of the operations
     pub(crate) fn get_operations(&self) -> &Vec<MathStackOperators> {
         &self.operations
     }
 
-    /// Returns a clone of the values
+    /// Returns a reference of the values
     pub(crate) fn get_values(&self) -> &Vec<f64> {
         &self.values
+    }
+
+    /// Returns reference to heap
+    pub(crate) fn get_heap(&self) -> &EmulatorHeap {
+        &self.heap
     }
 
     /// Returns if the stack pointer has reached the end of the instruction list

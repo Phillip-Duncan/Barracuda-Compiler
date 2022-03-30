@@ -56,13 +56,18 @@ impl ScrollableList {
         }
     }
 
+    pub fn scroll_to_top(&mut self) {
+        self.scroll_offset = 0;
+    }
+
     pub fn scroll_down(&mut self) {
         // If scroll offset is greater than the item list it is truncated during the draw call.
         self.scroll_offset = self.scroll_offset + 1;
     }
 
     fn get_scroll_range(list_height: usize, scroll_offset: usize, frame_height: usize) -> (usize, usize) {
-        let start = scroll_offset.max(0).min(list_height-frame_height);
+        let scroll_limit = ((list_height as i64)-(frame_height as i64)).max(0) as usize;
+        let start = scroll_offset.max(0).min(scroll_limit);
         let end = (start+frame_height).max(start).min(list_height);
         (start, end)
     }
@@ -85,7 +90,8 @@ impl ScrollableList {
         // Update drawing cache members
 
         let mut list_state = ScrollableList::convert_list_state(&self.list_state, &list_items, self.scroll_offset, self.expected_area.unwrap());
-        self.scroll_offset = self.scroll_offset.max(0).min(list_items.len()-self.expected_area.unwrap().height as usize);
+        let scroll_limit = ((list_items.len() as i64) - (self.expected_area.unwrap().height as i64)).max(0) as usize;
+        self.scroll_offset = self.scroll_offset.max(0).min(scroll_limit);
 
 
         let list_items = ScrollableList::truncate_list_by_scroll_offset(list_items, self.scroll_offset, self.expected_area.unwrap().height as usize);
