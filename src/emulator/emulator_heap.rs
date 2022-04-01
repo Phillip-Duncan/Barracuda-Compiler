@@ -147,11 +147,13 @@ impl EmulatorHeap {
         // Get source and destination byte ranges
         let src = HeapAddress::from_virtual(src_virtual);
         let src_start = src.byte_index as usize;
-        let src_end = src_start + byte_count;
+        let src_end = src_start.checked_add(byte_count)
+            .ok_or(io::Error::new(ErrorKind::NotFound,format!("Memory copy region overflowed address space {:?}", src)))?;
 
         let dest = HeapAddress::from_virtual(dest_virtual);
         let dest_start = dest.byte_index as usize;
-        let dest_end = dest_start + byte_count;
+        let dest_end = dest_start.checked_add(byte_count)
+            .ok_or(io::Error::new(ErrorKind::NotFound,format!("Memory copy region overflowed address space {:?}", dest)))?;
 
         // Get source and destination byte slices while checking for out of bounds errors
         let src_region = self.heap.get(&src.region_index)
@@ -178,13 +180,14 @@ impl EmulatorHeap {
     pub(crate) fn memset(&mut self, dest_virtual: usize, fill_value: u8, byte_count: usize) -> Result<(), io::Error> {
         let dest = HeapAddress::from_virtual(dest_virtual);
         let dest_start = dest.byte_index as usize;
-        let dest_end = dest_start + byte_count;
+        let dest_end = dest_start.checked_add(byte_count)
+            .ok_or(io::Error::new(ErrorKind::NotFound,format!("Memory set region overflowed address space {:?}", dest_start)))?;
 
         let dest_region = self.heap.get(&dest.region_index)
-            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory copy destination region was not found {:?}", dest)))?;
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory set destination region was not found {:?}", dest)))?;
         let mut dest_region = dest_region.borrow_mut();
         let dest_bytes = dest_region.get_mut(dest_start..dest_end)
-            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory copy destination byte region invalid {:?}..+{}", dest, byte_count)))?;
+            .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory set destination byte region invalid {:?}..+{}", dest, byte_count)))?;
 
         dest_bytes.fill(fill_value);
         Ok(())
@@ -234,7 +237,9 @@ impl EmulatorHeap {
         let byte_count = byte_buffer.len();
 
         let address_start = HeapAddress::from_virtual(address_virtual);
-        let address_end = HeapAddress::from_virtual(address_virtual + byte_count);
+        let address_end_virtual = address_virtual.checked_add(byte_count)
+            .ok_or(io::Error::new(ErrorKind::NotFound,format!("Memory write region overflowed address space {:?}", address_start)))?;
+        let address_end = HeapAddress::from_virtual(address_end_virtual);
 
         let memory_region = self.heap.get(&address_start.region_index)
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory write region was not found {:?}", address_start)))?;
@@ -254,7 +259,9 @@ impl EmulatorHeap {
     pub(crate) fn read_word<T: Primitive>(&mut self, address_virtual: usize) -> Result<T, io::Error> {
         let byte_count = size_of::<T>();
         let address_start = HeapAddress::from_virtual(address_virtual);
-        let address_end = HeapAddress::from_virtual(address_virtual + byte_count);
+        let address_end_virtual = address_virtual.checked_add(byte_count)
+            .ok_or(io::Error::new(ErrorKind::NotFound,format!("Memory write region overflowed address space {:?}", address_start)))?;
+        let address_end = HeapAddress::from_virtual(address_end_virtual);
 
         let memory_region = self.heap.get(&address_start.region_index)
             .ok_or(io::Error::new(ErrorKind::NotFound, format!("Memory read region was not found {:?}", address_start)))?;

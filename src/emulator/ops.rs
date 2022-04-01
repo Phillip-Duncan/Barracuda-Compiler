@@ -366,13 +366,14 @@ impl MathStackOperators {
             },
             Self::READ => {
                 let a = context.pop()?.into_u64() as usize;
-                let value = context.heap.read(a)?;
-                context.push(UINT(value as u64))
+                let value: f32 = context.heap.read_word(a)?;
+                context.push(REAL(value as f64))
             },
             Self::WRITE => {
-                let b = context.pop()?.into_u64() as u8;
+                let b = context.pop()?.into_f64() as f32;
                 let a = context.pop()?.into_u64() as usize;
-                context.heap.write(a, b)
+                context.heap.write_word(a, b)?;
+                Ok(())
             }
             Self::ADD_PTR => {
                 let b = context.pop()?.into_i64();
