@@ -97,7 +97,8 @@ pub(crate) struct MathStackVisualiser {
     focus_window: VisualiserUIWindows,
 
     program_output: Rc<RefCell<Cursor<Vec<u8>>>>,
-    should_quit: bool
+    should_quit: bool,
+    emulator_paused: bool
 }
 
 
@@ -112,7 +113,8 @@ impl MathStackVisualiser {
             heap_window: HeapViewer::new(),
             focus_window: VisualiserUIWindows::INSTRUCTIONS,
             program_output: Rc::new(RefCell::new(Cursor::new(Vec::new()))),
-            should_quit: false
+            should_quit: false,
+            emulator_paused: true
         }
     }
 
@@ -123,6 +125,14 @@ impl MathStackVisualiser {
         self.env_vars_window.update_env_vars(&self.thread_context);
 
         self.thread_context.set_output_stream(self.program_output.clone());
+    }
+
+    fn partial_update_ui(&mut self) {
+        self.instruction_window.update_instructions(&self.thread_context);
+        self.instruction_window.update_program_counter(&self.thread_context);
+        self.stack_window.update_stack(&self.thread_context);
+        self.env_vars_window.update_env_vars(&self.thread_context);
+        self.heap_window.update_heap_viewer(&self.thread_context);
     }
 
     pub(crate) fn run(&mut self) -> Result<(), io::Error>{
@@ -161,6 +171,14 @@ impl MathStackVisualiser {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
+            if !self.emulator_paused {
+                self.run_emulator_until_timeout(timeout);
+            }
+
+            let timeout = tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0));
+
             // Check events
             if crossterm::event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
@@ -172,6 +190,9 @@ impl MathStackVisualiser {
                         },
                         KeyCode::BackTab => {
                             self.focus_window = self.focus_window.next_tab()
+                        },
+                        KeyCode::Enter => {
+                            self.emulator_paused = !self.emulator_paused;
                         },
                         KeyCode::Char(c) => {
                             self.on_key(c);
@@ -214,7 +235,7 @@ impl MathStackVisualiser {
         }
     }
 
-    fn step_emulator(&mut self) {
+    fn step_emulator_without_update(&mut self) {
         match self.thread_context.step() {
             Ok(_) => {}
             Err(error) => {
@@ -223,12 +244,22 @@ impl MathStackVisualiser {
                 write!(out, "ERROR: {}({:?})\n", error.to_string(), error.kind()).unwrap();
             }
         }
+    }
 
-        self.instruction_window.update_instructions(&self.thread_context);
-        self.instruction_window.update_program_counter(&self.thread_context);
-        self.stack_window.update_stack(&self.thread_context);
-        self.env_vars_window.update_env_vars(&self.thread_context);
-        self.heap_window.update_heap_viewer(&self.thread_context);
+    fn step_emulator(&mut self) {
+        self.step_emulator_without_update();
+        self.partial_update_ui();
+    }
+
+    fn run_emulator_until_timeout(&mut self, timeout: Duration) {
+        let start_time = Instant::now();
+        while !self.thread_context.is_execution_finished() &&
+            !timeout.checked_sub(start_time.elapsed())
+            .unwrap_or_else(|| Duration::from_secs(0)).is_zero() {
+            self.step_emulator_without_update();
+        }
+
+        self.partial_update_ui();
     }
 
     fn on_tick(&mut self) {
