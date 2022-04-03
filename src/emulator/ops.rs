@@ -323,11 +323,11 @@ impl MathStackOperators {
                 Ok(context.push(a)?)
             },
             Self::OVER => {
-                if context.stack.len() > 0 {
-                    context.push(context.stack[0])
-                } else {
-                    Ok(()) // TODO(Connor): Review if the behaviour should be an error or ignored.
-                }
+                let b = context.pop()?;
+                let a = context.pop()?;
+                context.push(a)?;
+                context.push(b)?;
+                Ok(context.push(a)?)
             },
             Self::DROP => {
                 let _ = context.pop()?;
