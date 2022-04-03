@@ -101,6 +101,62 @@ impl fmt::Debug for StackValue {
     }
 }
 
+/// ProgramCode describes the tables required to run mathstack code
+pub struct ProgramCode {
+    /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
+    values: Vec<f64>,
+
+    /// Operation list loaded with instruction OP. This list is padded to align with instructions
+    operations: Vec<MathStackOperators>,
+
+    /// Instruction list denotes the execution of the program from top to bottom
+    instructions: Vec<MathStackInstructions>,
+}
+
+impl ProgramCode {
+    pub fn new(values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>) -> ProgramCode {
+        ProgramCode {
+            values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
+            operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
+            instructions
+        }
+    }
+
+    /// Generic padding function for the values/operations list to be padded to align with the instruction list
+    /// This will create a new aligned list where each value is found where the alignment_instr is found
+    /// This allows for the stack pointer to be used for all lists without misalignment.
+    /// @alignment_instr: Expected either OP or VALUE
+    /// @instructions: The list of instructions for the program
+    /// @unaligned_list: Either the inputted values or operations list
+    /// @null_value: what the padded spaces should be filled with
+    /// @return: unaligned_list padded to size of instructions.len()
+    pub fn pad_list_to_size_of_instructions<T: std::clone::Clone>(alignment_instr: MathStackInstructions, instructions: &Vec<MathStackInstructions>, unaligned_list: &Vec<T>, null_value: T) -> Vec<T> {
+        // Check if the lists are already the same size.
+        // Note: It is impossible to verify if the alignment is correct as the null_value can
+        // be used for padding as well as a unaligned value. Best is to just verify length.
+        if instructions.len() == unaligned_list.len() {
+            return unaligned_list.clone();
+        }
+
+        // Pad list with null_value where instructions matches alignment_instr the unaligned_list
+        // value is substituted.
+        let mut aligned_list: Vec<T> = Vec::new();
+        let mut unaligned_index: usize = 0;
+
+        for i in 0..instructions.len() {
+            let instr = instructions[i];
+            if instr == alignment_instr {
+                aligned_list.push(unaligned_list[unaligned_index].clone());
+                unaligned_index += 1;
+            } else {
+                aligned_list.push(null_value.clone());
+            }
+        };
+
+        aligned_list
+    }
+}
+
 
 /// Thread context is a struct that represents all the information an individual thread would
 /// have access to. It also includes functions with step() and run_till_halt() to emulate the
@@ -125,14 +181,8 @@ pub struct ThreadContext {
     /// with RCA..RCZ
     env_vars: [f64; ENV_VAR_COUNT],
 
-    /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
-    values: Vec<f64>,
-
-    /// Operation list loaded with instruction OP. This list is padded to align with instructions
-    operations: Vec<MathStackOperators>,
-
-    /// Instruction list denotes the execution of the program from top to bottom
-    instructions: Vec<MathStackInstructions>,
+    /// Program code to execute
+    program_code: ProgramCode,
 
     /// Computation stack. Initializes as empty on construction.
     stack: Vec<StackValue>,
@@ -162,47 +212,29 @@ impl ThreadContext {
             stack_pointer: 0,
             stack_maxsize: stack_size,
             env_vars: [0.0; ENV_VAR_COUNT],
-            values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
-            operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
-            instructions,
+            program_code: ProgramCode::new(
+                values,
+                operations,
+                instructions
+            ),
             stack: Vec::new(),
             heap: EmulatorHeap::new(),
             loop_counters: Vec::new()
         }
     }
 
-    /// Generic padding function for the values/operations list to be padded to align with the instruction list
-    /// This will create a new aligned list where each value is found where the alignment_instr is found
-    /// This allows for the stack pointer to be used for all lists without misalignment.
-    /// @alignment_instr: Expected either OP or VALUE
-    /// @instructions: The list of instructions for the program
-    /// @unaligned_list: Either the inputted values or operations list
-    /// @null_value: what the padded spaces should be filled with
-    /// @return: unaligned_list padded to size of instructions.len()
-    fn pad_list_to_size_of_instructions<T: std::clone::Clone>(alignment_instr: MathStackInstructions, instructions: &Vec<MathStackInstructions>, unaligned_list: &Vec<T>, null_value: T) -> Vec<T> {
-        // Check if the lists are already the same size.
-        // Note: It is impossible to verify if the alignment is correct as the null_value can
-        // be used for padding as well as a unaligned value. Best is to just verify length.
-        if instructions.len() == unaligned_list.len() {
-            return unaligned_list.clone();
+    pub(crate) fn from_code(stack_size: usize, program_code: ProgramCode,  output_stream: Rc<RefCell<dyn Write>>) -> ThreadContext {
+        ThreadContext {
+            thread_id: 0,
+            output_handle: output_stream,
+            stack_pointer: 0,
+            stack_maxsize: stack_size,
+            env_vars: [0.0; ENV_VAR_COUNT],
+            program_code,
+            stack: Vec::new(),
+            heap: EmulatorHeap::new(),
+            loop_counters: Vec::new()
         }
-
-        // Pad list with null_value where instructions matches alignment_instr the unaligned_list
-        // value is substituted.
-        let mut aligned_list: Vec<T> = Vec::new();
-        let mut unaligned_index: usize = 0;
-
-        for i in 0..instructions.len() {
-            let instr = instructions[i];
-            if instr == alignment_instr {
-                aligned_list.push(unaligned_list[unaligned_index].clone());
-                unaligned_index += 1;
-            } else {
-                aligned_list.push(null_value.clone());
-            }
-        };
-
-        aligned_list
     }
 
     /// Pushes a value onto the execution stack.
@@ -228,7 +260,7 @@ impl ThreadContext {
     /// @return: value: f64 is successful, otherwise if the value_pointer is at the end of the
     ///          value list ErrorKind::AddrNotAvailable
     fn get_value(&mut self) -> Result<f64, Error> {
-        match self.values.get(self.values.len() - self.stack_pointer - 1) {
+        match self.program_code.values.get(self.program_code.values.len() - self.stack_pointer - 1) {
             Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next value. Reached end of value list"))
         }
@@ -238,7 +270,7 @@ impl ThreadContext {
     /// @return: MathStackOperator if successful, otherwise if the stack_pointer is at the end of
     ///          operation list ErrorKind::AddrNotAvailable
     fn get_operation(&mut self) -> Result<MathStackOperators, Error> {
-        match self.operations.get(self.operations.len() - self.stack_pointer - 1) {
+        match self.program_code.operations.get(self.program_code.operations.len() - self.stack_pointer - 1) {
             Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next operation. Reached end of operation list"))
         }
@@ -248,7 +280,7 @@ impl ThreadContext {
     /// @return: MathStackInstruction if successful, otherwise if the stack_pointer is at the
     ///          end of program list ErrorKind::AddrNotAvailable
     fn get_instruction(&mut self) -> Result<MathStackInstructions, Error> {
-        match self.instructions.get(self.instructions.len() - self.stack_pointer - 1) {
+        match self.program_code.instructions.get(self.program_code.instructions.len() - self.stack_pointer - 1) {
             Some(value) => {
                 Ok(*value)
             },
@@ -266,11 +298,11 @@ impl ThreadContext {
     /// @new_pc: New program counter value
     /// @return: Ok if successful, otherwise if the @new_pc is out of range ErrorKind::AddrNotAvailable
     fn set_pc(&mut self, new_pc: usize) -> Result<(), Error> {
-        if new_pc <= self.instructions.len() {
+        if new_pc <= self.program_code.instructions.len() {
             self.stack_pointer = new_pc;
             Ok(())
         } else {
-            Err(Error::new(ErrorKind::AddrNotAvailable, format!("Tried to set program counter out of range {} > {}.", new_pc, self.instructions.len())))
+            Err(Error::new(ErrorKind::AddrNotAvailable, format!("Tried to set program counter out of range {} > {}.", new_pc, self.program_code.instructions.len())))
         }
     }
 
@@ -369,17 +401,17 @@ impl ThreadContext {
 
     /// Returns a reference of the instructions
     pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
-        &self.instructions
+        &self.program_code.instructions
     }
 
     /// Returns a reference of the operations
     pub(crate) fn get_operations(&self) -> &Vec<MathStackOperators> {
-        &self.operations
+        &self.program_code.operations
     }
 
     /// Returns a reference of the values
     pub(crate) fn get_values(&self) -> &Vec<f64> {
-        &self.values
+        &self.program_code.values
     }
 
     /// Returns reference to heap
@@ -389,14 +421,14 @@ impl ThreadContext {
 
     /// Returns if the stack pointer has reached the end of the instruction list
     pub(crate) fn is_execution_finished(&self) -> bool {
-        self.stack_pointer == self.instructions.len()
+        self.stack_pointer == self.program_code.instructions.len()
     }
 
     ///  Will step a single instruction of the program loaded.
     ///  @return: nothing if successful, an io error if an unrecoverable error was encountered
     ///           during execution
     pub(crate) fn step(&mut self) -> Result<(), Error> {
-        if self.stack_pointer < self.instructions.len() {
+        if self.stack_pointer < self.program_code.instructions.len() {
             let instruction = self.get_instruction()?;
             instruction.execute(self)
         } else {
