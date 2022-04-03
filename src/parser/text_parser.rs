@@ -5,6 +5,13 @@ use crate::emulator::ops::MathStackOperators;
 use crate::emulator::instructions::MathStackInstructions;
 use std::str::FromStr;
 
+/// TextParser for basic text of MathStack program.
+/// Each instruction is loaded in by each line (By default).
+/// If the instruction name matches an operation. That operation and an OP instruction is added to the
+/// program. If the instruction name matches a number. The value is put on the values list and a VALUE
+/// instruction is added to the program instructions. If the instruction is an 'instruction' it is added
+/// to the instruction list.
+/// Empty lines are ignored as well as comments starting with # (excl whitespace)
 pub(crate) struct TextParser {
     delimiter: String
 }
@@ -12,18 +19,23 @@ pub(crate) struct TextParser {
 impl TextParser {
     const COMMENT_TOKEN: &'static str = "#";
 
+    /// Creates new TextParser with the default delimiter '\n'
     pub(crate) fn new() -> TextParser {
         TextParser {
             delimiter: String::from('\n')
         }
     }
 
+    /// Creates new TextParser with custom delimiter
     pub(crate) fn using_delimiter(delimiter: String) -> TextParser {
         TextParser {
             delimiter
         }
     }
 
+    /// Tries to parse token string as a value.
+    /// @token: string possibly representing a f64.
+    /// @return: f64 value if Ok, Otherwise None if token cannot be parsed.
     fn parse_token_as_value(token: &str) -> Option<f64> {
         match token.parse() {
             Ok(value) => Some(value),
@@ -31,6 +43,9 @@ impl TextParser {
         }
     }
 
+    /// Tries to parse token string as an instruction.
+    /// @token: string possibly representing an instruction. These must match the enum name as text.
+    /// @return: Instruction variant if Ok, Otherwise None if token cannot be parsed.
     fn parse_token_as_instruction(token: &str) -> Option<MathStackInstructions> {
         match MathStackInstructions::from_str(token) {
             Ok(instruction) => Some(instruction),
@@ -38,6 +53,9 @@ impl TextParser {
         }
     }
 
+    /// Tries to parse token string as an operation.
+    /// @token: string possibly representing an operation. These must match the enum name as text.
+    /// @return: Operation variant if Ok, Otherwise None if token cannot be parsed.
     fn parse_token_as_operation(token: &str) -> Option<MathStackOperators> {
         match MathStackOperators::from_str(token) {
             Ok(operation) => Some(operation),

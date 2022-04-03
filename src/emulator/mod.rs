@@ -115,6 +115,7 @@ pub struct ProgramCode {
 }
 
 impl ProgramCode {
+    /// When creating program code all three lists will be padded to be the same size as instructions.
     pub fn new(values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>) -> ProgramCode {
         ProgramCode {
             values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
@@ -233,6 +234,12 @@ impl ThreadContext {
         }
     }
 
+    /// Creates a new thread context using ProgramCode struct to describe the program. The stack is initalized
+    /// as empty. The env vars have to be set after creation.
+    /// @stack_size: Sets the max size the stack can reach
+    /// @program_code: Program code representing the instructions of a program
+    /// @output_stream: Object that implements std::io::Write. This is used for output operations
+    ///                 such as PRINTFF, PRINTC.
     pub(crate) fn from_code(stack_size: usize, program_code: ProgramCode,  output_stream: Rc<RefCell<dyn Write>>) -> ThreadContext {
         ThreadContext {
             thread_id: 0,
