@@ -7,11 +7,9 @@
   
 ## Execution
 + The emulator can be executed using the `cargo run -- <filename>` command
-  + In the future the filename will be used to denote the program to run. At
-    this stage it is unimplemented but still checked, so you can just put in a random
-    string to get the program to run
-  + There is no way to run a program currently other than modifying the source files or
-    by running the tests.
+  + The filename entered is parsed and run in the emulator. Each line of the file
+  is either a instruction/operation/value.
+  + The execution can be debugged with the `--debug` argument.
 + The emulator was developed on the rust build 1.59.0.
 
 ## Testing

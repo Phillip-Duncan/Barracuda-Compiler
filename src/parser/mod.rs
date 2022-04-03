@@ -1,4 +1,4 @@
-mod text_parser;
+pub(crate) mod text_parser;
 mod test;
 
 use crate::emulator::ProgramCode;

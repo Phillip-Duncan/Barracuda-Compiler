@@ -11,6 +11,7 @@ extern crate num_traits;
 extern crate derive_getters;
 extern crate scilib;
 extern crate endiannezz;
+extern crate anyhow;
 
 mod emulator;
 mod test;
@@ -21,9 +22,13 @@ use clap::Parser;
 use emulator::ThreadContext;
 use emulator::ops::MathStackOperators::*;
 use emulator::instructions::MathStackInstructions::*;
+use crate::parser::text_parser::TextParser;
 use std::io;
 use std::cell::RefCell;
 use std::rc::Rc;
+use parser::ProgramParser;
+use std::fs::File;
+use anyhow::{Context, Result};
 
 
 /// Command Line interface struct
@@ -32,19 +37,31 @@ use std::rc::Rc;
 struct Cli {
     #[clap(parse(from_os_str))]
     path: std::path::PathBuf,
+
+    #[clap(short, long, default_value_t = 256)]
+    stack_size: usize,
+
+    #[clap(short, long)]
+    debug: bool
 }
 
-fn main()  {
-    let _args = Cli::parse();
+fn main()  -> Result<()> {
+    let args = Cli::parse();
 
-    let board_size: f64 = 50.0;
-    let bs = board_size;
+    let path = args.path.as_path();
 
-    let mut context = emulator::ThreadContext::new(200,
-                                                   vec![0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,110.0,0.0,0.0,4.0,0.0,0.0,0.0,0.0,0.0,7.0,0.0,1.0,0.0,0.0,4.0,0.0,(bs-1.0),1.0,0.0,4.0,0.0,0.0,0.0,0.0,4.0,0.0,0.0,1.0,0.0,0.0,0.0,10.0,0.0,0.0,0.0,0.0,32.0,42.0,0.0,0.0,0.0,4.0,0.0,(bs),0.0,0.0,0.0,(bs-2.0),0.0,0.0,1.0,0.0,(bs-2.0)*4.0,0.0,0.0,4.0,0.0,(bs+2.0)*4.0],
-                                                   vec![NULL,DROP,DROP,NULL,SWAP,WRITE,AND,NULL,RSHIFT,SWAP,NULL,OVER,SUB_PTR,NULL,OVER,OR,READ, OVER,AND,NULL,LSHIFT,NULL,SWAP,ADD_PTR, NULL,NULL,NULL,NULL,ADD_PTR,NULL,OVER,OR,READ,ADD_PTR,NULL,OVER,LSHIFT,NULL,READ,DUP,PRINTC,NULL,DROP,NULL,PRINTC,TERNARY,NULL,NULL,READ,DUP, ADD_PTR,NULL,NULL,NULL,NULL,DUP,NULL,NULL,NULL,WRITE,NULL,ADD_PTR,NULL,DUP,ADD_PTR, NULL, MALLOC,NULL],
-                                                   vec![LOOP_END,OP,OP,LOOP_END,OP,OP,OP,VALUE,OP,OP,VALUE,OP,OP,VALUE,OP,OP,OP,OP,OP,VALUE,OP,VALUE,OP,OP,VALUE,LOOP_ENTRY, VALUE,VALUE,OP,VALUE,OP,OP,OP,OP,VALUE,OP,OP,VALUE,OP,OP,OP,VALUE,OP,LOOP_END,OP,OP,VALUE,VALUE,OP,OP,OP,VALUE,LOOP_ENTRY,VALUE,VALUE,OP,LOOP_ENTRY,VALUE,VALUE,OP,VALUE,OP,VALUE,OP,OP, VALUE, OP,VALUE],
-                                                   Rc::new(RefCell::new(io::stdout())));
-    let mut visualiser = visualiser::MathStackVisualiser::new(context);
-    visualiser.run().unwrap();
+    let file = File::open(path).with_context(|| format!("Could not open file {:?}", &path))?;
+    let code = TextParser::new().parse(file)
+                            .with_context(|| format!("Could not parse file into program code {:?}", &path))?;
+
+    let mut context = emulator::ThreadContext::from_code(args.stack_size, code, Rc::new(RefCell::new(io::stdout())));
+
+    if args.debug {
+        let mut visualiser = visualiser::MathStackVisualiser::new(context);
+        visualiser.run().with_context(|| "Visualiser failed to run")?;
+    } else {
+        context.run_till_halt().with_context(|| "An unrecoverable error occured while running the program")?;
+    }
+
+    Ok(())
 }
