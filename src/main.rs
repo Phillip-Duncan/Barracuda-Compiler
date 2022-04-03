@@ -15,6 +15,7 @@ extern crate endiannezz;
 mod emulator;
 mod test;
 mod visualiser;
+mod parser;
 
 use clap::Parser;
 use emulator::ThreadContext;

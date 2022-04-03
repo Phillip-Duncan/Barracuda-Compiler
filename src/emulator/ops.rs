@@ -6,6 +6,8 @@ use scilib::math::bessel;
 use float_next_after::NextAfter;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use strum_macros::EnumString;
+
 
 /// MathStackOperators is a enum of all the operations of the MathStack VM.
 /// Each enum is set to the associated opcode.
@@ -17,7 +19,7 @@ use num_traits::FromPrimitive;
 /// Refer to the opcode documentation for more information.
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Debug, Eq, PartialEq, Copy, Clone, FromPrimitive)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, FromPrimitive, EnumString)]
 #[repr(u32)]
 pub enum MathStackOperators {
     NULL       = 0x0000 , 

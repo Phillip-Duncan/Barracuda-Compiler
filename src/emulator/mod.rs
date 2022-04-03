@@ -102,6 +102,7 @@ impl fmt::Debug for StackValue {
 }
 
 /// ProgramCode describes the tables required to run mathstack code
+#[derive(Debug)]
 pub struct ProgramCode {
     /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
     values: Vec<f64>,
@@ -156,6 +157,15 @@ impl ProgramCode {
         aligned_list
     }
 }
+
+impl PartialEq for ProgramCode {
+    fn eq(&self, other: &Self) -> bool {
+        self.instructions == other.instructions &&
+            self.operations == other.operations &&
+        self.values == other.values
+    }
+}
+impl Eq for ProgramCode {}
 
 
 /// Thread context is a struct that represents all the information an individual thread would

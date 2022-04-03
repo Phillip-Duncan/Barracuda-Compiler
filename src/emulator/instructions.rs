@@ -3,6 +3,7 @@ use crate::emulator::ops::MathStackOperators;
 use std::io::{Error, ErrorKind};
 use crate::emulator::LoopTracker;
 use crate::emulator::StackValue::*;
+use strum_macros::EnumString;
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
@@ -22,7 +23,7 @@ impl Eq for FuncPointerContext {}
 /// current thread context.
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, EnumString)]
 pub enum MathStackInstructions {
     OP,
     VALUE ,
@@ -30,6 +31,8 @@ pub enum MathStackInstructions {
     GOTO_IF,
     LOOP_ENTRY,
     LOOP_END,
+
+    #[strum(disabled)]
     FUNC_POINTER(FuncPointerContext)
 }
 
