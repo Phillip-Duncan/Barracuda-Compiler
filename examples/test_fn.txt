@@ -1,0 +1,22 @@
+fn add(a, b): f32 {
+    return a + b;
+}
+
+fn sub(a, b): f32 {
+    return a - b;
+}
+
+
+fn add_or_sub(is_add: bool, a, b): f32 {
+    if is_add {
+        return add(a, b);
+    } else {
+        return sub(a, b);
+    }
+}
+
+let x = 32;
+let y = 16;
+
+print add_or_sub(true, x, y);
+print add_or_sub(false, x, y);

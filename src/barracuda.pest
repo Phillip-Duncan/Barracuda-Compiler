@@ -1,0 +1,100 @@
+WHITESPACE = _{ " " | "\n" | "\t" | "\r" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)*}
+
+// Literal Definitions
+decimal = @{ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ "." ~ ASCII_DIGIT*
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+
+integer = @{
+    ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+}
+
+boolean = @ {
+    "false" | "true"
+}
+
+string = ${ "\"" ~ inner ~ "\"" }
+inner = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+identifier_char = _{
+    ASCII_ALPHANUMERIC | "_"
+}
+
+identifier = @{ASCII_ALPHA ~ identifier_char*}
+literal = _{decimal | integer | boolean | string}
+
+func_arg = {expression}
+func_call = {identifier ~ "(" ~ ")" |
+             identifier ~ "(" ~ (func_arg ~ ("," ~ func_arg)*) ~ ")"}
+
+// Operator Definitions
+equality_operator = _{equal | not_equal}
+comparison_operator = _{greater_than | less_than | greater_equal | less_equal}
+term_operator = _{add | sub}
+factor_operator = _{div | mul | modulus}
+exponent_operator = _{pow}
+unary_operator = _{unary_not | unary_neg}
+
+unary_not = {"!"}
+unary_neg = {"-"}
+
+add = {"+"}
+sub = {"-"}
+div = {"/"}
+mul = {"*"}
+modulus = {"%"}
+pow = {"^"}
+
+equal = {"=="}
+not_equal = {"!="}
+greater_than = {">"}
+less_than = {"<"}
+greater_equal = {">="}
+less_equal = {"<="}
+
+// Operator precedence expression flow
+expression = _{ equality }
+equality   = { comparison ~ ( equality_operator ~ comparison )* }
+comparison = { term ~ ( comparison_operator ~ term )* }
+term       = { factor ~ ( term_operator ~ factor )* }
+factor     = { exponent ~ ( factor_operator ~ exponent )* }
+exponent   = {unary ~ (exponent_operator ~ unary)* }
+unary      = { unary_operator ~ unary | primary }
+primary    = _{ literal | func_call | identifier | "("~expression~")" }
+
+
+// Statements
+statement = _{func_statement | if_statement | for_statement | while_statement
+              | construct_statement ~ ";" | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"
+              | expression ~ ";"}
+
+statement_list = {statement*}
+block = _{"{" ~  statement_list ~ "}"}
+
+construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
+                       "let " ~ identifier ~ "=" ~ expression}
+
+assign_statement = {identifier ~ "=" ~ expression}
+datatype = _{identifier}
+
+print_statement = {"print" ~ expression}
+
+// Control Flow
+if_statement = {"if" ~ expression ~ block ~ ( ("else" ~ block) | ("else" ~ if_statement))?}
+for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ block}
+while_statement = {"while" ~ expression ~ block}
+
+func_param = {identifier ~ ":" ~ datatype | identifier}
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ block }
+return_statement = {"return" ~ expression}
+
+
+// Program
+program = _{ SOI ~ statement_list ~ EOI }
