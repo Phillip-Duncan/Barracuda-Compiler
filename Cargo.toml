@@ -6,9 +6,24 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "barracuda_compiler"
-crate-type = ["cdylib"]     # Generate a Dynamic Lib
+crate-type = [
+    "cdylib",  # Generate a Dynamic Lib
+    "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
+]
 
 
 [dependencies]
-pest = "2.1.3"
-pest_derive = '2.1.0'
+pest = "2.1.3"          # Pest provides ast parser from a Context Free Grammar File .pest
+pest_derive = '2.1.0'   # Provides pest macros
+
+strum = "0.24"          # Strum provides enum to string macros
+strum_macros = "0.24"   # strum macro crate
+
+num-traits = "0.2"      # num-traits provides from primitive macros for enums
+num-derive = "0.2"      # num-traits macro ctatr
+
+# Safer-FFI provides ffi abstraction to prevent unsafe code in this codebase
+safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
+
+[features]
+c-headers = ["safer-ffi/headers"]
