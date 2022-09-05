@@ -13,6 +13,12 @@ use super::super::ast::{
     UnaryOperation
 };
 
+use super::super::program_code::{
+    ProgramCode,
+    instructions::BarracudaInstructions as INSTRUCTION,
+    ops::BarracudaOperators as OP
+};
+
 
 use std::borrow::{Borrow, BorrowMut};
 use std::iter::Map;
@@ -42,7 +48,9 @@ impl CodeToken for BarracudaByteCodeToken {
 
 
 enum BarracudaIR {
-    Instruction(String),
+    Value(f64),
+    Instruction(INSTRUCTION),
+    Operation(OP),
     Label(u64),
     Reference(u64),
     Comment(String)
@@ -64,8 +72,8 @@ impl BarracudaBackend {
         }
     }
 
-    fn emit(&mut self, instruction: String) {
-        self.program_out.push(BarracudaIR::Instruction(instruction));
+    fn emit(&mut self, token: BarracudaIR) {
+        self.program_out.push(token);
     }
 
     fn comment(&mut self, comment: String) {
@@ -86,22 +94,21 @@ impl BarracudaBackend {
         self.program_out.push(BarracudaIR::Reference(label))
     }
 
-    fn generate(&mut self, node: &ASTNode) -> Vec<BarracudaByteCodeToken> {
+    fn generate(&mut self, node: &ASTNode) -> ProgramCode {
         self.generate_node(node);
         self.insert_program_header();
-        self.resolve_labels().into_iter()
-            .map(|s| BarracudaByteCodeToken::from(s)).collect()
+        self.resolve_labels()
     }
 
     fn insert_program_header(&mut self) {
         // Push zeros onto stack for local variable storage
         // Note(Connor): Can be optimized in the future by directly inserting initial values here
         for _ in 0..self.scope.scope_total_mutable {
-            self.program_out.insert(0, BarracudaIR::Instruction(String::from("0")))
+            self.program_out.insert(0, BarracudaIR::Value(0.0))
         }
     }
 
-    fn resolve_labels(&self) -> Vec<String> {
+    fn resolve_labels(&self) -> ProgramCode {
         // Note(Connor): Split into separate functions for production
 
         // First pass finding labels
@@ -120,17 +127,27 @@ impl BarracudaBackend {
         }
 
         // Second pass replacing tokens
-        let mut output = Vec::new();
+        let mut output_program = ProgramCode::default();
         for code_token in &self.program_out {
             match code_token {
-                BarracudaIR::Instruction(instruction) => {output.push(instruction.clone())}
-                BarracudaIR::Reference(id) => {output.push(format!("{}", locations[*id as usize]))}
+                BarracudaIR::Instruction(instruction) => {
+                    output_program.push_instruction(instruction.clone());
+                }
+                BarracudaIR::Operation(operation) => {
+                    output_program.push_operation(operation.clone());
+                }
+                BarracudaIR::Value(value) => {
+                    output_program.push_value(value.clone());
+                }
+                BarracudaIR::Reference(id) => {
+                    output_program.push_value(locations[*id as usize].clone() as f64);
+                }
                 BarracudaIR::Label(_) => {}
-                BarracudaIR::Comment(comment) => {output.push(format!("# {}", comment.clone()))}
+                BarracudaIR::Comment(_) => {}
             };
         }
 
-        output
+        output_program
     }
 
     fn generate_node(&mut self, node: &ASTNode) {
@@ -138,50 +155,50 @@ impl BarracudaBackend {
             ASTNode::IDENTIFIER(identifier_name) => {
                 match self.scope.get_symbol(identifier_name) {
                     Some(symbol) => {
-                        self.emit(format!("{}", symbol.scope_id)); // Store
-                        self.emit(format!("STK_READ"));
+                        self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
+                        self.emit(BarracudaIR::Operation(OP::STK_READ));
                     },
                     None => {panic!("Identifier '{}' out of scope", identifier_name)}
                 }
             }
             ASTNode::LITERAL(value) => {
-                self.emit(match value {
-                    Literal::FLOAT(value) => { format!("{}", value) }
-                    Literal::INTEGER(value) => { format!("{}", value) }
+                self.emit(BarracudaIR::Value(match *value {
+                    Literal::FLOAT(value) => { value }
+                    Literal::INTEGER(value) => { value as f64 }
                     Literal::STRING(_) => { unimplemented!() }
-                    Literal::BOOL(value) => {
-                        if *value {
-                            String::from("1")
-                        } else {
-                            String::from("0")
-                        }
-                    }
-                });
+                    Literal::BOOL(value) => { value as i64 as f64 }
+                }));
             }
             ASTNode::UNARY_OP { op, expression } => {
                 self.generate_node(expression);
-                self.emit(match op {
-                    UnaryOperation::NOT => {format!("NOT")}
-                    UnaryOperation::NEGATE => {format!("0\nSUB")}
-                });
+                match op {
+                    UnaryOperation::NOT => {self.emit(BarracudaIR::Operation(OP::NOT))}
+                    UnaryOperation::NEGATE => {
+                        self.emit(BarracudaIR::Value(0.0));
+                        self.emit(BarracudaIR::Operation(OP::SUB));
+                    }
+                };
             }
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.generate_node(lhs);
                 self.generate_node(rhs);
-                self.emit((String::from(match op {
-                    BinaryOperation::ADD => {"ADD"}
-                    BinaryOperation::SUB => {"SUB"}
-                    BinaryOperation::DIV => {"DIV"}
-                    BinaryOperation::MUL => {"MUL"}
-                    BinaryOperation::MOD => {"FMOD"}
-                    BinaryOperation::POW => {"POW"}
-                    BinaryOperation::EQUAL => {"EQ"}
-                    BinaryOperation::NOT_EQUAL => {"EQ\nNOT"}
-                    BinaryOperation::GREATER_THAN => {"GT"}
-                    BinaryOperation::LESS_THAN => {"LT"}
-                    BinaryOperation::GREATER_EQUAL => {"GTEQ"}
-                    BinaryOperation::LESS_EQUAL => {"LTEQ"}
-                })));
+                match op {
+                    BinaryOperation::ADD   => { self.emit(BarracudaIR::Operation(OP::ADD)); }
+                    BinaryOperation::SUB   => { self.emit(BarracudaIR::Operation(OP::SUB)); }
+                    BinaryOperation::DIV   => { self.emit(BarracudaIR::Operation(OP::DIV)); }
+                    BinaryOperation::MUL   => { self.emit(BarracudaIR::Operation(OP::MUL)); }
+                    BinaryOperation::MOD   => { self.emit(BarracudaIR::Operation(OP::FMOD)); }
+                    BinaryOperation::POW   => { self.emit(BarracudaIR::Operation(OP::POW)); }
+                    BinaryOperation::EQUAL => { self.emit(BarracudaIR::Operation(OP::EQ)); }
+                    BinaryOperation::NOT_EQUAL => {
+                        self.emit(BarracudaIR::Operation(OP::EQ));
+                        self.emit(BarracudaIR::Operation(OP::NOT));
+                    }
+                    BinaryOperation::GREATER_THAN  => { self.emit(BarracudaIR::Operation(OP::GT)) }
+                    BinaryOperation::LESS_THAN     => { self.emit(BarracudaIR::Operation(OP::LT)) }
+                    BinaryOperation::GREATER_EQUAL => { self.emit(BarracudaIR::Operation(OP::GTEQ)) }
+                    BinaryOperation::LESS_EQUAL    => { self.emit(BarracudaIR::Operation(OP::LTEQ)) }
+                };
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 // Create symbol
@@ -196,9 +213,9 @@ impl BarracudaBackend {
                     scope_id: self.scope.next_mutable_id()
                 };
 
-                self.emit(format!("{}", symbol.scope_id)); // Store
+                self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
                 self.generate_node(expression); // Expression
-                self.emit(format!("STK_WRITE"));
+                self.emit(BarracudaIR::Operation(OP::STK_WRITE));
                 self.scope.add_symbol(symbol); // Add symbol last to avoid recursive statement let a = a
             }
             ASTNode::ASSIGNMENT { identifier, expression } => {
@@ -213,27 +230,27 @@ impl BarracudaBackend {
                             panic!("Assignment to  immutable identifier '{}'", identifier_name)
                         }
 
-                        self.emit(format!("{}", symbol.scope_id));
+                        self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
                         self.generate_node(expression); // Expression
-                        self.emit(format!("STK_WRITE"));
+                        self.emit(BarracudaIR::Operation(OP::STK_WRITE));
                     },
                     None => {panic!("Identifier '{}' out of scope", identifier_name)}
                 }
             },
             ASTNode::PRINT {expression} => {
                 self.generate_node(expression);
-                self.emit(String::from("PRINTFF"));
+                self.emit(BarracudaIR::Operation(OP::PRINTFF));
 
                 // New Line character
-                self.emit(String::from("10"));
-                self.emit(String::from("PRINTC"));
+                self.emit(BarracudaIR::Value(10.0 as f64));
+                self.emit(BarracudaIR::Operation(OP::PRINTC));
             }
             ASTNode::BRANCH { condition, if_branch, else_branch } => {
                 let if_end = self.create_label();
 
                 self.generate_node(condition);
                 self.reference(if_end);
-                self.emit(String::from("GOTO_IF"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
                 self.generate_node(if_branch);
 
                 match else_branch.as_ref() {
@@ -244,7 +261,7 @@ impl BarracudaBackend {
                         let else_end = self.create_label();
 
                         self.reference(else_end);
-                        self.emit(String::from("GOTO"));
+                        self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
                         self.set_label(if_end);
 
                         self.generate_node(else_branch);
@@ -261,12 +278,12 @@ impl BarracudaBackend {
 
                 self.generate_node(condition);
                 self.reference(while_exit);
-                self.emit(String::from("GOTO_IF"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
 
                 self.generate_node(body);
 
                 self.reference(while_start);
-                self.emit(String::from("GOTO"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
 
                 self.set_label(while_exit);
 
@@ -281,13 +298,13 @@ impl BarracudaBackend {
                 self.set_label(for_start);
                 self.generate_node(condition);
                 self.reference(for_exit);
-                self.emit(String::from("GOTO_IF"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
 
                 self.generate_node(body);
                 self.generate_node(advancement);
 
                 self.reference(for_start);
-                self.emit(String::from("GOTO"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
 
                 self.set_label(for_exit);
             }
@@ -370,14 +387,14 @@ impl BarracudaBackend {
                 // Jump past function code
                 self.comment(format!("FN DEF {}", symbol.name));
                 self.reference(func_end_label);
-                self.emit(String::from("GOTO"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
 
                 // Function body
                 self.set_label(func_label);
                 self.generate_node(body);
 
                 // Return if reaches bottom
-                self.emit(String::from("GOTO"));
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
                 self.set_label(func_end_label);
                 self.comment(format!("FN DEF END"));
                 self.scope.remove_level();
@@ -387,8 +404,8 @@ impl BarracudaBackend {
             }
             ASTNode::RETURN { expression } => {
                 self.generate_node(expression); // Calculate expression
-                self.emit(String::from("SWAP")); // Swap with return address
-                self.emit(String::from("GOTO")); // Goto return address
+                self.emit(BarracudaIR::Operation(OP::SWAP)); // Swap with return address
+                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO)); // Goto return address
             }
             ASTNode::FUNC_CALL { identifier, arguments } => {
                 let function_symbol = match identifier.as_ref() {
@@ -410,9 +427,9 @@ impl BarracudaBackend {
                     self.comment(format!("FN CALL {}", function_symbol.name));
 
                     for (param, arg_expression) in func_params.iter().zip(arguments.iter()) {
-                        self.emit(format!("{}", param_id));
+                        self.emit(BarracudaIR::Value(param_id as f64));
                         self.generate_node(arg_expression); // Expression
-                        self.emit(format!("STK_WRITE"));
+                        self.emit(BarracudaIR::Operation(OP::STK_WRITE));
                         param_id += 1;
                     };
 
@@ -420,7 +437,7 @@ impl BarracudaBackend {
                     let end_fncall_label = self.create_label();
                     self.reference(end_fncall_label);
                     self.reference(func_label);
-                    self.emit(format!("GOTO"));
+                    self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
                     self.comment(format!("FN CALL END"));
                     self.set_label(end_fncall_label);
 
@@ -441,10 +458,9 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
         Self {}
     }
 
-    fn generate(self, tree: AbstractSyntaxTree) -> Vec<Box<dyn CodeToken>> {
+    fn generate(self, tree: AbstractSyntaxTree) -> ProgramCode {
         let mut generator = BarracudaBackend::new();
         let tree_root_node = tree.into_root();
-        generator.generate(&tree_root_node).into_iter()
-            .map(|token| Box::new(token) as Box<dyn CodeToken>).rev().collect()
+        generator.generate(&tree_root_node)
     }
 }
