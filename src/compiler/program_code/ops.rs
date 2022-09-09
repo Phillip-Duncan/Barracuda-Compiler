@@ -18,7 +18,10 @@ use safer_ffi::prelude::*;
 #[derive(Debug, Eq, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive, EnumString)]
 #[repr(u32)]
 pub enum BarracudaOperators {
-    NULL       = 0x0000 , 
+    NULL       = 0x0000 ,
+    STK_READ   = 0x0001,
+    STK_WRITE  = 0x0002,
+
     ADD        = 0x03CC , 
     SUB        = 0x03CD , 
     MUL        = 0x03CE , 
@@ -46,8 +49,6 @@ pub enum BarracudaOperators {
     ADD_PTR    = 0x03E4 , 
     SUB_PTR    = 0x03E5 , 
     TERNARY    = 0x03E6 ,
-    // READ_U8 -> u64
-    // READ_F8 -> f64
 
     // Added for support of the compiler
     EQ         = 0x03E7,
@@ -55,9 +56,8 @@ pub enum BarracudaOperators {
     GTEQ       = 0x03E9,
     LT         = 0x03EA,
     LTEQ       = 0x03EB,
-    STK_READ   = 0x03EC,
-    STK_WRITE  = 0x03ED,
 
+    // READ / WRITE OP CODES
 
     ACOS       = 0x0798 , 
     ACOSH      = 0x0799 , 

@@ -28,12 +28,12 @@ impl Eq for FuncPointerContext {}
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ToPrimitive, EnumString)]
 #[repr(u32)]
 pub enum BarracudaInstructions {
-    OP,         // Runs Operation at the same index in the operations table
-    VALUE ,     // Load Immediate the same index in the value table
-    GOTO,       // Pop address and set stack pointer
-    GOTO_IF,    // Pop address and condition set stack pointer if condition==0
-    LOOP_ENTRY, // Pop start, end values and create a new loop counter
-    LOOP_END   // Set stack pointer to most recent loop entry
+    OP          = 0,   // Runs Operation at the same index in the operations table
+    VALUE       = 1,   // Load Immediate the same index in the value table
+    GOTO        = 2,   // Pop address and set stack pointer
+    GOTO_IF     = 3,   // Pop address and condition set stack pointer if condition==0
+    LOOP_ENTRY  = 99,  // Pop start, end values and create a new loop counter
+    LOOP_END    = 100  // Set stack pointer to most recent loop entry
     // #[strum(disabled)]
     // FUNC_POINTER(FuncPointerContext)
 }

@@ -25,8 +25,8 @@ type GENERATOR = compiler::BarracudaByteCodeGenerator;
 pub struct CompilerResponse {
     code_text: char_p::Box,      // C Repr: char *
     instructions_list: repr_c::Vec<u32>,
-    operations_list: repr_c::Vec<u32>,
-    values_list: repr_c::Vec<f64>
+    operations_list: repr_c::Vec<u64>,
+    values_list: repr_c::Vec<f32>
 }
 
 #[derive_ReprC]
@@ -43,11 +43,12 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let compiled_text = program_code.to_string();
 
     // Convert program code components into primitives
-    let instructions: Vec<u32> = program_code.instructions.into_iter()
+    let instructions: Vec<u32> = program_code.instructions.into_iter().rev()
                                     .map(|instr| instr.as_u32()).collect();
-    let operations: Vec<u32> = program_code.operations.into_iter()
-                                    .map(|op| op.as_u32()).collect();
-    let values: Vec<f64> = program_code.values.clone();
+    let operations: Vec<u64> = program_code.operations.into_iter().rev()
+                                    .map(|op| op.as_u32() as u64).collect();
+    let values: Vec<f32> = program_code.values.into_iter().rev()
+                                    .map(|value| value as f32).collect();
 
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
