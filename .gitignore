@@ -4,3 +4,4 @@
 Cargo.lock
 output.txt
 *.iml
+/include/barracuda_compiler.h

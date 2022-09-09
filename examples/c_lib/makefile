@@ -6,7 +6,7 @@ LIB=$(PROJECT_ROOT)/target/debug
 OUT=c_lib_test
 
 barracuda_header:
-	cd $(PROJECT_ROOT) && cargo test --features c-headers -- generate_headers
+	cd $(PROJECT_ROOT) && mkdir -p include && cargo test --features c-headers -- generate_headers
 
 barracuda_library: barracuda_header
 	cd $(PROJECT_ROOT) && cargo build --lib
