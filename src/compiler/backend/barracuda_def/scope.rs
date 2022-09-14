@@ -35,7 +35,6 @@ impl BarracudaScope {
     }
 
     pub(crate) fn add_symbol(&mut self, symbol: BarracudaSymbol) {
-        println!("{}Symbol {}", "\t".repeat(self.scope_levels.len()) ,symbol.name);
 
         if symbol.mutable {
             self.scope_mutable_size += 1;
@@ -47,7 +46,6 @@ impl BarracudaScope {
     }
 
     pub(crate) fn add_level(&mut self) {
-        println!("{}{{", "\t".repeat(self.scope_levels.len()));
         self.scope_levels.push(HashMap::new());
     }
 
@@ -56,6 +54,5 @@ impl BarracudaScope {
         let mutable_symbol_count = level.values().filter(|sym| sym.mutable).count();
         self.scope_mutable_size -= mutable_symbol_count;
         self.scope_levels.pop();
-        println!("{}}}", "\t".repeat(self.scope_levels.len()));
     }
 }
