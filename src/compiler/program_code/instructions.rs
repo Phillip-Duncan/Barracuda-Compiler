@@ -7,18 +7,6 @@ use num_derive::ToPrimitive;
 use num_traits::ToPrimitive;
 use safer_ffi::prelude::*;
 
-#[allow(dead_code)]
-#[derive(Debug, Copy, Clone)]
-pub struct FuncPointerContext {
-    ptr_offset : u8
-}
-
-impl PartialEq for FuncPointerContext {
-    fn eq(&self, other: &Self) -> bool {
-        self.ptr_offset==other.ptr_offset
-    }
-}
-impl Eq for FuncPointerContext {}
 
 /// BarracudaInstruction is an enum of program instructions that are valid for the Barracuda VM.
 /// Each instruction has .execute(context: ThreadContext) function to run the instruction on the
@@ -34,8 +22,6 @@ pub enum BarracudaInstructions {
     GOTO_IF     = 3,   // Pop address and condition set stack pointer if condition==0
     LOOP_ENTRY  = 99,  // Pop start, end values and create a new loop counter
     LOOP_END    = 100  // Set stack pointer to most recent loop entry
-    // #[strum(disabled)]
-    // FUNC_POINTER(FuncPointerContext)
 }
 
 impl BarracudaInstructions {
