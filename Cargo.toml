@@ -22,8 +22,15 @@ strum_macros = "0.24"   # strum macro crate
 num-traits = "0.2"      # num-traits provides from primitive macros for enums
 num-derive = "0.2"      # num-traits macro ctatr
 
+# Used to get standard system os exit codes
+exitcode = "1.1.2"
+
 # Safer-FFI provides ffi abstraction to prevent unsafe code in this codebase
 safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
+
+# Command line argument parser
+clap = {version = "3.2.21", features = ["derive"] }
+
 
 [features]
 c-headers = ["safer-ffi/headers"]
