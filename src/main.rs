@@ -8,7 +8,6 @@ mod compiler;
 use compiler::Compiler;
 
 use std::path::Path;
-use std::error::Error;
 
 type PARSER = compiler::PestBarracudaParser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;

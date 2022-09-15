@@ -19,6 +19,7 @@ pub struct ProgramCode {
     pub instructions: Vec<BarracudaInstructions>,
 }
 
+#[allow(dead_code)]
 impl ProgramCode {
 
     pub fn default() -> ProgramCode {

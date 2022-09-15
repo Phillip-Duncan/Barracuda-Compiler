@@ -1,4 +1,3 @@
-use std::io::{Error, ErrorKind};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use num_derive::ToPrimitive;
@@ -244,16 +243,20 @@ pub enum BarracudaOperators {
     RCDT       = 0x16E5
 }
 
+#[allow(dead_code)] // Used in library but not the binary
 impl BarracudaOperators {
 
     /// Converts opcode value into Operation enums.
     /// @opcode: Barracuda op code value.
     /// @returns Some(BarracudaOperator) representing opcode value, None otherwise
-    pub(crate) fn from(opcode: u32) -> Option<Self> {
+    pub fn from(opcode: u32) -> Option<Self> {
         FromPrimitive::from_u32(opcode)
     }
 
-    pub(crate) fn as_u32(&self) -> u32 {
+    /// Converts operator into value representing the opcode
+    /// @returns: &self's representation as u32. This is not an option as all operators
+    ///           have a valid u32 code.
+    pub fn as_u32(&self) -> u32 {
         // Safe to unwrap here as enum should always map to an integer.
         self.to_u32().unwrap()
     }

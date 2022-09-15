@@ -3,7 +3,7 @@ pub mod barracuda_pest_parser;
 
 /// Parser handles interpretation of high-level tokens into the intermediate
 /// representation.
-pub(crate) trait AstParser {
+pub trait AstParser {
     fn default() -> Self;
     fn parse(self, source: &str) -> AbstractSyntaxTree;
 }

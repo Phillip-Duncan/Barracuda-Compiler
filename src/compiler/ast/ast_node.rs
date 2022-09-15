@@ -3,7 +3,7 @@ use super::operators::{UnaryOperation, BinaryOperation};
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub(crate) enum ASTNode {
+pub enum ASTNode {
     IDENTIFIER(String),
     LITERAL(Literal),
     UNARY_OP {

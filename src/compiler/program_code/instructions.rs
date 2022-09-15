@@ -1,8 +1,4 @@
-use super::ops::BarracudaOperators;
-use std::io::{Error, ErrorKind};
 use strum_macros::EnumString;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use num_derive::ToPrimitive;
 use num_traits::ToPrimitive;
 use safer_ffi::prelude::*;
@@ -25,7 +21,12 @@ pub enum BarracudaInstructions {
 }
 
 impl BarracudaInstructions {
-    pub(crate) fn as_u32(&self) -> u32 {
+
+    /// Converts instruction into value representing the instruction code
+    /// @returns: &self's representation as u32. This is not an option as all instructions
+    ///           have a valid u32 code.
+    #[allow(dead_code)] // Used in library but not the binary
+    pub fn as_u32(&self) -> u32 {
         // Safe to unwrap here as enum should always map to an integer.
         self.to_u32().unwrap()
     }

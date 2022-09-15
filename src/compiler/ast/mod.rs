@@ -12,18 +12,18 @@ pub(super) use self::{
 };
 
 /// Intermediate Representation of the compiler model
-pub(crate) struct AbstractSyntaxTree {
+pub struct AbstractSyntaxTree {
     root: ASTNode
 }
 
 impl AbstractSyntaxTree {
-    pub(crate) fn new(root: ASTNode) -> Self {
+    pub fn new(root: ASTNode) -> Self {
         Self {
             root
         }
     }
 
-    pub(crate) fn into_root(self) -> ASTNode {
+    pub fn into_root(self) -> ASTNode {
         self.root
     }
 }

@@ -1,12 +1,12 @@
 #[derive(Debug)]
-pub(crate) enum UnaryOperation {
+pub enum UnaryOperation {
     NOT,
     NEGATE
 }
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub(crate) enum BinaryOperation {
+pub enum BinaryOperation {
     ADD,
     SUB,
     DIV,

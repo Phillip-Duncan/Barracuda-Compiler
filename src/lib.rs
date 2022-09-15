@@ -4,14 +4,9 @@ extern crate pest;
 extern crate pest_derive;
 extern crate safer_ffi;
 
-use std::error::Error;
-use std::path::Path;
-
 use safer_ffi::prelude::*;
 
 use compiler::Compiler;
-use compiler::program_code::instructions::BarracudaInstructions;
-use compiler::program_code::ops::BarracudaOperators;
 
 // Internal Modules
 mod compiler;

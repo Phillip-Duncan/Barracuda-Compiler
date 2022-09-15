@@ -3,7 +3,7 @@ use super::barracuda_def::{
     symbols::BarracudaSymbol,
     scope::BarracudaScope
 };
-use super::{BackEndGenerator, CodeToken};
+use super::BackEndGenerator;
 
 use super::super::ast::{
     AbstractSyntaxTree,
@@ -19,32 +19,7 @@ use super::super::program_code::{
     ops::BarracudaOperators as OP
 };
 
-
-use std::borrow::{Borrow, BorrowMut};
-use std::iter::Map;
-use std::collections::HashMap;
-use std::cmp::max;
-
-
-// TODO(Connor): This should be replaced by a more concrete definition
-// Like that found in the emulator
-struct BarracudaByteCodeToken {
-    code: String
-}
-
-impl BarracudaByteCodeToken {
-    fn from(code: String) -> Self {
-        Self {
-            code
-        }
-    }
-}
-
-impl CodeToken for BarracudaByteCodeToken {
-    fn repr(&self) -> String {
-        self.code.clone()
-    }
-}
+use std::borrow::Borrow;
 
 
 enum BarracudaIR {
@@ -56,7 +31,7 @@ enum BarracudaIR {
     Comment(String)
 }
 
-pub(crate) struct BarracudaBackend {
+pub struct BarracudaBackend {
     scope: BarracudaScope,
     program_out: Vec<BarracudaIR>,
     label_count: u64
@@ -64,7 +39,7 @@ pub(crate) struct BarracudaBackend {
 
 impl BarracudaBackend {
 
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         BarracudaBackend {
             scope: BarracudaScope::new(),
             program_out: Vec::new(),

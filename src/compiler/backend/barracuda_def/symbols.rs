@@ -41,8 +41,8 @@ impl SymbolType {
 
 #[derive(Clone)]
 pub struct BarracudaSymbol {
-    pub(crate) name: String,
-    pub(crate) symbol_type: SymbolType,
-    pub(crate) mutable: bool,
-    pub(crate) scope_id: usize
+    pub name: String,
+    pub symbol_type: SymbolType,
+    pub mutable: bool,
+    pub scope_id: usize
 }
