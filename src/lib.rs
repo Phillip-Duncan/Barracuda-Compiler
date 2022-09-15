@@ -11,26 +11,45 @@ use compiler::Compiler;
 // Internal Modules
 mod compiler;
 
+// Compiler types to use
 type PARSER = compiler::PestBarracudaParser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;
 
 
+/// Compiler response describes a successful compilation result
+/// It contains the relevant vectors required to run the program
+/// code on the barracuda virtual machine.
 #[derive_ReprC]
 #[repr(C)]
 pub struct CompilerResponse {
+    /// Code text is a null-terminated string with the textual representation
+    /// of the program code. This is not a required field for the VM.
     code_text: char_p::Box,      // C Repr: char *
+
+    /// Instruction list describes each instruction to be run by the VM
     instructions_list: repr_c::Vec<u32>,
+
+    /// Operations list describes the operation to run during a OP instruction.
     operations_list: repr_c::Vec<u64>,
+
+    /// Value list describes the value to load during a VALUE instruction.
     values_list: repr_c::Vec<f32>
 }
 
+/// Compiler request describes the content needed to attempt a compilation.
+/// It contains the code text string and compilation options.
 #[derive_ReprC]
 #[repr(C)]
 pub struct CompilerRequest {
+    /// Code text is a null-terminated string with the textual representation
+    /// of barracuda high-level code.
     code_text: char_p::Box       // C repr: char *
 }
 
-/// Public Definitions
+/// Compile attempts to compile a CompilerRequest into Barracuda VM
+/// low level instructions. The memory for the compiler response
+/// is allocated on call, it is then the responsibility of the caller to
+/// free this memory via free_compile_response.
 #[ffi_export]
 pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
@@ -53,6 +72,9 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     }
 }
 
+
+/// Frees a compiler response returned via the API
+/// Calling the function is a requirement after using a response.
 #[ffi_export]
 pub fn free_compile_response(response: CompilerResponse) {
     drop(response.code_text);

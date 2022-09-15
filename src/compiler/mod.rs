@@ -19,7 +19,12 @@ pub use self::backend::BarracudaByteCodeGenerator;
 pub use self::parser::PestBarracudaParser;
 
 
-
+/// Compiler is a simple class that holds the configuration of a compilation configuration.
+/// Compiler takes two typed parameters defining the AstParser being used as well as the
+/// BackEndGenerator.
+///
+/// # Compilation Diagram
+/// barracuda_code -> AstParser -> AbstractSyntaxTree -> BackEndGenerator -> ProgramCode
 pub struct Compiler<P: AstParser, G: BackEndGenerator> {
     parser: P,
     generator: G
@@ -27,6 +32,9 @@ pub struct Compiler<P: AstParser, G: BackEndGenerator> {
 
 #[allow(dead_code)] // Many of the functions on compiler act as a library interface and are not used
 impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
+
+    /// Default generates a default compiler configuration. Default configuration is determined by
+    /// the default methods of the parser and generator.
     pub fn default() -> Self {
         Compiler {
             parser: P::default(),
@@ -34,6 +42,7 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
         }
     }
 
+    /// Create new compiler using a preconfigured parser and generator.
     pub fn new(parser: P, generator: G) -> Self {
         Compiler {
             parser,
@@ -41,6 +50,7 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
         }
     }
 
+    /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
         let ast = self.parser.parse(source);
         let program_code = self.generator.generate(ast);
@@ -48,11 +58,17 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
         return program_code
     }
 
+    /// Compiles a program file containing an interpretable language by the parser into program code.
+    /// @return: ProgramCode if Ok. Otherwise IO Error from a failed read.
     pub fn compile(self, source_filename: &Path) -> Result<ProgramCode, Box<dyn Error>> {
         let source_str = fs::read_to_string(source_filename)?;
+
         Ok(self.compile_str(source_str.as_str()))
     }
 
+    /// Compiles a program file and writes program code encoded as string into the destination file
+    /// path.
+    /// @return: ProgramCode if Ok. Otherwise IO Error from a failed read/write.
     pub fn compile_and_save(self, source_filename: &Path, dest_filename: &Path) -> Result<(), Box<dyn Error>> {
         let compiled_program = self.compile(source_filename)?;
         let program_str = format!("{}", compiled_program);

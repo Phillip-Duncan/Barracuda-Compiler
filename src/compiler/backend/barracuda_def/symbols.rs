@@ -1,3 +1,9 @@
+// TODO(Connor): Redefine symbol type to include type Variable(Datatype) and move datatypes to
+//               DataType enum this is a better representation as currently functions can be
+//               recursively defined. In Datatype mutable would be stored as a mutable function makes
+//               no sense or is at least a bad idea.
+
+/// Symbol types associated with an identifier
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum SymbolType {
@@ -21,6 +27,7 @@ pub enum SymbolType {
 }
 
 impl SymbolType {
+    /// Convert a string representation to a symbol type
     pub fn from(datatype: String) -> SymbolType {
         match datatype.to_lowercase().trim() {
             "f64" => {Self::F64},
@@ -39,10 +46,11 @@ impl SymbolType {
     }
 }
 
+/// Barracuda Symbols defines the data associated with an identifier.
 #[derive(Clone)]
 pub struct BarracudaSymbol {
-    pub name: String,
-    pub symbol_type: SymbolType,
-    pub mutable: bool,
-    pub scope_id: usize
+    pub name: String,            // Identifier known by
+    pub symbol_type: SymbolType, // Identifier type
+    pub mutable: bool,           // Is the symbol mutable? This really should be encoded as a type.
+    pub scope_id: usize          // What unique id in the scope does this symbol have.
 }

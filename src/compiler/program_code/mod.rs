@@ -6,7 +6,7 @@ use self::instructions::BarracudaInstructions;
 use std::fmt;
 
 
-/// ProgramCode describes the tables required to run barracuda code
+/// ProgramCode describes the tables required to run barracuda code in the VM.
 #[derive(Debug)]
 pub struct ProgramCode {
     /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
@@ -15,13 +15,14 @@ pub struct ProgramCode {
     /// Operation list loaded with instruction OP. This list is padded to align with instructions
     pub operations: Vec<BarracudaOperators>,
 
-    /// Instruction list denotes the execution of the program from top to bottom
+    /// Instruction list denotes the execution of the program from bottom to top
     pub instructions: Vec<BarracudaInstructions>,
 }
 
 #[allow(dead_code)]
 impl ProgramCode {
 
+    /// Generates an empty ProgramCode. Useful when using the builder functions.
     pub fn default() -> ProgramCode {
         ProgramCode {
             values: vec![],
@@ -95,6 +96,8 @@ impl ProgramCode {
     }
 }
 
+
+// Implement Equality traits for comparing program code
 impl PartialEq for ProgramCode {
     fn eq(&self, other: &Self) -> bool {
         self.instructions == other.instructions &&
@@ -104,7 +107,17 @@ impl PartialEq for ProgramCode {
 }
 impl Eq for ProgramCode {}
 
+
 impl fmt::Display for ProgramCode {
+    /// This allows for program code to be converted into a string.
+    /// For files this format is stored with the extension .bct.
+    /// This format is supported by the barracuda_emulator and can be loaded in for debugging.
+    ///
+    /// # Format
+    /// Each line represents an instruction for the barracuda Virtual Machine. For each instruction
+    /// the enum name is displayed unless the instruction is OP or VALUE. For OP the operation enum
+    /// name is displayed instead. For VALUE the value is directly written to the line.
+    /// Lines that start with # are comments that are ignored.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
         for i in 0..self.instructions.len() {

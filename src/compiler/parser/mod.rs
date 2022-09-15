@@ -2,9 +2,13 @@ use super::ast::AbstractSyntaxTree;
 pub mod barracuda_pest_parser;
 
 /// Parser handles interpretation of high-level tokens into the intermediate
-/// representation.
+/// representation. Put another way the parser turns a source string into an
+/// abstract syntax tree.
 pub trait AstParser {
+    /// Creates a default configuration of an AstParser
     fn default() -> Self;
+
+    /// Parse a source string into an Abstract Syntax Tree
     fn parse(self, source: &str) -> AbstractSyntaxTree;
 }
 

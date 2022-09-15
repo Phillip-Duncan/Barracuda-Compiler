@@ -12,6 +12,9 @@ pub(super) use self::{
 };
 
 /// Intermediate Representation of the compiler model
+/// This model is represented as a tree using the ASTNode enum.
+/// Each node on this tree is representative of a statement or expression
+/// involved in the construction of a program.
 pub struct AbstractSyntaxTree {
     root: ASTNode
 }

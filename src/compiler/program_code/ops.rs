@@ -49,7 +49,6 @@ pub enum BarracudaOperators {
     SUB_PTR    = 0x03E5 , 
     TERNARY    = 0x03E6 ,
 
-    // Added for support of the compiler
     EQ         = 0x03E7,
     GT         = 0x03E8,
     GTEQ       = 0x03E9,

@@ -1,23 +1,25 @@
+/// Unary Operations are mathematical symbolic functions with one argument.
 #[derive(Debug)]
 pub enum UnaryOperation {
-    NOT,
-    NEGATE
+    NOT,    // ! <rhs>
+    NEGATE  // - <rhs>
 }
 
+/// Binary Operations are mathematical symbolic functions with two arguments.
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum BinaryOperation {
-    ADD,
-    SUB,
-    DIV,
-    MUL,
-    MOD,
-    POW,
+    ADD,            // <lhs> + <rhs>
+    SUB,            // <lhs> - <rhs>
+    DIV,            // <lhs> / <rhs>
+    MUL,            // <lhs> * <rhs>
+    MOD,            // <lhs> % <rhs>
+    POW,            // <lhs> ^ <rhs>
 
-    EQUAL,
-    NOT_EQUAL,
-    GREATER_THAN,
-    LESS_THAN,
-    GREATER_EQUAL,
-    LESS_EQUAL
+    EQUAL,          // <lhs> == <rhs>
+    NOT_EQUAL,      // <lhs> != <rhs>
+    GREATER_THAN,   // <lhs> >  <rhs>
+    LESS_THAN,      // <lhs> <  <rhs>
+    GREATER_EQUAL,  // <lhs> >= <rhs>
+    LESS_EQUAL      // <lhs> <= <rhs>
 }
