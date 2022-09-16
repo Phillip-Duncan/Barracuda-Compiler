@@ -246,7 +246,7 @@ impl ASTNode {
     /// Returns children of a ASTNode.
     /// This method is helpful when searching the AST for specific nodes
     /// without worrying about the implementation details of non target nodes
-    fn children(&mut self) -> Vec<&mut ASTNode> {
+    pub(crate) fn children(&mut self) -> Vec<&mut ASTNode> {
         let mut output = vec![];
 
         match self {
