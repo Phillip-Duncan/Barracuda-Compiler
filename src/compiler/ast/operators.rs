@@ -1,12 +1,12 @@
 /// Unary Operations are mathematical symbolic functions with one argument.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaryOperation {
     NOT,    // ! <rhs>
     NEGATE  // - <rhs>
 }
 
 /// Binary Operations are mathematical symbolic functions with two arguments.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum BinaryOperation {
     ADD,            // <lhs> + <rhs>

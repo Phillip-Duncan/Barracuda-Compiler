@@ -4,7 +4,7 @@
 ///
 /// Note: signed literals are stored in the AST as a negate unary operation. For example
 /// -32 <=> UNARY_OP{UnaryOperation::NEGATE, Literal::INTEGER(32)}
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     /// Form: %d.%d
     FLOAT(f64),
