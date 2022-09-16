@@ -76,7 +76,7 @@ statement = _{func_statement | if_statement | for_statement | while_statement
               | expression ~ ";"}
 
 statement_list = {statement*}
-block = _{"{" ~  statement_list ~ "}"}
+scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
                        "let " ~ identifier ~ "=" ~ expression}
@@ -87,12 +87,12 @@ datatype = _{identifier}
 print_statement = {"print" ~ expression}
 
 // Control Flow
-if_statement = {"if" ~ expression ~ block ~ ( ("else" ~ block) | ("else" ~ if_statement))?}
-for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ block}
-while_statement = {"while" ~ expression ~ block}
+if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("else" ~ if_statement))?}
+for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ scope_block}
+while_statement = {"while" ~ expression ~ scope_block}
 
 func_param = {identifier ~ ":" ~ datatype | identifier}
-func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ block }
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ scope_block }
 return_statement = {"return" ~ expression}
 
 

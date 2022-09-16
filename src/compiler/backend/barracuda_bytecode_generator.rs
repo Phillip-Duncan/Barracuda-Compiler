@@ -419,7 +419,11 @@ impl BarracudaBackend {
                 } else {
                     panic!("Identifier cannot be called {}", function_symbol.name);
                 }
-            }
+            },
+            ASTNode::SCOPE_BLOCK{ inner, scope } => {
+                // ...Set active scope to scope id
+                self.generate_node(inner);
+            },
             _ => {unimplemented!()}
         }
     }

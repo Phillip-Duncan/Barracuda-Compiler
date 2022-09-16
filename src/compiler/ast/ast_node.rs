@@ -1,5 +1,7 @@
 use super::literals::Literal;
 use super::operators::{UnaryOperation, BinaryOperation};
+use super::scope::ScopeId;
+
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -215,15 +217,26 @@ pub enum ASTNode {
         arguments: Vec<ASTNode>
     },
 
-    /// Statement list or code block or code section is a collection of statements that should
+    /// Statement list is a collection of statements that should
     /// be run linearly.
     ///
     /// # Syntax:
-    ///     (statement)*
+    ///     (<statement>)*
     ///
     /// # Example:
     ///     let x = 10;  -> Statement  |
     ///     let y = 30;  -> Statement  } Statement List
     ///     print x * y; -> Statement  |
-    STATEMENT_LIST(Vec<ASTNode>)
+    STATEMENT_LIST(Vec<ASTNode>),
+
+    /// Scope Block defines all nodes after inner as existing in the same scope.
+    ///
+    /// # Syntax:
+    ///     { statement_list }
+    ///
+    /// # Example:
+    SCOPE_BLOCK {
+        inner: Box<ASTNode>,
+        scope: ScopeId
+    }
 }

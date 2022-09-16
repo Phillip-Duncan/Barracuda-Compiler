@@ -5,7 +5,8 @@ use super::super::ast::{
     ASTNode,
     Literal,
     BinaryOperation,
-    UnaryOperation
+    UnaryOperation,
+    ScopeId
 };
 
 
@@ -70,6 +71,7 @@ impl PestBarracudaParser {
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
+            Rule::scope_block =>        { Self::parse_pair_scope_block(pair) }
             _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }
         }
     }
@@ -302,6 +304,17 @@ impl PestBarracudaParser {
     fn parse_pair_function_argument(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
         Self::parse_pair_node(pair.next().unwrap())
+    }
+
+    /// Parses a pest token pair into an AST statement list
+    fn parse_pair_scope_block(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let body = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::SCOPE_BLOCK {
+            inner: Box::new(body),
+            scope: ScopeId::default()
+        }
     }
 
     /// Parses a pest token pair into an AST Unary Operation

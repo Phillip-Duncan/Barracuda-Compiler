@@ -1,10 +1,12 @@
 pub(super) mod literals;
 pub(super) mod operators;
 pub(super) mod ast_node;
+pub(super) mod scope;
 
 pub(super) use self::{
     ast_node::ASTNode,
     literals::Literal,
+    scope::ScopeId,
     operators::{
         UnaryOperation,
         BinaryOperation
