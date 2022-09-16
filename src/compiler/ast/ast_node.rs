@@ -241,3 +241,89 @@ pub enum ASTNode {
         scope: ScopeId
     }
 }
+
+impl ASTNode {
+    /// Returns children of a ASTNode.
+    /// This method is helpful when searching the AST for specific nodes
+    /// without worrying about the implementation details of non target nodes
+    fn children(&mut self) -> Vec<&mut ASTNode> {
+        let mut output = vec![];
+
+        match self {
+            ASTNode::IDENTIFIER(_) => {}
+            ASTNode::LITERAL(_) => {}
+            ASTNode::UNARY_OP { op: _, expression } => {
+                output.push(expression.as_mut());
+            }
+            ASTNode::BINARY_OP { op: _, lhs, rhs } => {
+                output.push(lhs.as_mut());
+                output.push(rhs.as_mut());
+            }
+            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
+                output.push(identifier.as_mut());
+
+                if datatype.is_some() {
+                    output.push(datatype.as_mut().as_mut().unwrap());
+                }
+                output.push(expression.as_mut());
+            }
+            ASTNode::ASSIGNMENT { identifier, expression } => {
+                output.push(identifier.as_mut());
+                output.push(expression.as_mut());
+            }
+            ASTNode::PRINT { expression } => {
+                output.push(expression.as_mut());
+            }
+            ASTNode::RETURN { expression } => {
+                output.push(expression.as_mut());
+            }
+            ASTNode::BRANCH { condition, if_branch, else_branch } => {
+                output.push(condition.as_mut());
+                output.push(if_branch.as_mut());
+                if else_branch.is_some() {
+                    output.push(else_branch.as_mut().as_mut().unwrap());
+                }
+            }
+            ASTNode::WHILE_LOOP { condition, body } => {
+                output.push(condition.as_mut());
+                output.push(body.as_mut());
+            }
+            ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
+                output.push(initialization.as_mut());
+                output.push(condition.as_mut());
+                output.push(advancement.as_mut());
+                output.push(body.as_mut());
+            }
+            ASTNode::PARAMETER { identifier, datatype } => {
+                output.push(identifier.as_mut());
+                if datatype.is_some() {
+                    output.push(datatype.as_mut().as_mut().unwrap());
+                }
+            }
+            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
+                output.push(identifier);
+                for param in parameters {
+                    output.push(param.borrow_mut());
+                }
+                output.push(return_type.as_mut());
+                output.push(body.as_mut())
+            }
+            ASTNode::FUNC_CALL { identifier, arguments } => {
+                output.push(identifier.as_mut());
+                for arg in arguments {
+                    output.push(arg.borrow_mut());
+                }
+            }
+            ASTNode::STATEMENT_LIST(statements) => {
+                for statement in statements {
+                    output.push(statement.borrow_mut());
+                }
+            }
+            ASTNode::SCOPE_BLOCK { inner, scope: _ } => {
+                output.push(inner.as_mut());
+            }
+        }
+
+        output
+    }
+}
