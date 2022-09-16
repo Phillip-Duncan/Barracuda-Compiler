@@ -40,7 +40,8 @@ impl SymbolType {
             "s32" => {Self::S32},
             "s16" => {Self::S16},
             "s8" =>  {Self::S8},
-            "bool" => {Self::U8}
+            "bool" => {Self::U8},
+            "void" => {Self::Void}
             _ => {panic!("Unrecognised datatype used '{}'", datatype)}
         }
     }

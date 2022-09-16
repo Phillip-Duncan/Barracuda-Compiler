@@ -1,9 +1,10 @@
 use super::literals::Literal;
 use super::operators::{UnaryOperation, BinaryOperation};
 use super::scope::ScopeId;
+use std::borrow::BorrowMut;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum ASTNode {
     /// Identifier is a string sequence representative of a symbol. That is
@@ -195,7 +196,7 @@ pub enum ASTNode {
     FUNCTION {
         identifier: Box<ASTNode>,
         parameters: Vec<ASTNode>,
-        return_type: Box<Option<ASTNode>>,
+        return_type: Box<ASTNode>,
         body: Box<ASTNode>
     },
 

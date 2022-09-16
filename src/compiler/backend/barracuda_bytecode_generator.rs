@@ -332,16 +332,15 @@ impl BarracudaBackend {
                     }
                 }).collect();
 
-                let return_type = match return_type.borrow() {
-                    Some(datatype) => {
-                        let datatype_name = match datatype {
-                            ASTNode::IDENTIFIER(name) => {name.clone()},
-                            _ => panic!("Identifier missing from function statement!")
-                        };
-                        SymbolType::from(datatype_name)
-                    },
-                    None => SymbolType::Void
+                let return_type = {
+                    let datatype = return_type.borrow();
+                    let datatype_name = match datatype {
+                        ASTNode::IDENTIFIER(name) => {name.clone()},
+                        _ => panic!("Identifier missing from function statement!")
+                    };
+                    SymbolType::from(datatype_name)
                 };
+
 
                 // Create Symbol
                 let func_label = self.create_label();
