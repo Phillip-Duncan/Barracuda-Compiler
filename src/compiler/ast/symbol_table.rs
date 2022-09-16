@@ -26,7 +26,7 @@ pub struct Symbol {
 /// Symbol scope is a node in the scope tree of an AST.
 /// The scope has an id and an optional parent scope id.
 /// The scope holds all symbols defined within its context
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SymbolScope {
     id: ScopeId,
     parent: Option<ScopeId>,
@@ -76,6 +76,7 @@ impl SymbolScope {
 /// highest level global scope(id can be retrieved from ScopeId::global()).
 /// AST should be 1:1 with a symbol table as the ScopeIDs are only guaranteed
 /// to be unique within a single symbol table.
+#[derive(Debug, Clone)]
 pub struct SymbolTable {
     /// Scopes are stored by ScopeID
     // This implementation is a hashmap to allow for the pruning of scopes without restructuring

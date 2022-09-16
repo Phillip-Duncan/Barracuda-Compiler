@@ -37,6 +37,12 @@ impl AbstractSyntaxTree {
         }
     }
 
+    /// Return cloned copy of symbol table
+    pub fn get_symbol_table(&self) -> SymbolTable {
+        self.symbol_table.clone()
+    }
+
+    /// Convert AST into ASTNode
     pub fn into_root(self) -> ASTNode {
         self.root
     }

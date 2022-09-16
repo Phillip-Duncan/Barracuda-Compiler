@@ -29,6 +29,7 @@ impl ScopeId {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ScopeIdGenerator {
     previous: ScopeId
 }
