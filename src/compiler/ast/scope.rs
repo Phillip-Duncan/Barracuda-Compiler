@@ -24,7 +24,7 @@ impl ScopeId {
         }
     }
 
-    pub(super) fn from(&mut self, scope: ScopeId)  {
+    pub(super) fn set(&mut self, scope: ScopeId)  {
         self.id = scope.id;
     }
 }
