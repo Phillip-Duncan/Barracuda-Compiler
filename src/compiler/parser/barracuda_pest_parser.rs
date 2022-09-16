@@ -70,7 +70,7 @@ impl PestBarracudaParser {
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
-            _ => { panic!(format!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule())) }
+            _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }
         }
     }
 
@@ -86,7 +86,7 @@ impl PestBarracudaParser {
             Rule::boolean => {
                 ASTNode::LITERAL(Literal::BOOL(pair.as_str().parse().unwrap()))
             },
-            _ => {panic!(format!("Whoops! Unprocessed literal rule: {:?}", pair.as_rule()))}
+            _ => {panic!("Whoops! Unprocessed literal rule: {:?}", pair.as_rule())}
         }
     }
 
