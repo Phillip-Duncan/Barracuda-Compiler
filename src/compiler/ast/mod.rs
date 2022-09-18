@@ -3,7 +3,8 @@ pub(super) mod operators;
 pub(super) mod ast_node;
 pub(super) mod scope;
 pub(super) mod symbol_table;
-mod datatype;
+pub(super) mod datatype;
+pub(super) mod scope_tracker;
 
 pub(super) use self::{
     ast_node::ASTNode,
@@ -12,7 +13,8 @@ pub(super) use self::{
     operators::{
         UnaryOperation,
         BinaryOperation
-    }
+    },
+    scope_tracker::ScopeTracker
 };
 
 use self::symbol_table::SymbolTable;
