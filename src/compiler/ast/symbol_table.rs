@@ -304,6 +304,21 @@ impl SymbolTable {
                     .unwrap_or(false))
             .collect()
     }
+
+    /// Get parent scope id from a scope id
+    /// @id: Scope to get the parent of
+    /// @return: Parent scope id of id if found otherwise returns the global scope
+    pub(super) fn parent_of(&self, id: ScopeId) -> ScopeId {
+        match self.scope_map.get(&id) {
+            Some(scope) => {
+                match scope.parent.clone() {
+                    Some(parent_id) => parent_id,
+                    None => ScopeId::global()
+                }
+            },
+            None => ScopeId::global()
+        }
+    }
 }
 
 
