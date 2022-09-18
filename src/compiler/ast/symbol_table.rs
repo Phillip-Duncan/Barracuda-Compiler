@@ -90,6 +90,23 @@ pub struct SymbolTable {
 /// Public Methods
 impl SymbolTable {
 
+    /// Create an empty symbol table with only one scope, the global scope.
+    pub fn new() -> Self {
+        let mut symbol_table = SymbolTable {
+            scope_map: Default::default(),
+            scope_generator: ScopeIdGenerator::new()
+        };
+
+        // Add root global scope
+        symbol_table.scope_map.insert(ScopeId::global(), SymbolScope {
+            id: ScopeId::global(),
+            parent: None,
+            symbols: Default::default()
+        });
+
+        symbol_table
+    }
+
     /// Generate a Symbol table from a root ASTNode
     /// Each node in the AST is processed to identify the scope structure and symbols.
     /// @root: Root node of an Abstract Syntax Tree. Mutable as scope ids are assigned to scope
@@ -145,24 +162,6 @@ impl SymbolTable {
 
 /// Private Methods
 impl SymbolTable {
-
-    /// Create an empty symbol table with only one scope, the global scope.
-     fn new() -> Self {
-        let mut symbol_table = SymbolTable {
-            scope_map: Default::default(),
-            scope_generator: ScopeIdGenerator::new()
-        };
-
-        // Add root global scope
-        symbol_table.scope_map.insert(ScopeId::global(), SymbolScope {
-            id: ScopeId::global(),
-            parent: None,
-            symbols: Default::default()
-        });
-
-        symbol_table
-    }
-
     /// Create and add a new scope with a valid parent.
     /// @parent: valid parent scope id
     /// @return: new scope id if parent exists otherwise None
