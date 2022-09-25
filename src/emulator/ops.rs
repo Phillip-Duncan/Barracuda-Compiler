@@ -216,6 +216,9 @@ pub enum MathStackOperators {
     LDPC       = 0x1334 , 
     LDTID      = 0x1335 ,
 
+    LDSTK_PTR  = 0x1336 ,
+    RCSTK_PTR  = 0x1337 ,
+
     RCA        = 0x16C8 , 
     RCB        = 0x16C9 , 
     RCC        = 0x16CA , 
@@ -831,6 +834,15 @@ impl MathStackOperators {
             Self::LDTID => {
                 context.push(UINT(context.thread_id))
             },
+            Self::LDSTK_PTR => {
+                context.push(UINT(context.get_stack_pointer().unwrap() as u64))
+            },
+            Self::RCSTK_PTR => {
+                let a = context.pop()?.into_u64() as usize;
+                context.set_stack_pointer(a);
+                Ok(())
+            }
+
             _ => {
                 // Match by value if not found above (This simplifies loading env vars)
                 let opcode: u32 = *self as u32;

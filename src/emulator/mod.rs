@@ -13,7 +13,6 @@ use crate::emulator::emulator_heap::EmulatorHeap;
 use std::fmt;
 use std::borrow::BorrowMut;
 
-
 /// Environment var count as given by the operations. This needs to be updated manually if adding
 /// more env var load instructions.
 pub const ENV_VAR_COUNT: usize = 56;
@@ -451,6 +450,23 @@ impl ThreadContext {
         return self.stack.len().checked_sub(1);
     }
 
+    /// Changes stack size such that new_ptr points to the top of
+    /// the stack
+    pub(crate) fn set_stack_pointer(&mut self, new_ptr: usize) {
+        self.set_stack_len(new_ptr + 1);
+    }
+
+    /// Returns the current length of the stack
+    pub(crate) fn get_stack_len(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// Changes stack size either throwing away values or adding 0s
+    /// to reach new size.
+    pub(crate) fn set_stack_len(&mut self, new_length: usize) {
+        self.stack.resize(new_length, StackValue::UINT(0));
+    }
+
     /// Returns a reference of the instructions
     pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
         &self.program_code.instructions
@@ -471,7 +487,7 @@ impl ThreadContext {
         &self.heap
     }
 
-    /// Returns if the program counter has reached the end of the instruction list
+    /// Returns if the stack pointer has reached the end of the instruction list
     pub(crate) fn is_execution_finished(&self) -> bool {
         self.program_counter == self.program_code.instructions.len()
     }
