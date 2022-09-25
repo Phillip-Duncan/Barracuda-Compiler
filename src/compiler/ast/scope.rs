@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Formatter;
 
 /// Scope Id defines the unique id associated with every scope regardless
 /// of position in the ast tree
@@ -26,6 +28,12 @@ impl ScopeId {
 
     pub(super) fn set(&mut self, scope: ScopeId)  {
         self.id = scope.id;
+    }
+}
+
+impl fmt::Display for ScopeId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", self.id)
     }
 }
 
