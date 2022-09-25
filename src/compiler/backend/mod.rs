@@ -1,5 +1,5 @@
 mod barracuda_bytecode_generator;
-mod barracuda_def;
+mod program_code_builder;
 
 use super::ast::AbstractSyntaxTree;
 use super::program_code::ProgramCode;

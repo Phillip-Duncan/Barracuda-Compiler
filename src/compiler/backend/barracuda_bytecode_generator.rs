@@ -1,8 +1,3 @@
-use super::barracuda_def::{
-    symbols::SymbolType,
-    symbols::BarracudaSymbol,
-    scope::BarracudaScope
-};
 use super::BackEndGenerator;
 
 use super::super::ast::{
@@ -20,425 +15,544 @@ use super::super::program_code::{
 };
 
 use std::borrow::Borrow;
+use std::collections::HashMap;
+use std::fmt::format;
+use std::hash::Hash;
+use std::iter;
+use clap::arg;
+use safer_ffi::paste::expr;
+use crate::compiler::ast::datatype::DataType;
+use crate::compiler::ast::{ScopeId, ScopeTracker};
+use crate::compiler::ast::symbol_table::{SymbolTable, SymbolType};
+use crate::compiler::ast::symbol_table::SymbolType::Parameter;
+use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
 
+/// BarracudaByteCodeGenerator is a Backend for Barracuda
+/// It generates program code from an Abstract Syntax Tree
+///
+/// # Implementation Details
+///   + Uses bottom of stack for two registers, Frame Pointer and Return Store.
+///     + Frame Pointer, FP, keeps track of the current frame and points to the previous frame pointer
+///       when within a function context. Otherwise points to itself.
+///     + Return Store, RS, holds the return result of a function.
+///
+///   + Local Variables: Stored relative to a frame pointer, FP. Given a localvar_id the stack address
+///     of a local variable can be calculated from FP+(index+1).
+///
+pub struct BarracudaByteCodeGenerator {
+    builder: BarracudaProgramCodeBuilder,
+    symbol_tracker: ScopeTracker,
 
-enum BarracudaIR {
-    Value(f64),
-    Instruction(INSTRUCTION),
-    Operation(OP),
-    Label(u64),
-    Reference(u64),
-    Comment(String)
+    function_labels: HashMap<String, u64>
 }
 
-pub struct BarracudaBackend {
-    scope: BarracudaScope,
-    program_out: Vec<BarracudaIR>,
-    label_count: u64
+impl BackEndGenerator for BarracudaByteCodeGenerator {
+    /// Creates a default configuration of BarracudaByteCodeGenerator
+    fn default() -> Self {
+        Self {
+            builder: BarracudaProgramCodeBuilder::new(),
+            symbol_tracker: ScopeTracker::default(),
+            function_labels: HashMap::default()
+        }
+    }
+
+    /// Generates ProgramCode from an Abstract Syntax Tree
+    fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
+        // Create symbol tracker
+        self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
+
+        // Generate program
+        let tree_root_node = tree.into_root();
+        self.builder.comment(String::from("PROGRAM START"));
+        self.generate_node( &tree_root_node);
+
+        // Finalise and attach variable header
+        let header: Vec<f64> = vec![
+            // Return Store Register
+            0.0,
+
+            // Frame pointer
+            // must point to local_var:0 - 1
+            Self::STATIC_REGISTER_COUNT() as f64 - 1.0,
+        ];
+
+        return self.builder.finalize_with_header(header);
+    }
 }
 
-impl BarracudaBackend {
+/// # Description
+///     + This implementation block holds functions related to managing the registers of this backend
+///       as well as utilities for accessing addresses for parameters and local variables. The internal
+///       implementation of these functions is kept opaque to allow for replacement with VM instructions
+///       in the future as an optimisation.
+///
+/// # Stack Frame Structure
+/// SP ->   ANONYMOUS VALUE N
+///         ...
+///         ANONYMOUS VALUE 1
+///         ANONYMOUS VALUE 0
+///         LOCAL VAR N
+///         ...
+///         LOCAL VAR 1
+///         LOCAL VAR 0
+/// FP ->   PREV FRAME PTR
+///         RETURN ADDRESS
+///         FUNC PARAMETER 0
+///         FUNC PARAMETER 1
+///         ...
+///         FUNC PARAMETER N
+///
+/// # Key
+///     + ANONYMOUS VALUE: Temporary computation values for instance for the sequence
+///       push 4, push 5, add. The 4 and 5 would be added to the stack as anonymous values.
+///     + LOCAL VAR: Are local variables within the current scope.
+///     + PREV FRAME PTR: The previous frame pointer is stored so that the previous frame can
+///       be restored after returning from a function context.
+///     + RETURN ADDRESS: Stores the instruction address of the caller of a function. This allows
+///       execution to return to the origin regardless of where a function is called.
+///     + FUNC PARAMETER: Are the set function parameters to a function they can be called and
+///       modified the same as variables they are just stored separately to simplify the function
+///       call procedure.
+impl BarracudaByteCodeGenerator {
 
-    pub fn new() -> Self {
-        BarracudaBackend {
-            scope: BarracudaScope::new(),
-            program_out: Vec::new(),
-            label_count: 0
-        }
+    /// STATIC CONST FUNCTIONS
+    fn FRAME_PTR_ADDRESS()      -> usize { 1 }
+    fn RETURN_STORE_ADDRESS()   -> usize { 0 }
+    fn STATIC_REGISTER_COUNT()  -> usize { 2 }
+
+    /// Generate code to push frame pointer on the top of the stack
+    fn generate_get_frame_ptr(&mut self) {
+        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_op(OP::STK_READ);
     }
 
-    fn emit(&mut self, token: BarracudaIR) {
-        self.program_out.push(token);
+    /// Generate code to push return store on the top of the stack
+    fn generate_get_return_store(&mut self) {
+        self.builder.emit_value(Self::RETURN_STORE_ADDRESS() as f64);
+        self.builder.emit_op(OP::STK_READ);
     }
 
-    fn comment(&mut self, comment: String) {
-        self.program_out.push(BarracudaIR::Comment(comment));
+    /// Generate code to set return store with the result of an expression
+    fn generate_set_return_store(&mut self, expression: &ASTNode) {
+        self.builder.emit_value(Self::RETURN_STORE_ADDRESS() as f64);
+        self.generate_node(expression);
+        self.builder.emit_op(OP::STK_WRITE);
     }
 
-    fn create_label(&mut self) -> u64 {
-        let label = self.label_count;
-        self.label_count += 1;
-        label
+    /// Generate code to push local variable stack address onto the top of the stack
+    fn generate_local_var_address(&mut self, localvar_index: usize) {
+        self.builder.emit_value((localvar_index + 1) as f64); // id
+        self.generate_get_frame_ptr();
+        self.builder.emit_op(OP::ADD_PTR);  // FRAME_PTR + (id + 1)
     }
 
-    fn set_label(&mut self, label: u64) {
-        self.program_out.push(BarracudaIR::Label(label))
+    /// Generate code to push parameter stack address onto the top of the stack
+    fn generate_parameter_address(&mut self, parameter_index: usize) {
+        self.generate_get_frame_ptr();
+        self.builder.emit_value((parameter_index + 2) as f64); // id
+        self.builder.emit_op(OP::SUB_PTR);  // FRAME_PTR - (id + 1)
     }
 
-    fn reference(&mut self, label: u64) {
-        self.program_out.push(BarracudaIR::Reference(label))
+    /// Add a symbol to symbol tracker to declare as existing in the backend context.
+    /// This is done to ensure that only backend processed symbols are considered in scope.
+    fn add_symbol(&mut self, name: String) {
+        self.symbol_tracker.add_symbol(name.clone());
     }
+}
 
-    fn generate(&mut self, node: &ASTNode) -> ProgramCode {
-        self.generate_node(node);
-        self.insert_program_header();
-        self.resolve_labels()
-    }
 
-    fn insert_program_header(&mut self) {
-        // Push zeros onto stack for local variable storage
-        // Note(Connor): Can be optimized in the future by directly inserting initial values here
-        for _ in 0..self.scope.scope_total_mutable {
-            self.program_out.insert(0, BarracudaIR::Value(0.0))
-        }
-    }
-
-    fn resolve_labels(&self) -> ProgramCode {
-        // Note(Connor): Split into separate functions for production
-
-        // First pass finding labels
-        let mut locations = vec![0; self.label_count as usize];
-        let mut current_line = 0;
-        for code_token in &self.program_out {
-            match code_token {
-                BarracudaIR::Label(id) => {
-                    locations[*id as usize] = current_line;
-                }
-                BarracudaIR::Comment(_) => {}
-                _ => {
-                    current_line += 1
-                }
-            }
-        }
-
-        // Second pass replacing tokens
-        let mut output_program = ProgramCode::default();
-        for code_token in &self.program_out {
-            match code_token {
-                BarracudaIR::Instruction(instruction) => {
-                    output_program.push_instruction(instruction.clone());
-                }
-                BarracudaIR::Operation(operation) => {
-                    output_program.push_operation(operation.clone());
-                }
-                BarracudaIR::Value(value) => {
-                    output_program.push_value(value.clone());
-                }
-                BarracudaIR::Reference(id) => {
-                    output_program.push_value(locations[*id as usize].clone() as f64);
-                }
-                BarracudaIR::Label(_) => {}
-                BarracudaIR::Comment(_) => {}
-            };
-        }
-
-        output_program
-    }
-
+/// # Description:
+///     + This implementation block holds the business logic of generating ProgramCode using the
+///       builder from ASTNodes. The general overview is unknown nodes / expression nodes are passed
+///       into generate_node and are then unpacked and sent to more specific generator functions.
+///
+/// # Implementation Notes:
+///     + This code is proof of concept and makes several assumptions around the structure of the
+///       AST that will crash the program if malformed. All identifiers are assumed to exist and
+///       the program will panic over symbolic errors here. In future development I would modify
+///       the return type of these functions to return a Custom CompilerError struct so that it is
+///       easier to inform callers on why programs failed to compile, rather than crashing.
+impl BarracudaByteCodeGenerator {
     fn generate_node(&mut self, node: &ASTNode) {
         match node {
             ASTNode::IDENTIFIER(identifier_name) => {
-                match self.scope.get_symbol(identifier_name) {
-                    Some(symbol) => {
-                        self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
-                        self.emit(BarracudaIR::Operation(OP::STK_READ));
-                    },
-                    None => {panic!("Identifier '{}' out of scope", identifier_name)}
-                }
+                self.generate_identifier(identifier_name)
             }
-            ASTNode::LITERAL(value) => {
-                self.emit(BarracudaIR::Value(match *value {
-                    Literal::FLOAT(value) => { value }
-                    Literal::INTEGER(value) => { value as f64 }
-                    Literal::STRING(_) => { unimplemented!() }
-                    Literal::BOOL(value) => { value as i64 as f64 }
-                }));
+            ASTNode::LITERAL(literal) => {
+                self.generate_literal(literal)
             }
             ASTNode::UNARY_OP { op, expression } => {
-                self.generate_node(expression);
-                match op {
-                    UnaryOperation::NOT => {self.emit(BarracudaIR::Operation(OP::NOT))}
-                    UnaryOperation::NEGATE => {
-                        self.emit(BarracudaIR::Value(0.0));
-                        self.emit(BarracudaIR::Operation(OP::SUB));
-                    }
-                };
+                self.generate_unary_op(op, expression)
             }
             ASTNode::BINARY_OP { op, lhs, rhs } => {
-                self.generate_node(lhs);
-                self.generate_node(rhs);
-                match op {
-                    BinaryOperation::ADD   => { self.emit(BarracudaIR::Operation(OP::ADD)); }
-                    BinaryOperation::SUB   => { self.emit(BarracudaIR::Operation(OP::SUB)); }
-                    BinaryOperation::DIV   => { self.emit(BarracudaIR::Operation(OP::DIV)); }
-                    BinaryOperation::MUL   => { self.emit(BarracudaIR::Operation(OP::MUL)); }
-                    BinaryOperation::MOD   => { self.emit(BarracudaIR::Operation(OP::FMOD)); }
-                    BinaryOperation::POW   => { self.emit(BarracudaIR::Operation(OP::POW)); }
-                    BinaryOperation::EQUAL => { self.emit(BarracudaIR::Operation(OP::EQ)); }
-                    BinaryOperation::NOT_EQUAL => {
-                        self.emit(BarracudaIR::Operation(OP::EQ));
-                        self.emit(BarracudaIR::Operation(OP::NOT));
-                    }
-                    BinaryOperation::GREATER_THAN  => { self.emit(BarracudaIR::Operation(OP::GT)) }
-                    BinaryOperation::LESS_THAN     => { self.emit(BarracudaIR::Operation(OP::LT)) }
-                    BinaryOperation::GREATER_EQUAL => { self.emit(BarracudaIR::Operation(OP::GTEQ)) }
-                    BinaryOperation::LESS_EQUAL    => { self.emit(BarracudaIR::Operation(OP::LTEQ)) }
-                };
+                self.generate_binary_op(op, lhs, rhs)
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
-                // Create symbol
-                let identifier_name = match identifier.as_ref() {
-                    ASTNode::IDENTIFIER(name) => {name},
-                    _ => panic!("Identifier missing from construct statement!")
-                };
-                let symbol = BarracudaSymbol {
-                    name: identifier_name.clone(),
-                    symbol_type: SymbolType::Void, // TODO(Connor): Add type info
-                    mutable: true,
-                    scope_id: self.scope.next_mutable_id()
-                };
-
-                self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
-                self.generate_node(expression); // Expression
-                self.emit(BarracudaIR::Operation(OP::STK_WRITE));
-                self.scope.add_symbol(symbol); // Add symbol last to avoid recursive statement let a = a
+                self.generate_construct_statement(identifier, datatype, expression);
             }
             ASTNode::ASSIGNMENT { identifier, expression } => {
-                let identifier_name = match identifier.as_ref() {
-                    ASTNode::IDENTIFIER(name) => {name},
-                    _ => panic!("Identifier missing from assignment statement!")
-                };
-
-                match self.scope.get_symbol(identifier_name) {
-                    Some(symbol) => {
-                        if !symbol.mutable {
-                            panic!("Assignment to  immutable identifier '{}'", identifier_name)
-                        }
-
-                        self.emit(BarracudaIR::Value(symbol.scope_id as f64)); // Store
-                        self.generate_node(expression); // Expression
-                        self.emit(BarracudaIR::Operation(OP::STK_WRITE));
-                    },
-                    None => {panic!("Identifier '{}' out of scope", identifier_name)}
-                }
-            },
-            ASTNode::PRINT {expression} => {
-                self.generate_node(expression);
-                self.emit(BarracudaIR::Operation(OP::PRINTFF));
-
-                // New Line character
-                self.emit(BarracudaIR::Value(10.0 as f64));
-                self.emit(BarracudaIR::Operation(OP::PRINTC));
+                self.generate_assignment_statement(identifier, expression)
             }
-            ASTNode::BRANCH { condition, if_branch, else_branch } => {
-                let if_end = self.create_label();
-
-                self.generate_node(condition);
-                self.reference(if_end);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
-                self.generate_node(if_branch);
-
-                match else_branch.as_ref() {
-                    None => {
-                        self.set_label(if_end);
-                    },
-                    Some(else_branch) => {
-                        let else_end = self.create_label();
-
-                        self.reference(else_end);
-                        self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-                        self.set_label(if_end);
-
-                        self.generate_node(else_branch);
-                        self.set_label(else_end);
-                    }
-                }
-
-            }
-            ASTNode::WHILE_LOOP { condition, body } => {
-                let while_start = self.create_label();
-                let while_exit = self.create_label();
-
-                self.set_label(while_start);
-
-                self.generate_node(condition);
-                self.reference(while_exit);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
-
-                self.generate_node(body);
-
-                self.reference(while_start);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-
-                self.set_label(while_exit);
-
-            }
-            ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
-                let for_start = self.create_label();
-                let for_exit = self.create_label();
-
-
-                self.generate_node(initialization);
-
-                self.set_label(for_start);
-                self.generate_node(condition);
-                self.reference(for_exit);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO_IF));
-
-                self.generate_node(body);
-                self.generate_node(advancement);
-
-                self.reference(for_start);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-
-                self.set_label(for_exit);
-            }
-            ASTNode::STATEMENT_LIST(statements) => {
-                self.scope.add_level();
-                for statement in statements {
-                    self.generate_node(statement);
-                }
-                self.scope.remove_level();
-            }
-            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
-                // Get identifier name
-                let identifier_name = match identifier.as_ref() {
-                    ASTNode::IDENTIFIER(name) => {name},
-                    _ => panic!("Identifier missing from function statement!")
-                };
-
-                // Add scope level just for parameters
-                self.scope.add_level();
-
-                let parameter_scope_start_id = self.scope.next_mutable_id();
-
-                let param_types: Vec<SymbolType> = parameters.iter().map(|param|  {
-                    match param {
-                        ASTNode::PARAMETER { identifier, datatype } => {
-                            // Create symbol
-                            let identifier_name = match identifier.as_ref() {
-                                ASTNode::IDENTIFIER(name) => {name},
-                                _ => panic!("Identifier missing from parameter statement!")
-                            };
-
-                            let datatype_name = match datatype.as_ref() {
-                                Some(ASTNode::IDENTIFIER(name)) => {name.clone()},
-                                None => "F64".to_string(), // TODO(Connor): Add type inferencing
-                                _ => panic!("datatype missing from parameter statement!")
-                            };
-
-                            let symbol = BarracudaSymbol {
-                                name: identifier_name.clone(),
-                                symbol_type: SymbolType::from(datatype_name),
-                                mutable: true,
-                                scope_id: self.scope.next_mutable_id()
-                            };
-
-                            let symbol_type = symbol.symbol_type.clone();
-                            self.scope.add_symbol(symbol); // Add symbol last to avoid recursive statement let a = a
-                            symbol_type
-                        }
-                        _ => {panic!("Non parameter found in function list")}
-                    }
-                }).collect();
-
-                let return_type = {
-                    let datatype = return_type.borrow();
-                    let datatype_name = match datatype {
-                        ASTNode::IDENTIFIER(name) => {name.clone()},
-                        _ => panic!("Identifier missing from function statement!")
-                    };
-                    SymbolType::from(datatype_name)
-                };
-
-
-                // Create Symbol
-                let func_label = self.create_label();
-                let symbol = BarracudaSymbol {
-                    name: identifier_name.clone(),
-                    symbol_type: SymbolType::Function{
-                        func_label,
-                        func_params: param_types,
-                        func_return: Box::new(return_type)
-                    },
-                    mutable: false,
-                    scope_id: parameter_scope_start_id
-                };
-
-                // Generate code
-                let func_end_label = self.create_label();
-
-                // Jump past function code
-                self.comment(format!("FN DEF {}", symbol.name));
-                self.reference(func_end_label);
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-
-                // Function body
-                self.set_label(func_label);
-                self.generate_node(body);
-
-                // Return if reaches bottom
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-                self.set_label(func_end_label);
-                self.comment(format!("FN DEF END"));
-                self.scope.remove_level();
-
-                // Added to scope after function disables recursion
-                self.scope.add_symbol(symbol)
+            ASTNode::PRINT { expression } => {
+                self.generate_print_statement(expression)
             }
             ASTNode::RETURN { expression } => {
-                self.generate_node(expression); // Calculate expression
-                self.emit(BarracudaIR::Operation(OP::SWAP)); // Swap with return address
-                self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO)); // Goto return address
+                self.generate_return_statement(expression)
+            }
+            ASTNode::BRANCH { condition, if_branch, else_branch } => {
+                self.generate_branch_statement(condition, if_branch, else_branch)
+            }
+            ASTNode::WHILE_LOOP { condition, body } => {
+                self.generate_while_statement(condition, body)
+            }
+            ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
+                self.generate_for_loop(initialization, condition, advancement, body)
+            }
+            ASTNode::PARAMETER { identifier, datatype } => {
+                self.generate_parameter(identifier, datatype)
+            }
+            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
+                self.generate_function_definition(identifier, parameters, return_type, body)
             }
             ASTNode::FUNC_CALL { identifier, arguments } => {
-                let function_symbol = match identifier.as_ref() {
-                    ASTNode::IDENTIFIER(name) => {
-                        self.scope.get_symbol(name)
-                    },
-                    _ => panic!("Identifier missing from parameter statement!")
-                }.unwrap();
+                self.generate_function_call(identifier, arguments)
+            }
+            ASTNode::STATEMENT_LIST(statement_list) => {
+                self.generate_statement_list(statement_list)
+            }
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.generate_scope_block(inner, scope);
+            }
+        };
+    }
 
-                if let SymbolType::Function { func_label, func_params, func_return } = function_symbol.symbol_type {
-                    let mut param_id = function_symbol.scope_id;
+    fn generate_identifier(&mut self, name: &String) {
+        let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
-                    // Fill in parameters
-                    if func_params.len() != arguments.len() {
-                        panic!("{} takes {} parameters but {} were given",
-                               function_symbol.name, func_params.len(), arguments.len());
-                    }
+        match symbol_result.symbol_type() {
+            SymbolType::Variable(datatype) => {
+                let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
 
-                    self.comment(format!("FN CALL {}", function_symbol.name));
-
-                    for (param, arg_expression) in func_params.iter().zip(arguments.iter()) {
-                        self.emit(BarracudaIR::Value(param_id as f64));
-                        self.generate_node(arg_expression); // Expression
-                        self.emit(BarracudaIR::Operation(OP::STK_WRITE));
-                        param_id += 1;
-                    };
-
-                    // Push stack pointer
-                    let end_fncall_label = self.create_label();
-                    self.reference(end_fncall_label);
-                    self.reference(func_label);
-                    self.emit(BarracudaIR::Instruction(INSTRUCTION::GOTO));
-                    self.comment(format!("FN CALL END"));
-                    self.set_label(end_fncall_label);
-
-                } else {
-                    panic!("Identifier cannot be called {}", function_symbol.name);
-                }
-            },
-            ASTNode::SCOPE_BLOCK{ inner, scope } => {
-                // ...Set active scope to scope id
-                self.generate_node(inner);
-            },
-            _ => {unimplemented!()}
+                self.generate_local_var_address(localvar_id);
+                self.builder.emit_op(OP::STK_READ);
+            }
+            SymbolType::Parameter(datatype) => {
+                let param_id = self.symbol_tracker.get_param_id(name).unwrap();
+                self.generate_parameter_address(param_id);
+                self.builder.emit_op(OP::STK_READ);
+            }
+            _ => {panic!("Symbol type does not contain meaning in expressions")}
         }
     }
-}
 
+    fn generate_literal(&mut self, literal: &Literal) {
+        let literal_value = match *literal {
+            Literal::FLOAT(value) => { value }
+            Literal::INTEGER(value) => { value as f64 }
+            Literal::STRING(_) => {
+                unimplemented!()
+                // This would likely involve allocation on the heap
+            }
+            Literal::BOOL(value) => { value as i64 as f64 }
+        };
 
-pub struct BarracudaByteCodeGenerator {}
-
-impl BackEndGenerator for BarracudaByteCodeGenerator {
-    fn default() -> Self {
-        Self {}
+        self.builder.emit_value(literal_value);
     }
 
-    fn generate(self, tree: AbstractSyntaxTree) -> ProgramCode {
-        let mut generator = BarracudaBackend::new();
-        let tree_root_node = tree.into_root();
-        generator.generate(&tree_root_node)
+    fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
+        self.generate_node(expression);
+        match op {
+            UnaryOperation::NOT => {self.builder.emit_op(OP::NOT)}
+            UnaryOperation::NEGATE => {
+                self.builder.emit_value(0.0);
+                self.builder.emit_op(OP::SUB);
+            }
+        };
+    }
+
+    fn generate_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
+        self.generate_node(lhs);
+        self.generate_node(rhs);
+        match op {
+            BinaryOperation::ADD   => { self.builder.emit_op(OP::ADD); }
+            BinaryOperation::SUB   => { self.builder.emit_op(OP::SUB); }
+            BinaryOperation::DIV   => { self.builder.emit_op(OP::DIV); }
+            BinaryOperation::MUL   => { self.builder.emit_op(OP::MUL); }
+            BinaryOperation::MOD   => { self.builder.emit_op(OP::FMOD); }
+            BinaryOperation::POW   => { self.builder.emit_op(OP::POW); }
+            BinaryOperation::EQUAL => { self.builder.emit_op(OP::EQ); }
+            BinaryOperation::NOT_EQUAL => {
+                self.builder.emit_op(OP::EQ);
+                self.builder.emit_op(OP::NOT);
+            }
+            BinaryOperation::GREATER_THAN  => { self.builder.emit_op(OP::GT); }
+            BinaryOperation::LESS_THAN     => { self.builder.emit_op(OP::LT); }
+            BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
+            BinaryOperation::LESS_EQUAL    => { self.builder.emit_op(OP::LTEQ); }
+        };
+    }
+
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+
+        // Leave result of expression at top of stack as this is the allocated
+        // region for the local variable
+        self.generate_node(expression);
+        self.add_symbol(identifier_name.clone());
+
+        // Comment local var id
+        let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+        self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
+    }
+
+    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+
+        self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
+        self.generate_local_var_address(local_var_id);
+        self.generate_node(expression);
+        self.builder.emit_op(OP::STK_WRITE);
+    }
+
+    fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {
+        self.builder.comment(format!("PRINT"));
+        self.generate_node(expression);
+        self.builder.emit_op(OP::PRINTFF);
+
+        // New Line character
+        self.builder.emit_value(10.0);
+        self.builder.emit_op(OP::PRINTC);
+    }
+
+    fn generate_return_statement(&mut self, expression: &Box<ASTNode>) {
+        // Store return result in register
+        self.generate_set_return_store(expression);
+        self.generate_return_handler();
+    }
+
+    fn generate_return_handler(&mut self) {
+        self.builder.comment(String::from("RETURN HANDLER START"));
+
+        // Set stack pointer to frame ptr
+        self.generate_get_frame_ptr();
+        self.builder.emit_op(OP::RCSTK_PTR);
+
+        // Set frame ptr to old frame ptr
+        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_op(OP::SWAP);
+        self.builder.emit_op(OP::STK_WRITE);
+
+        // GOTO return address
+        self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+        self.builder.comment(String::from("RETURN HANDLER END"));
+    }
+
+    fn generate_branch_statement(&mut self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) {
+        let if_end = self.builder.create_label();
+
+        // Conditional Jump
+        self.builder.comment(String::from("IF CONDITION"));
+        self.generate_node(condition);
+        self.builder.reference(if_end);
+        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+
+        // If condition != 0
+        // Generate if block
+        self.builder.comment(String::from("IF BRANCH"));
+        self.generate_node(if_branch);
+
+        // If condition == 0, i.e Else
+        match else_branch.as_ref() {
+            None => {
+                self.builder.set_label(if_end);
+            },
+            Some(else_branch) => {
+                let else_end = self.builder.create_label();
+
+                // Skip else block if encountered after running if block
+                self.builder.reference(else_end);
+                self.builder.emit_instruction(INSTRUCTION::GOTO);
+                self.builder.set_label(if_end);
+
+                // Generate else block
+                self.builder.comment(String::from("ELSE BRANCH"));
+                self.generate_node(else_branch);
+                self.builder.set_label(else_end);
+            }
+        }
+        self.builder.comment(String::from("IF END"));
+    }
+
+    fn generate_while_statement(&mut self, condition: &Box<ASTNode>, body: &Box<ASTNode>) {
+        let while_start = self.builder.create_label();
+        let while_exit = self.builder.create_label();
+
+        // Start
+        self.builder.set_label(while_start);
+
+        // Generate condition
+        self.builder.comment(String::from("WHILE CONDITION"));
+        self.generate_node(condition);
+        self.builder.reference(while_exit);
+        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+
+        // Generate body
+        self.builder.comment(String::from("WHILE BODY"));
+        self.generate_node(body);
+
+        // Loop back to condition after body
+        self.builder.reference(while_start);
+        self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+        // Exit
+        self.builder.set_label(while_exit);
+        self.builder.comment(String::from("WHILE END"));
+    }
+
+    fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
+        let for_start = self.builder.create_label();
+        let for_exit = self.builder.create_label();
+
+        // Start
+        self.builder.comment(String::from("FOR INIT"));
+        self.generate_node(initialization);
+        self.builder.set_label(for_start);
+
+        // Condition
+        self.builder.comment(String::from("FOR CONDITION"));
+        self.generate_node(condition);
+        self.builder.reference(for_exit);
+        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+
+        // Generate Body
+        self.builder.comment(String::from("FOR BODY"));
+        self.generate_node(body);
+
+        self.builder.comment(String::from("FOR ADVANCE"));
+        self.generate_node(advancement);
+
+        // Loop back to condition after body
+        self.builder.reference(for_start);
+        self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+        // Exit
+        self.builder.set_label(for_exit);
+        self.builder.comment(String::from("FOR END"));
+    }
+
+    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
+        // Add function symbol
+        let identifier_name = identifier.identifier_name().unwrap();
+        self.symbol_tracker.add_symbol(identifier_name.clone());
+
+        // Create labels and assign them
+        let function_def_start = self.builder.create_label();
+        let function_def_end = self.builder.create_label();
+        self.function_labels.insert(identifier_name.clone(), function_def_start);
+
+        // Jump over function definition approaching from the top
+        self.builder.reference(function_def_end);
+        self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+        self.builder.comment(format!("FN {} START", &identifier_name));
+        self.builder.set_label(function_def_start);
+
+        // Generate body
+        match body.as_ref() {
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.symbol_tracker.enter_scope(scope.clone());
+
+                // Process parameters into scope
+                for parameter in parameters {
+                    self.generate_node(parameter);
+                }
+
+                // Generate function body
+                self.generate_node(inner);
+
+                self.symbol_tracker.exit_scope();
+            }
+            _ => panic!("Malformed function node!")
+        };
+
+        // Return if reaches end
+        self.generate_return_handler();
+        self.builder.set_label(function_def_end);
+        self.builder.comment(format!("FN {} END", &identifier_name));
+    }
+
+    fn generate_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        self.add_symbol(identifier_name);
+    }
+
+    fn generate_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        let function_def_label = self.function_labels.get(&identifier_name).unwrap().clone();
+        let function_call_end = self.builder.create_label();
+
+        // Generate Call Stack
+        self.builder.comment(format!("FN CALL {} START", &identifier_name));
+        {
+            // Push arguments onto the stack in reverse order
+            for (i, arg) in arguments.iter().enumerate().rev() {
+                self.builder.comment(format!("FN ARG {}", i));
+                self.generate_node(arg)
+            }
+
+            // Push return address
+            self.builder.comment(format!("RETURN ADDRESS"));
+            self.builder.reference(function_call_end);
+
+
+            // Push previous frame pointer
+            self.builder.comment(format!("PREV FRAME POINTER"));
+            self.generate_get_frame_ptr();
+        }
+
+        // Update frame pointer
+        self.builder.comment(format!("UPDATE FRAME POINTER"));
+        self.builder.emit_op(OP::LDSTK_PTR);
+        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_op(OP::SWAP);
+        self.builder.emit_op(OP::STK_WRITE);
+
+
+        // Jump into function definition
+        self.builder.comment(format!("GOTO FN DEF"));
+        self.builder.reference(function_def_label);
+        self.builder.emit_instruction(INSTRUCTION::GOTO);
+        self.builder.set_label(function_call_end);
+
+
+        // Clean up arguments on stack
+        self.builder.comment(format!("DROP ARGS"));
+        for _ in 0..arguments.len() {
+            self.builder.emit_op(OP::DROP);
+        }
+
+        self.builder.comment(format!("FN CALL {} END", &identifier_name));
+
+        // Push return onto stack
+        self.generate_get_return_store();
+    }
+
+    fn generate_statement_list(&mut self, statements: &Vec<ASTNode>) {
+        for statement in statements {
+            self.generate_node(statement);
+        }
+    }
+
+    fn generate_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) {
+        self.symbol_tracker.enter_scope(scope.clone());
+        self.generate_node(inner);
+
+        // Drop all local vars
+        let symbols_dropped = self.symbol_tracker.exit_scope();
+        for _ in 0..symbols_dropped {
+            self.builder.emit_op(OP::DROP);
+        }
     }
 }
