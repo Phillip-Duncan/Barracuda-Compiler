@@ -11,6 +11,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::emulator::emulator_heap::EmulatorHeap;
 use std::fmt;
+use std::borrow::BorrowMut;
 
 
 /// Environment var count as given by the operations. This needs to be updated manually if adding
@@ -126,7 +127,7 @@ impl ProgramCode {
 
     /// Generic padding function for the values/operations list to be padded to align with the instruction list
     /// This will create a new aligned list where each value is found where the alignment_instr is found
-    /// This allows for the stack pointer to be used for all lists without misalignment.
+    /// This allows for the program counter to be used for all lists without misalignment.
     /// @alignment_instr: Expected either OP or VALUE
     /// @instructions: The list of instructions for the program
     /// @unaligned_list: Either the inputted values or operations list
@@ -179,10 +180,10 @@ pub struct ThreadContext {
     /// Output handle is used to redirect output of operations such as PRINTFF, PRINTC
     output_handle: Rc<RefCell<dyn Write>>,
 
-    /// Stack pointer points to the next instruction to execute in instructions list.
+    /// Program counter points to the next instruction to execute in instructions list.
     /// Since instructions are loaded top to bottom this
-    /// points to instructions(instruction.len()-1-stack_pointer)
-    stack_pointer: usize,
+    /// points to instructions(instruction.len()-1-program_counter)
+    program_counter: usize,
 
     /// stack_maxsize is an emulated variable. It does not specify the actual stack size in the
     /// emulator but is used to enforce a set max size.
@@ -220,7 +221,7 @@ impl ThreadContext {
         ThreadContext {
             thread_id: 0,
             output_handle: output_stream,
-            stack_pointer: 0,
+            program_counter: 0,
             stack_maxsize: stack_size,
             env_vars: [0.0; ENV_VAR_COUNT],
             program_code: ProgramCode::new(
@@ -244,7 +245,7 @@ impl ThreadContext {
         ThreadContext {
             thread_id: 0,
             output_handle: output_stream,
-            stack_pointer: 0,
+            program_counter: 0,
             stack_maxsize: stack_size,
             env_vars: [0.0; ENV_VAR_COUNT],
             program_code,
@@ -273,11 +274,40 @@ impl ThreadContext {
         }
     }
 
+    /// Reads a value from a stack index
+    /// @stack_index: Stack index address to value to read
+    /// @return StackValue from stack_index address if okay otherwise returns AddrNotAvailable Error if
+    ///         stack_index out of range
+    fn read_stack(&self, stack_index: usize) -> Result<StackValue, Error> {
+        match self.stack.get(stack_index) {
+            Some(value) => {
+                Ok(value.clone())
+            },
+            None => Err(Error::new(ErrorKind::AddrNotAvailable,
+                                   format!("Invalid read to stack at address {}, StackLength: {}", stack_index, self.stack.len())))
+        }
+    }
+
+    /// Writes a value to a stack index
+    /// @stack_index: Stack index address to value to change
+    /// @new_value: Assigns stack[stack_index] = new_value
+    /// @return nothing if ok otherwise return AddrNotAvailable Error if stack_index out of range
+    fn write_stack(&mut self, stack_index: usize, new_value: StackValue) -> Result<(), Error> {
+        match self.stack.get_mut(stack_index) {
+            Some(value) => {
+                *value = new_value;
+                Ok(())
+            }
+            None =>  Err(Error::new(ErrorKind::AddrNotAvailable,
+                                    format!("Invalid write to stack at address {}, StackLength: {}", stack_index, self.stack.len())))
+        }
+    }
+
     /// Returns current value at pc in value list
     /// @return: value: f64 is successful, otherwise if the value_pointer is at the end of the
     ///          value list ErrorKind::AddrNotAvailable
     fn get_value(&mut self) -> Result<f64, Error> {
-        match self.program_code.values.get(self.program_code.values.len() - self.stack_pointer - 1) {
+        match self.program_code.values.get(self.program_code.values.len() - self.program_counter - 1) {
             Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next value. Reached end of value list"))
         }
@@ -287,7 +317,7 @@ impl ThreadContext {
     /// @return: MathStackOperator if successful, otherwise if the stack_pointer is at the end of
     ///          operation list ErrorKind::AddrNotAvailable
     fn get_operation(&mut self) -> Result<MathStackOperators, Error> {
-        match self.program_code.operations.get(self.program_code.operations.len() - self.stack_pointer - 1) {
+        match self.program_code.operations.get(self.program_code.operations.len() - self.program_counter - 1) {
             Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next operation. Reached end of operation list"))
         }
@@ -297,7 +327,7 @@ impl ThreadContext {
     /// @return: MathStackInstruction if successful, otherwise if the stack_pointer is at the
     ///          end of program list ErrorKind::AddrNotAvailable
     fn get_instruction(&mut self) -> Result<MathStackInstructions, Error> {
-        match self.program_code.instructions.get(self.program_code.instructions.len() - self.stack_pointer - 1) {
+        match self.program_code.instructions.get(self.program_code.instructions.len() - self.program_counter - 1) {
             Some(value) => {
                 Ok(*value)
             },
@@ -308,7 +338,7 @@ impl ThreadContext {
     /// Gets the current program counter
     /// @return: Current program counter.
     pub(crate) fn get_pc(&self) -> usize {
-        self.stack_pointer
+        self.program_counter
     }
 
     /// Sets the program counter to a new value
@@ -316,7 +346,7 @@ impl ThreadContext {
     /// @return: Ok if successful, otherwise if the @new_pc is out of range ErrorKind::AddrNotAvailable
     fn set_pc(&mut self, new_pc: usize) -> Result<(), Error> {
         if new_pc <= self.program_code.instructions.len() {
-            self.stack_pointer = new_pc;
+            self.program_counter = new_pc;
             Ok(())
         } else {
             Err(Error::new(ErrorKind::AddrNotAvailable, format!("Tried to set program counter out of range {} > {}.", new_pc, self.program_code.instructions.len())))
@@ -325,7 +355,7 @@ impl ThreadContext {
 
     /// Steps the program counter + 1
     fn step_pc(&mut self) {
-        self.stack_pointer += 1;
+        self.program_counter += 1;
     }
 
     /// Will check if the top loop_counter current has reached max. If it hasn't it will increment
@@ -416,6 +446,11 @@ impl ThreadContext {
         self.stack.clone()
     }
 
+    /// Returns index of top element of stack
+    pub(crate) fn get_stack_pointer(&self) -> Option<usize> {
+        return self.stack.len().checked_sub(1);
+    }
+
     /// Returns a reference of the instructions
     pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
         &self.program_code.instructions
@@ -436,16 +471,16 @@ impl ThreadContext {
         &self.heap
     }
 
-    /// Returns if the stack pointer has reached the end of the instruction list
+    /// Returns if the program counter has reached the end of the instruction list
     pub(crate) fn is_execution_finished(&self) -> bool {
-        self.stack_pointer == self.program_code.instructions.len()
+        self.program_counter == self.program_code.instructions.len()
     }
 
     ///  Will step a single instruction of the program loaded.
     ///  @return: nothing if successful, an io error if an unrecoverable error was encountered
     ///           during execution
     pub(crate) fn step(&mut self) -> Result<(), Error> {
-        if self.stack_pointer < self.program_code.instructions.len() {
+        if self.program_counter < self.program_code.instructions.len() {
             let instruction = self.get_instruction()?;
             instruction.execute(self)
         } else {

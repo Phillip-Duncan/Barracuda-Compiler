@@ -25,13 +25,12 @@ impl Eq for FuncPointerContext {}
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, EnumString)]
 pub enum MathStackInstructions {
-    OP,
-    VALUE ,
-    GOTO,
-    GOTO_IF,
-    LOOP_ENTRY,
-    LOOP_END,
-
+    OP,         // Runs Operation at the same index in the operations table
+    VALUE ,     // Load Immediate the same index in the value table
+    GOTO,       // Pop address and set stack pointer
+    GOTO_IF,    // Pop address and condition set stack pointer if condition==0
+    LOOP_ENTRY, // Pop start, end values and create a new loop counter
+    LOOP_END,   // Set stack pointer to most recent loop entry
     #[strum(disabled)]
     FUNC_POINTER(FuncPointerContext)
 }
@@ -74,7 +73,7 @@ impl MathStackInstructions {
             Self::LOOP_ENTRY => {
                 let b = context.pop()?.into_i64();
                 let a = context.pop()?.into_i64();
-                context.loop_counters.push(LoopTracker::new(a,b, context.stack_pointer));
+                context.loop_counters.push(LoopTracker::new(a,b, context.program_counter));
                 context.step_pc();
                 Ok(())
             },

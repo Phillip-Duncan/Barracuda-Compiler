@@ -1,0 +1,10 @@
+42
+64
+ADD
+4
+8
+2
+DIV
+MUL
+ADD
+PRINTFF

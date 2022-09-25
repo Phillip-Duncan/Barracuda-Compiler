@@ -50,6 +50,18 @@ pub enum MathStackOperators {
     ADD_PTR    = 0x03E4 , 
     SUB_PTR    = 0x03E5 , 
     TERNARY    = 0x03E6 ,
+    // READ_U8 -> u64
+    // READ_F8 -> f64
+
+    // Added for support of the compiler
+    EQ         = 0x03E7,
+    GT         = 0x03E8,
+    GTEQ       = 0x03E9,
+    LT         = 0x03EA,
+    LTEQ       = 0x03EB,
+    STK_READ   = 0x03EC,
+    STK_WRITE  = 0x03ED,
+
 
     ACOS       = 0x0798 , 
     ACOSH      = 0x0799 , 
@@ -183,7 +195,7 @@ pub enum MathStackOperators {
     LDG0       = 0x1320 , 
     LDH0       = 0x1321 , 
     LDI0       = 0x1322 , 
-    LDJ0       = 0x1323 , 
+    LDJ0       = 0x1323 ,
     LDK0       = 0x1324 , 
     LDL0       = 0x1325 , 
     LDM0       = 0x1326 , 
@@ -396,6 +408,42 @@ impl MathStackOperators {
                 } else {
                     Ok(context.push(c)?)
                 }
+            },
+            Self::EQ => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a==b) as u64))
+            },
+            Self::GT => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a>b) as u64))
+            },
+            Self::GTEQ => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a>=b) as u64))
+            },
+            Self::LT => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a<b) as u64))
+            },
+            Self::LTEQ => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a<=b) as u64))
+            },
+            Self::STK_READ => {
+                let a = context.pop()?.into_u64() as usize;
+                context.push(context.read_stack(a)?)
+
+            },
+            Self::STK_WRITE => {
+                let b = context.pop()?;
+                let a = context.pop()?.into_u64() as usize;
+                context.write_stack(a, b)
+
             },
             Self::ACOS => {
                 let a = context.pop()?.into_f64();
@@ -635,8 +683,8 @@ impl MathStackOperators {
                 context.heap.write_word(b, integer);
                 context.push(REAL(fraction)) // TODO(Connor): Review if this is the expected output
             },
-            // NAN ?
-            // NEARINT ?
+            // NAN ? Check cuda functions
+            // NEARINT ? Check cuda functions
             Self::NXTAFT => {
                 let b = context.pop()?.into_f64();
                 let a = context.pop()?.into_f64();
@@ -776,6 +824,9 @@ impl MathStackOperators {
                     write!(out, "{}", b)?;
                 }
                 Ok(())
+            },
+            Self::LDPC => {
+                context.push(UINT(context.get_pc() as u64))
             },
             Self::LDTID => {
                 context.push(UINT(context.thread_id))
