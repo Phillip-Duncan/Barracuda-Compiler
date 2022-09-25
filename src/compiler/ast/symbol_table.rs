@@ -1,14 +1,18 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use super::ASTNode;
 use super::scope::{ScopeId, ScopeIdGenerator};
 use super::datatype::{DataType, PrimitiveDataType};
 use std::fmt;
+use std::fmt::format;
+use std::thread::{Scope, scope};
 
 
 /// Symbol types associated with an identifier
 #[derive(Debug, Clone)]
 pub enum SymbolType {
     Variable(DataType),
+    Parameter(DataType),
     Function {
         func_params: Vec<DataType>,
         func_return: Box<PrimitiveDataType> // Cannot be mutable, const or unknown as defaults to void
@@ -18,8 +22,49 @@ pub enum SymbolType {
 /// Barracuda Symbols defines the data associated with an identifier.
 #[derive(Debug, Clone)]
 pub struct Symbol {
-    pub identifier: String,      // Identifier known by
-    pub symbol_type: SymbolType, // Identifier type
+    identifier: String,      // Identifier known by
+    symbol_type: SymbolType, // Identifier type
+
+    scope_id: ScopeId,        // ScopeId belonging to
+    declaration_order: usize  // Used to keep track of order of declaration within a scope
+}
+
+impl Symbol {
+    pub fn new(identifier: String, symbol_type: SymbolType) -> Self {
+        Symbol {
+            identifier,
+            symbol_type,
+            scope_id: ScopeId::global(),
+            declaration_order: 0,
+        }
+    }
+
+    pub fn identifier(&self) -> &String {
+        &self.identifier
+    }
+
+    pub fn symbol_type(&self) -> SymbolType {
+        self.symbol_type.clone()
+    }
+
+    pub fn scope_id(&self) -> ScopeId {
+        self.scope_id.clone()
+    }
+
+    pub fn is_mutable(&self) -> bool {
+        match &self.symbol_type {
+            SymbolType::Variable(datatype) => match datatype {
+                DataType::MUTABLE(_) => true,
+                DataType::UNKNOWN => true,      // TODO(Connor): This should be removed once the type system is implemented
+                _ => false
+            },
+            _ => false
+        }
+    }
+
+    pub fn unique_id(&self) -> String {
+        format!("{}:{}", self.scope_id, self.identifier)
+    }
 }
 
 
@@ -30,6 +75,8 @@ pub struct Symbol {
 pub struct SymbolScope {
     id: ScopeId,
     parent: Option<ScopeId>,
+    subroutine: bool,   // If a scope is a sub routine we cannot trust finding symbols in
+                        // the parent scope
 
     symbols: HashMap<String, Symbol>,
 }
@@ -37,10 +84,11 @@ pub struct SymbolScope {
 impl SymbolScope {
 
     /// Creates a new empty symbol scope
-    fn new(id: ScopeId, parent: ScopeId) -> Self {
+    fn new(id: ScopeId, parent: ScopeId, is_subroutine: bool) -> Self {
         Self {
             id,
             parent: Some(parent),
+            subroutine: is_subroutine,
             symbols: Default::default()
         }
     }
@@ -52,7 +100,12 @@ impl SymbolScope {
             return false;
         }
 
-        self.symbols.insert(symbol.identifier.clone(), symbol);
+        self.symbols.insert(symbol.identifier.clone(), Symbol {
+            identifier: symbol.identifier,
+            symbol_type: symbol.symbol_type,
+            scope_id: self.id.clone(),
+            declaration_order: self.symbols.len()
+        });
         return true;
     }
 
@@ -101,6 +154,7 @@ impl SymbolTable {
         symbol_table.scope_map.insert(ScopeId::global(), SymbolScope {
             id: ScopeId::global(),
             parent: None,
+            subroutine: false,
             symbols: Default::default()
         });
 
@@ -134,7 +188,7 @@ impl SymbolTable {
     /// @current_scope: scope id of the current scope. This is stored with ASTNode::SCOPE_BLOCK::scope
     /// @identifier: symbol identifier name
     /// @return Symbol if found within scope or parent scopes, otherwise None
-    pub(super) fn find_symbol(&self, current_scope: ScopeId, identifier: &String) -> Option<&Symbol> {
+    pub fn find_symbol(&self, current_scope: ScopeId, identifier: &String) -> Option<&Symbol> {
         // Get scope from id
         let symbol_scope = match self.scope_map.get(&current_scope) {
             Some(symbol) => symbol,
@@ -147,17 +201,45 @@ impl SymbolTable {
         match symbol_scope.get_symbol(identifier) {
             Some(symbol) => Some(symbol),
             None => {
-                // Check parent for symbol
-                match symbol_scope.parent() {
-                    Some(parent_id) => self.find_symbol(parent_id, identifier),
-
-                    // Symbol does not exist
-                    None => None
+                // Check parent for symbol if not a subroutine
+                if symbol_scope.parent.is_some() && !symbol_scope.subroutine {
+                    let parent_id = symbol_scope.parent().unwrap();
+                    self.find_symbol(parent_id, identifier)
+                } else {
+                    None
                 }
             }
         }
     }
 
+    /// Get symbols in scope returns a copy of all symbols in scope at current_scope.
+    pub fn get_symbols_in_scope(&self, current_scope: ScopeId) -> Vec<Symbol>
+    {
+        // Get relevant scope
+        let scope = match self.scope_map.get(&current_scope) {
+            Some(scope) => { scope }
+            None => { return Vec::default() }
+        };
+
+        // Get current scope symbols
+        let mut symbols = scope.symbols.values()
+            .map(|symbol| symbol.clone()).collect();
+
+        // Add parent scope symbols if not subroutine
+        if scope.parent.is_some() && !scope.subroutine {
+            let parent_id = scope.parent.clone().unwrap();
+            let mut parent_symbols = self.get_symbols_in_scope(parent_id);
+            parent_symbols.append(&mut symbols);
+            symbols = parent_symbols;
+        };
+
+        return symbols
+    }
+
+    /// Returns a list of all scopes in the symbol table
+    pub fn get_valid_scope_ids(&self) -> Vec<ScopeId> {
+        self.scope_map.keys().map(|id| id.clone()).collect()
+    }
 }
 
 /// Private Methods
@@ -165,12 +247,13 @@ impl SymbolTable {
     /// Create and add a new scope with a valid parent.
     /// @parent: valid parent scope id
     /// @return: new scope id if parent exists otherwise None
-    fn generate_new_scope(&mut self, parent: ScopeId) -> Option<ScopeId> {
+    fn generate_new_scope(&mut self, parent: ScopeId, is_subroutine: bool) -> Option<ScopeId> {
         if self.scope_map.contains_key(&parent) {
             let id = self.scope_generator.next().unwrap(); // Generator always valid
             self.scope_map.insert(id.clone(),SymbolScope {
                 id: id.clone(),
                 parent: Some(parent),
+                subroutine: is_subroutine,
                 symbols: Default::default()
             });
 
@@ -195,10 +278,25 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some( Symbol {
-            identifier,
-            symbol_type: SymbolType::Variable(datatype)
-        })
+        Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
+    }
+
+    /// Helper function to simplify processing parameters where data is stored within deeper
+    /// ASTNodes.
+    fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
+        // Get inner string
+        let identifier = match identifier {
+            ASTNode::IDENTIFIER(name) => name.clone(),
+            _ => panic!("")    // AST Malformed
+        };
+
+        // Identify the variable type
+        let datatype = match datatype {
+            Some(datatype_node) => DataType::from(datatype_node),
+            None => DataType::UNKNOWN
+        };
+
+        Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
     }
 
     /// Helper function to simplify processing functions where data is stored within deeper
@@ -230,14 +328,13 @@ impl SymbolTable {
             _ => panic!("")
         };
 
+        let symbol_type = SymbolType::Function {
+            func_params,
+            func_return: Box::new(return_type)
+        };
+
         // Add function to symbol table
-        Some(Symbol {
-            identifier,
-            symbol_type: SymbolType::Function {
-                func_params,
-                func_return: Box::new(return_type)
-            }
-        })
+        Some(Symbol::new(identifier, symbol_type))
     }
 
     /// Proccess node is a recursive function that iterates through all nodes in an AST.
@@ -251,7 +348,7 @@ impl SymbolTable {
 
         match node {
             ASTNode::PARAMETER { identifier, datatype } => {
-                match Self::process_variable(identifier.as_ref(), datatype.as_ref()) {
+                match Self::process_parameter(identifier.as_ref(), datatype.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
@@ -262,21 +359,28 @@ impl SymbolTable {
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::FUNCTION { identifier, parameters, return_type, body:_ } => {
+            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
                 match Self::process_function(identifier.as_ref(), parameters.as_ref(), return_type.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
 
                 // Process function body
-                let inner_func_scope= self.generate_new_scope(current_scope).unwrap();
-                for child in node.children() {
+                let inner_func_scope= self.generate_new_scope(current_scope, true).unwrap();
+                for param in parameters {
+                    self.process_node(param, inner_func_scope.clone());
+                }
+                for child in body.children() {
                     self.process_node(child, inner_func_scope.clone());
+                }
+
+                if let ASTNode::SCOPE_BLOCK {inner:_, scope} = body.as_mut() {
+                    scope.set(inner_func_scope);
                 }
             }
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 // Assign next scope id
-                let assigned_id = self.generate_new_scope(current_scope).unwrap();
+                let assigned_id = self.generate_new_scope(current_scope, false).unwrap();
                 scope.set(assigned_id);
 
                 // Process inner node with new scope
@@ -345,5 +449,123 @@ impl fmt::Display for SymbolTable {
         print_scope(self, f,ScopeId::global(), 0);
 
         Ok(())
+    }
+}
+
+
+/// SymbolTable Module Tests
+#[cfg(test)]
+mod tests {
+    use crate::compiler::ast::{ASTNode, BinaryOperation, Literal, ScopeId};
+    use crate::compiler::ast::symbol_table::SymbolTable;
+
+    /// Generates an example ast directly using ASTNodes. Example program is equivalent to:
+    ///     fn add(x: f64, y: f64) -> f64 {
+    ///         let z: f64 = 2;
+    ///         return x + y + z;
+    ///     }
+    ///
+    ///     let a: f64 = 10.0;
+    ///     let b: f64 = 25.0;
+    ///     if true {
+    ///         let c = add(a, b);
+    ///     } else {
+    ///         let c = 5;
+    ///     }
+    fn generate_test_ast() -> ASTNode {
+        let f64_datatype = Box::new(Some(ASTNode::IDENTIFIER(String::from("f64"))));
+        let ast = ASTNode::STATEMENT_LIST(vec![
+            // fn add(x: f64, y: f64) -> f64
+            ASTNode::FUNCTION {
+                identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
+                parameters: vec![
+                    ASTNode::PARAMETER {
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
+                        datatype: f64_datatype.clone()
+                    },
+                    ASTNode::PARAMETER {
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("y"))),
+                        datatype: f64_datatype.clone()
+                    }
+                ],
+                return_type: Box::new(f64_datatype.clone().unwrap()),
+                // {
+                body: Box::new(ASTNode::SCOPE_BLOCK {
+                    scope: ScopeId::default(),
+                    inner: Box::new(ASTNode::STATEMENT_LIST(vec![
+                        // let z: f64 = 2.0;
+                        ASTNode::CONSTRUCT {
+                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("z"))),
+                            datatype: f64_datatype.clone(),
+                            expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(2.0)))
+                        },
+                        // return x + y + z;
+                        ASTNode::RETURN {
+                            expression: Box::new(ASTNode::BINARY_OP {
+                                op: BinaryOperation::ADD,
+                                lhs: Box::new(ASTNode::BINARY_OP {
+                                    op: BinaryOperation::ADD,
+                                    lhs: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
+                                    rhs: Box::new(ASTNode::IDENTIFIER(String::from("y")))
+                                }),
+                                rhs: Box::new(ASTNode::IDENTIFIER(String::from("z")))
+                            })
+                        }
+                    ]))
+                })
+                // }
+            },
+            // let a: f64 = 10.0;
+            ASTNode::CONSTRUCT {
+                identifier: Box::new(ASTNode::IDENTIFIER(String::from("a"))),
+                datatype: f64_datatype.clone(),
+                expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(10.0)))
+            },
+            // let b: f64 = 25.0;
+            ASTNode::CONSTRUCT {
+                identifier: Box::new(ASTNode::IDENTIFIER(String::from("b"))),
+                datatype: f64_datatype.clone(),
+                expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(25.0)))
+            },
+            // if true
+            ASTNode::BRANCH {
+                condition: Box::new(ASTNode::LITERAL(Literal::BOOL(true))),
+                // let c = add(x,y)
+                if_branch: Box::new(ASTNode::SCOPE_BLOCK {
+                    scope: ScopeId::default(),
+                    inner: Box::new(ASTNode::CONSTRUCT {
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
+                        datatype: Box::new(None),
+                        expression: Box::new(ASTNode::FUNC_CALL {
+                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
+                            arguments: vec![
+                                ASTNode::IDENTIFIER(String::from("a")),
+                                ASTNode::IDENTIFIER(String::from("b")),
+                            ]
+                        })
+                    }),
+                }),
+                // let c = 5.0
+                else_branch: Box::new(Some(ASTNode::SCOPE_BLOCK {
+                    scope: ScopeId::default(),
+                    inner: Box::new(ASTNode::CONSTRUCT {
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
+                        datatype: Box::new(None),
+                        expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(5.0)))
+                    }),
+                }))
+            }
+        ]);
+
+        return ast;
+    }
+
+    #[test]
+    fn symbol_table_generation() {
+        let mut ast = generate_test_ast();
+        let symbol_table = SymbolTable::from(&mut ast);
+        assert_eq!(symbol_table.scope_map.len(), 4);
+
+
     }
 }
