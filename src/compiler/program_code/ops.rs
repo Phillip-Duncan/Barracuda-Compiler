@@ -209,6 +209,9 @@ pub enum BarracudaOperators {
 
     LDPC       = 0x1334 , 
     LDTID      = 0x1335 ,
+    
+    LDSTK_PTR  = 0x1336 ,
+    RCSTK_PTR  = 0x1337 ,
 
     RCA        = 0x16C8 , 
     RCB        = 0x16C9 , 
