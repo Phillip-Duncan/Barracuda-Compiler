@@ -45,7 +45,7 @@ impl CompilerCLIOptions {
     fn derive_defaults(mut self) -> Self {
         // Derive output file path from input file path if not set
         if self.output.is_none() {
-            self.output = Some(self.path.with_extension(".bct"))
+            self.output = Some(self.path.with_extension("bct"))
         }
         return self
     }
