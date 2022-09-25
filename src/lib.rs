@@ -3,6 +3,7 @@ extern crate pest;
 #[macro_use]
 extern crate pest_derive;
 extern crate safer_ffi;
+extern crate core;
 
 use safer_ffi::prelude::*;
 
@@ -87,10 +88,10 @@ pub fn free_compile_response(response: CompilerResponse) {
 // Header generator
 // To generate call:
 // $ cargo test --features c-headers -- generate_headers
-#[::safer_ffi::cfg_headers]
+#[safer_ffi::cfg_headers]
 #[test]
-fn generate_headers() -> ::std::io::Result<()> {
-    ::safer_ffi::headers::builder()
+fn generate_headers() -> std::io::Result<()> {
+    safer_ffi::headers::builder()
         .to_file("include/barracuda_compiler.h")?
         .generate()
 }

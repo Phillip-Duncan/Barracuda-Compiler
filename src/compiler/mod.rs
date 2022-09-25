@@ -69,8 +69,12 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
     /// Compiles a program file and writes program code encoded as string into the destination file
     /// path.
     /// @return: ProgramCode if Ok. Otherwise IO Error from a failed read/write.
-    pub fn compile_and_save(self, source_filename: &Path, dest_filename: &Path) -> Result<(), Box<dyn Error>> {
-        let compiled_program = self.compile(source_filename)?;
+    pub fn compile_and_save(self, source_filename: &Path, dest_filename: &Path, decorated: bool) -> Result<(), Box<dyn Error>> {
+        let mut compiled_program = self.compile(source_filename)?;
+        if decorated {
+            compiled_program = compiled_program.decorated();
+        }
+
         let program_str = format!("{}", compiled_program);
 
         let display_dest = dest_filename.display();

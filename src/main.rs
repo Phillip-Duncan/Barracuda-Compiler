@@ -35,7 +35,11 @@ struct CompilerCLIOptions {
 
     /// Write compilation result to stdout instead of output
     #[clap(long, action)]
-    stdout: bool
+    stdout: bool,
+
+    /// Generates code with debug decorations
+    #[clap(long, action)]
+    debug: bool
 }
 
 impl CompilerCLIOptions {
@@ -62,7 +66,11 @@ fn main() {
     let result = if cli_args.stdout {
         match compiler.compile(source_path) {
             Ok(program_code) => {
-                print!("{}", program_code);
+                if cli_args.debug {
+                    print!("{}", program_code.decorated());
+                } else {
+                    print!("{}", program_code);
+                }
                 Ok(())
             }
             Err(result) => { Err(result) }
@@ -70,7 +78,7 @@ fn main() {
     } else {
         let dest_path = cli_args.output.unwrap(); // Can unwrap as output will always be derived
         let dest_path = dest_path.as_path();
-        compiler.compile_and_save(source_path, dest_path)
+        compiler.compile_and_save(source_path, dest_path, cli_args.debug)
     };
 
     // Check result
