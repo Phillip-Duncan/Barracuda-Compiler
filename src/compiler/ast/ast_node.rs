@@ -326,4 +326,12 @@ impl ASTNode {
 
         output
     }
+
+    /// Utility function for simplifying extracting string out of identifier node
+    pub(crate) fn identifier_name(&self) -> Option<String> {
+        match self {
+            ASTNode::IDENTIFIER(name) => Some(name.clone()),
+            _ => None
+        }
+    }
 }
