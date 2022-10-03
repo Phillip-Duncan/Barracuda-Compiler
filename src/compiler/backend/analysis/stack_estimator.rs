@@ -32,6 +32,9 @@ impl StackEstimator {
 
         // Check recursive depth
         if depth >= self.max_depth {
+            // TODO(Connor): Recursion depth is currently maxed with code loops this should be fine
+            //               ill be it a bit wasteful of performance. Would be better if loops could
+            //               be detected and if there is no net stack size difference be quit early.
             self.max_depth_reached = true;
             return stack_size;
         }

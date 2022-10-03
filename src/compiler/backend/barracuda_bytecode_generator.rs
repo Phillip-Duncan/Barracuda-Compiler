@@ -86,12 +86,8 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
         let mut code = self.builder.finalize_with_header(header);
 
         // Estimate stack size
-        let (stacksize, max_depth_reached) = StackEstimator::estimate_max_stacksize(&code, self.max_analysis_branch_depth);
-        code.max_stack_size = if max_depth_reached {
-            stacksize + Self::DEFAULT_MAX_STACKSIZE()
-        } else {
-            stacksize
-        };
+        let (stacksize, _max_depth_reached) = StackEstimator::estimate_max_stacksize(&code, self.max_analysis_branch_depth);
+        code.max_stack_size = stacksize;
 
         return code;
     }
