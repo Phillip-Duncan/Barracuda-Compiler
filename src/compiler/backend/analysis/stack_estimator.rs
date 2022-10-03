@@ -22,9 +22,9 @@ impl StackEstimator {
     /// @depth: Current recursive depth of following these statements. On reaching self.max_depth
     ///         stack size is returned and the flag self.max_depth_reached is set.
     /// @return: max_expected_stack_size from following the execution path
-    fn follow_execution_path(&mut self, code: &ProgramCode, pc: usize, stack_size: usize, depth: usize) -> usize {
-        let mut pc = pc;
-        let mut stack_size = stack_size;
+    fn follow_execution_path(&mut self, code: &ProgramCode, initial_pc: usize, initial_stack_size: usize, depth: usize) -> usize {
+        let mut pc = initial_pc;
+        let mut stack_size = initial_stack_size;
         let mut max_stack_size = 0;
 
         // Used to know the goto address of static jumps
@@ -32,9 +32,6 @@ impl StackEstimator {
 
         // Check recursive depth
         if depth >= self.max_depth {
-            // TODO(Connor): Recursion depth is currently maxed with code loops this should be fine
-            //               ill be it a bit wasteful of performance. Would be better if loops could
-            //               be detected and if there is no net stack size difference be quit early.
             self.max_depth_reached = true;
             return stack_size;
         }
@@ -76,8 +73,11 @@ impl StackEstimator {
                     if let Some(address) = last_value {
                         let false_pc = *address as usize;
 
-                        // Follow true path
-                        max_stack_size = max(max_stack_size,self.follow_execution_path(code, pc + 1, stack_size, depth + 1));
+                        // Follow true path if not matching current execution path
+                        // as this implies a loop iteration with no expected change.
+                        if stack_size != initial_stack_size && pc + 1 != initial_pc {
+                            max_stack_size = max(max_stack_size,self.follow_execution_path(code, pc + 1, stack_size, depth + 1));
+                        }
 
                         // Follow false path
                         pc = false_pc;
@@ -113,6 +113,11 @@ impl StackEstimator {
         };
 
         let max_stacksize = estimator.follow_execution_path(code, 0, 0, 0);
+
+        if estimator.max_depth_reached {
+            println!("MAX DEPTH REACHED!");
+        }
+
 
         return (max_stacksize, estimator.max_depth_reached);
     }
