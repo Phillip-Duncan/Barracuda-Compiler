@@ -25,6 +25,7 @@ use crate::compiler::ast::datatype::DataType;
 use crate::compiler::ast::{ScopeId, ScopeTracker};
 use crate::compiler::ast::symbol_table::{SymbolTable, SymbolType};
 use crate::compiler::ast::symbol_table::SymbolType::Parameter;
+use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
 
 /// BarracudaByteCodeGenerator is a Backend for Barracuda
@@ -43,7 +44,11 @@ pub struct BarracudaByteCodeGenerator {
     builder: BarracudaProgramCodeBuilder,
     symbol_tracker: ScopeTracker,
 
-    function_labels: HashMap<String, u64>
+    function_labels: HashMap<String, u64>,
+
+    // Max analysis branching depth
+    // used for estimating the stack depth of a program
+    max_analysis_branch_depth: usize
 }
 
 impl BackEndGenerator for BarracudaByteCodeGenerator {
@@ -52,7 +57,8 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
         Self {
             builder: BarracudaProgramCodeBuilder::new(),
             symbol_tracker: ScopeTracker::default(),
-            function_labels: HashMap::default()
+            function_labels: HashMap::default(),
+            max_analysis_branch_depth: 512,
         }
     }
 
@@ -76,7 +82,18 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
             Self::STATIC_REGISTER_COUNT() as f64 - 1.0,
         ];
 
-        return self.builder.finalize_with_header(header);
+        // Generate code
+        let mut code = self.builder.finalize_with_header(header);
+
+        // Estimate stack size
+        let (stacksize, max_depth_reached) = StackEstimator::estimate_max_stacksize(&code, self.max_analysis_branch_depth);
+        code.max_stack_size = if max_depth_reached {
+            stacksize + Self::DEFAULT_MAX_STACKSIZE()
+        } else {
+            stacksize
+        };
+
+        return code;
     }
 }
 
@@ -119,6 +136,7 @@ impl BarracudaByteCodeGenerator {
     fn FRAME_PTR_ADDRESS()      -> usize { 1 }
     fn RETURN_STORE_ADDRESS()   -> usize { 0 }
     fn STATIC_REGISTER_COUNT()  -> usize { 2 }
+    fn DEFAULT_MAX_STACKSIZE()  -> usize { 128 }
 
     /// Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {

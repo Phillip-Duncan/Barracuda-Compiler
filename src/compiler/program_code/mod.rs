@@ -49,6 +49,9 @@ pub struct ProgramCode {
     /// Instruction list denotes the execution of the program from bottom to top
     pub instructions: Vec<BarracudaInstructions>,
 
+    /// Estimate given for max stack size needed for execution of the program code
+    pub max_stack_size: usize,
+
     /// Render decorations is used when formatting to determine if to include decorations.
     render_decorations: bool,
 
@@ -65,6 +68,7 @@ impl ProgramCode {
             values: vec![],
             operations: vec![],
             instructions: vec![],
+            max_stack_size: 0,
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -76,6 +80,7 @@ impl ProgramCode {
             values: Self::pad_list_to_size_of_instructions(BarracudaInstructions::VALUE, &instructions, &values, 0.0),
             operations: Self::pad_list_to_size_of_instructions(BarracudaInstructions::OP, &instructions, &operations, BarracudaOperators::NULL),
             instructions,
+            max_stack_size: 0,
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -171,6 +176,9 @@ impl fmt::Display for ProgramCode {
     /// name is displayed instead. For VALUE the value is directly written to the line.
     /// Lines that start with # are comments that are ignored.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+
+        // Write recommended stack size at top of program as a comment
+        writeln!(f, "# RECOMMENDED_STACKSIZE {}", self.max_stack_size)?;
 
         for i in 0..self.instructions.len() {
             // Write comments
