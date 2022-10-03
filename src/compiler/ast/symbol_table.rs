@@ -5,7 +5,6 @@ use super::scope::{ScopeId, ScopeIdGenerator};
 use super::datatype::{DataType, PrimitiveDataType};
 use std::fmt;
 use std::fmt::format;
-use std::thread::{Scope, scope};
 
 
 /// Symbol types associated with an identifier
