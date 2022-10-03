@@ -1,7 +1,7 @@
 use super::super::program_code::{
     ProgramCode,
     instructions::BarracudaInstructions as INSTRUCTION,
-    ops::BarracudaOperators as OP
+    ops::FixedBarracudaOperators as OP
 };
 
 /// BarracudaIR is linear item format for describing ProgramCode.

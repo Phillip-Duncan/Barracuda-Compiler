@@ -5,6 +5,7 @@ use num_traits::ToPrimitive;
 use strum_macros::EnumString;
 use enum_assoc::Assoc;
 use safer_ffi::prelude::*;
+use std::fmt;
 
 
 /// BarracudaOperators is a enum of all the operations of the Barracuda VM.
@@ -22,8 +23,8 @@ use safer_ffi::prelude::*;
          Assoc)]
 #[func(pub const fn consume(&self) -> i8)] // How many arguments does the operation consume
 #[func(pub const fn produce(&self) -> i8)] // How many values does the operation generate
-#[repr(u64)]
-pub enum BarracudaOperators {
+#[repr(u32)]
+pub enum FixedBarracudaOperators {
     #[assoc(consume=0)]
     #[assoc(produce=0)]
     NULL       = 0x0000 ,
@@ -430,6 +431,7 @@ pub enum BarracudaOperators {
     #[assoc(consume=0)]
     #[assoc(produce=1)]
     LDNX0 = 0xF4240,
+
     #[assoc(consume=0)]
     #[assoc(produce=1)]
     LDNX1 = 0x4C4B40,
@@ -437,13 +439,14 @@ pub enum BarracudaOperators {
     #[assoc(consume=1)]
     #[assoc(produce=0)]
     RCNX0 = 0x4C4B41,
+
     #[assoc(consume=1)]
     #[assoc(produce=0)]
     RCNX1 = 0x895441
 }
 
 #[allow(dead_code)] // Used in library but not the binary
-impl BarracudaOperators {
+impl FixedBarracudaOperators {
 
     /// Converts opcode value into Operation enums.
     /// @opcode: Barracuda op code value.
@@ -458,5 +461,151 @@ impl BarracudaOperators {
     pub fn as_u32(&self) -> u32 {
         // Safe to unwrap here as enum should always map to an integer.
         self.to_u32().unwrap()
+    }
+}
+
+
+#[derive(Debug,
+Eq, PartialEq,
+Copy, Clone, Assoc)]
+#[func(pub const fn consume(&self) -> i8)] // How many arguments does the operation consume
+#[func(pub const fn produce(&self) -> i8)] // How many values does the operation generate
+pub enum VariableBarracudaOperators {
+    // Load Nth Environment Variable
+    #[assoc(consume=0)]
+    #[assoc(produce=1)]
+    LDNX(usize),
+
+    // Write Nth Environment Variable
+    #[assoc(consume=1)]
+    #[assoc(produce=0)]
+    RCNX(usize)
+}
+
+#[allow(dead_code)] // Used in library but not the binary
+impl VariableBarracudaOperators {
+
+    /// Converts opcode value into Operation enums.
+    /// @opcode: Barracuda op code value.
+    /// @returns Some(BarracudaOperator) representing opcode value, None otherwise
+    pub fn from(opcode: u32) -> Option<Self> {
+        if  opcode >= FixedBarracudaOperators::LDNX0.as_u32() &&
+             opcode < FixedBarracudaOperators::LDNX1.as_u32() {
+            let index = (opcode - FixedBarracudaOperators::LDNX0.as_u32()) as usize;
+            return Some(Self::LDNX(index));
+        }
+
+        if  opcode >= FixedBarracudaOperators::RCNX0.as_u32() &&
+             opcode < FixedBarracudaOperators::RCNX1.as_u32() {
+            let index = (opcode - FixedBarracudaOperators::RCNX0.as_u32()) as usize;
+            return Some(Self::RCNX(index));
+        }
+
+        return None;
+    }
+
+    /// Converts operator into value representing the opcode
+    /// @returns: &self's representation as u32. This is not an option as all operators
+    ///           have a valid u32 code.
+    pub fn as_u32(&self) -> u32 {
+         match self {
+            VariableBarracudaOperators::LDNX(index) => {
+                FixedBarracudaOperators::LDNX0.as_u32() + *index as u32
+            }
+            VariableBarracudaOperators::RCNX(index) => {
+                FixedBarracudaOperators::RCNX0.as_u32() + *index as u32
+            }
+        }
+    }
+}
+
+#[derive(Debug,
+Eq, PartialEq,
+Copy, Clone)]
+pub enum BarracudaOperators {
+    FIXED(FixedBarracudaOperators),
+    VARIABLE(VariableBarracudaOperators)
+}
+
+impl BarracudaOperators {
+    /// Converts opcode value into Operation enums.
+    /// @opcode: Barracuda op code value.
+    /// @returns Some(BarracudaOperator) representing opcode value, None otherwise
+    pub fn from(opcode: u32) -> Option<Self> {
+        if let Some(op) = FixedBarracudaOperators::from(opcode) {
+            return Some(Self::FIXED(op));
+        }
+
+        if let Some(op) = VariableBarracudaOperators::from(opcode) {
+            return Some(Self::VARIABLE(op));
+        }
+
+        return None
+    }
+
+    /// Converts operator into value representing the opcode
+    /// @returns: &self's representation as u32. This is not an option as all operators
+    ///           have a valid u32 code.
+    pub fn as_u32(&self) -> u32 {
+        match self {
+            BarracudaOperators::FIXED(op) => {
+                op.as_u32()
+            }
+            BarracudaOperators::VARIABLE(op) => {
+                op.as_u32()
+            }
+        }
+    }
+
+    /// Returns the number of arguments the operation takes from the stack
+    /// @return operation argument count, -1 if unknown, or indeterminate
+    pub const fn consume(&self) -> i8 {
+        match self {
+            BarracudaOperators::FIXED(op) => {
+                op.consume()
+            }
+            BarracudaOperators::VARIABLE(op) => {
+                op.consume()
+            }
+        }
+    }
+
+    /// Returns the number of outputs the operation adds to the stack
+    /// @return operation output count, -1 if unknown, or indeterminate
+    pub const fn produce(&self) -> i8 {
+        match self {
+            BarracudaOperators::FIXED(op) => {
+                op.produce()
+            }
+            BarracudaOperators::VARIABLE(op) => {
+                op.produce()
+            }
+        }
+    }
+}
+
+impl fmt::Display for VariableBarracudaOperators {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LDNX(index) => {
+                write!(f, "LDNX({})", index)
+            }
+            Self::RCNX(index) => {
+                write!(f, "RCNX({})", index)
+            }
+        }
+    }
+}
+
+impl fmt::Display for BarracudaOperators {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FIXED(op) => {
+                write!(f, "{:?}", op)
+            }
+            Self::VARIABLE(op) => {
+                write!(f, "{}", op)
+            }
+        }
     }
 }

@@ -11,7 +11,7 @@ use super::super::ast::{
 use super::super::program_code::{
     ProgramCode,
     instructions::BarracudaInstructions as INSTRUCTION,
-    ops::BarracudaOperators as OP
+    ops::FixedBarracudaOperators as OP
 };
 
 use std::borrow::Borrow;

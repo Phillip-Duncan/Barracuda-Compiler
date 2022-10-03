@@ -2,7 +2,11 @@ pub mod instructions;
 pub mod ops;
 
 use std::collections::HashMap;
-use self::ops::BarracudaOperators;
+use self::ops::{
+    FixedBarracudaOperators,
+    VariableBarracudaOperators,
+    BarracudaOperators
+};
 use self::instructions::BarracudaInstructions;
 use std::fmt;
 
@@ -78,7 +82,7 @@ impl ProgramCode {
     pub fn new(values: Vec<f64>, operations: Vec<BarracudaOperators>, instructions: Vec<BarracudaInstructions>) -> ProgramCode {
         ProgramCode {
             values: Self::pad_list_to_size_of_instructions(BarracudaInstructions::VALUE, &instructions, &values, 0.0),
-            operations: Self::pad_list_to_size_of_instructions(BarracudaInstructions::OP, &instructions, &operations, BarracudaOperators::NULL),
+            operations: Self::pad_list_to_size_of_instructions(BarracudaInstructions::OP, &instructions, &operations, BarracudaOperators::FIXED(FixedBarracudaOperators::NULL)),
             instructions,
             max_stack_size: 0,
             render_decorations: false,
@@ -95,21 +99,28 @@ impl ProgramCode {
     /// Builder function adds value to program code while keeping other arrays padded
     pub fn push_value(&mut self, value: f64) {
         self.values.push(value);
-        self.operations.push(BarracudaOperators::NULL);
+        self.operations.push(BarracudaOperators::FIXED(FixedBarracudaOperators::NULL));
         self.instructions.push(BarracudaInstructions::VALUE);
     }
 
     /// Builder function adds operation to program code while keeping other arrays padded
-    pub fn push_operation(&mut self, operation: BarracudaOperators) {
+    pub fn push_operation(&mut self, operation: FixedBarracudaOperators) {
         self.values.push(0.0);
-        self.operations.push(operation);
+        self.operations.push(BarracudaOperators::FIXED(operation));
+        self.instructions.push(BarracudaInstructions::OP);
+    }
+
+    /// Builder function adds variable operation to program code while keeping other arrays padded
+    pub fn push_operation_var(&mut self, operation: VariableBarracudaOperators) {
+        self.values.push(0.0);
+        self.operations.push(BarracudaOperators::VARIABLE(operation));
         self.instructions.push(BarracudaInstructions::OP);
     }
 
     /// Builder function adds instruction to program code while keeping other arrays padded
     pub fn push_instruction(&mut self, instruction: BarracudaInstructions) {
         self.values.push(0.0);
-        self.operations.push(BarracudaOperators::NULL);
+        self.operations.push(BarracudaOperators::FIXED(FixedBarracudaOperators::NULL));
         self.instructions.push(instruction);
     }
 
@@ -199,7 +210,7 @@ impl fmt::Display for ProgramCode {
                 },
                 BarracudaInstructions::OP => {
                     let operation = self.operations[i];
-                    writeln!(f, "{:?}", operation)?;
+                    writeln!(f, "{}", operation)?;
                 },
                 _ => {
                     writeln!(f, "{:?}", instr)?;
