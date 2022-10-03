@@ -1,0 +1,15 @@
+fn is_divisible(a, b): bool {
+   return (a % b) == 0;
+}
+
+// False
+print 7;
+print is_divisible(7, 2);
+
+// True
+print 8;
+print is_divisible(8, 2);
+
+// False
+print 9;
+print is_divisible(9, 2);
