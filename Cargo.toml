@@ -31,6 +31,9 @@ safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
 # Command line argument parser
 clap = {version = "3.2.21", features = ["derive"] }
 
+# Procedural Macro to associate constant values for enum variants
+# used to simplify program_code/ops.rs
+enum-assoc = "0.3.4"
 
 [features]
 c-headers = ["safer-ffi/headers"]
