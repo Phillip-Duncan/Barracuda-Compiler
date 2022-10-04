@@ -14,12 +14,9 @@ use compiler::Compiler;
 use compiler::EnvironmentSymbolContext;
 
 // Standard Imports
-use std::path::Path;
 use clap::Parser;
 use std::str::FromStr;
 use simple_error::SimpleError;
-use safer_ffi::core::num::ParseIntError;
-use std::collections::HashSet;
 
 // Basic Compiler Configuration
 type PARSER = compiler::PestBarracudaParser;

@@ -8,24 +8,21 @@ use super::super::ast::{
     UnaryOperation
 };
 
-use super::super::program_code::{
+use barracuda_common::{
     ProgramCode,
-    instructions::BarracudaInstructions as INSTRUCTION,
-    ops::FixedBarracudaOperators as OP,
-    ops::VariableBarracudaOperators as VAR_OP
+    BarracudaInstructions as INSTRUCTION,
+    FixedBarracudaOperators as OP,
+    VariableBarracudaOperators as VAR_OP
 };
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::fmt::format;
-use std::hash::Hash;
-use std::iter;
-use clap::arg;
-use safer_ffi::paste::expr;
-use crate::compiler::ast::datatype::DataType;
-use crate::compiler::ast::{ScopeId, ScopeTracker};
-use crate::compiler::ast::symbol_table::{SymbolTable, SymbolType};
-use crate::compiler::ast::symbol_table::SymbolType::Parameter;
+use crate::compiler::ast::{
+    ScopeId,
+    ScopeTracker,
+    symbol_table::{
+        SymbolType
+    }
+};
 use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
 
@@ -80,15 +77,20 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
             // Frame pointer
             // must point to local_var:0 - 1
-            Self::STATIC_REGISTER_COUNT() as f64 - 1.0,
+            Self::static_register_count() as f64 - 1.0,
         ];
 
         // Generate code
         let mut code = self.builder.finalize_with_header(header);
 
         // Estimate stack size
-        let (stacksize, _max_depth_reached) = StackEstimator::estimate_max_stacksize(&code, self.max_analysis_branch_depth);
-        code.max_stack_size = stacksize;
+        let (stacksize, max_depth_reached) = StackEstimator::estimate_max_stacksize(&code, self.max_analysis_branch_depth);
+        code.max_stack_size = if max_depth_reached {
+            stacksize + Self::default_max_stacksize()
+        } else {
+            stacksize
+        };
+
 
         return code;
     }
@@ -129,27 +131,27 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 ///       call procedure.
 impl BarracudaByteCodeGenerator {
 
-    /// STATIC CONST FUNCTIONS
-    fn FRAME_PTR_ADDRESS()      -> usize { 1 }
-    fn RETURN_STORE_ADDRESS()   -> usize { 0 }
-    fn STATIC_REGISTER_COUNT()  -> usize { 2 }
-    fn DEFAULT_MAX_STACKSIZE()  -> usize { 128 }
+    /// CONST FUNCTIONS
+    const fn frame_ptr_address() -> usize { 1 }
+    const fn return_store_address() -> usize { 0 }
+    const fn static_register_count() -> usize { 2 }
+    const fn default_max_stacksize() -> usize { 128 }
 
     /// Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {
-        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_value(Self::frame_ptr_address() as f64);
         self.builder.emit_op(OP::STK_READ);
     }
 
     /// Generate code to push return store on the top of the stack
     fn generate_get_return_store(&mut self) {
-        self.builder.emit_value(Self::RETURN_STORE_ADDRESS() as f64);
+        self.builder.emit_value(Self::return_store_address() as f64);
         self.builder.emit_op(OP::STK_READ);
     }
 
     /// Generate code to set return store with the result of an expression
     fn generate_set_return_store(&mut self, expression: &ASTNode) {
-        self.builder.emit_value(Self::RETURN_STORE_ADDRESS() as f64);
+        self.builder.emit_value(Self::return_store_address() as f64);
         self.generate_node(expression);
         self.builder.emit_op(OP::STK_WRITE);
     }
@@ -248,7 +250,7 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(datatype) => {
+            SymbolType::Variable(_datatype) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
 
                 self.generate_local_var_address(localvar_id);
@@ -257,7 +259,7 @@ impl BarracudaByteCodeGenerator {
             SymbolType::EnvironmentVariable(global_id, _) => {
                 self.builder.emit_var_op(VAR_OP::LDNX(global_id));
             }
-            SymbolType::Parameter(datatype) => {
+            SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -313,7 +315,7 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
 
         // Leave result of expression at top of stack as this is the allocated
@@ -349,7 +351,7 @@ impl BarracudaByteCodeGenerator {
                     self.generate_node(expression);
                     self.builder.emit_var_op(VAR_OP::RCNX(global_id));
                 }
-                Parameter(_) => {
+                SymbolType::Parameter(_) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
@@ -391,7 +393,7 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_op(OP::RCSTK_PTR);
 
         // Set frame ptr to old frame ptr
-        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_value(Self::frame_ptr_address() as f64);
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
 
@@ -494,7 +496,7 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(String::from("FOR END"));
     }
 
-    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
+    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
         // Add function symbol
         let identifier_name = identifier.identifier_name().unwrap();
         self.symbol_tracker.add_symbol(identifier_name.clone());
@@ -535,7 +537,7 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(format!("FN {} END", &identifier_name));
     }
 
-    fn generate_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) {
+    fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
         let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name);
     }
@@ -567,7 +569,7 @@ impl BarracudaByteCodeGenerator {
         // Update frame pointer
         self.builder.comment(format!("UPDATE FRAME POINTER"));
         self.builder.emit_op(OP::LDSTK_PTR);
-        self.builder.emit_value(Self::FRAME_PTR_ADDRESS() as f64);
+        self.builder.emit_value(Self::frame_ptr_address() as f64);
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
 

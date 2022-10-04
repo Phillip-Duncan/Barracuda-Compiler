@@ -12,6 +12,7 @@ impl EnvironmentSymbolContext {
         }
     }
 
+    #[allow(dead_code)] // Linter False Positive
     pub fn add_symbol(&mut self, identifier: String, address: usize) -> bool {
         self.environment_variable_addresses.insert(identifier, address).is_some()
     }

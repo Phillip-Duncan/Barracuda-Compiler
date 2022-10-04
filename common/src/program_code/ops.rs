@@ -4,7 +4,6 @@ use num_derive::ToPrimitive;
 use num_traits::ToPrimitive;
 use strum_macros::EnumString;
 use enum_assoc::Assoc;
-use safer_ffi::prelude::*;
 use std::fmt;
 
 

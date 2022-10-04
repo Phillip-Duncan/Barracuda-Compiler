@@ -1,0 +1,36 @@
+[package]
+name = "barracuda_compiler"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "barracuda_compiler"
+crate-type = [
+    "cdylib",  # Generate a Dynamic Lib
+    "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
+]
+
+
+[dependencies]
+barracuda_common = { path = "../common" }
+
+pest = "2.1.3"          # Pest provides ast parser from a Context Free Grammar File .pest
+pest_derive = '2.1.0'   # Provides pest macros
+
+
+
+# Used to get standard system os exit codes
+exitcode = "1.1.2"
+
+# Safer-FFI provides ffi abstraction to prevent unsafe code in this codebase
+safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
+
+# Command line argument parser
+clap = {version = "3.2.21", features = ["derive"] }
+
+# Used to implement simple errors for things such as CLI argument parsing
+simple-error = "0.2.3"
+
+[features]
+c-headers = ["safer-ffi/headers"]

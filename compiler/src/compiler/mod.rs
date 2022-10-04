@@ -1,7 +1,7 @@
 mod ast;
 pub mod backend;
 pub mod parser;
-pub mod program_code;
+use barracuda_common;
 
 use std::path::Path;
 use std::fs;
@@ -12,7 +12,7 @@ use std::error::Error;
 // Interface Definitions
 use self::parser::AstParser;
 use self::backend::BackEndGenerator;
-use self::program_code::ProgramCode;
+use barracuda_common::ProgramCode;
 
 // Concrete Definitions Re-Export
 pub use self::backend::BarracudaByteCodeGenerator;

@@ -1,7 +1,6 @@
 use strum_macros::EnumString;
 use num_derive::ToPrimitive;
 use num_traits::ToPrimitive;
-use safer_ffi::prelude::*;
 
 
 /// BarracudaInstruction is an enum of program instructions that are valid for the Barracuda VM.

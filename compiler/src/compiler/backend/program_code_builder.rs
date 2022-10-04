@@ -1,9 +1,9 @@
-use super::super::program_code::{
+use barracuda_common::{
     ProgramCode,
-    instructions::BarracudaInstructions as INSTRUCTION,
-    ops::BarracudaOperators as OP,
-    ops::FixedBarracudaOperators as FIXED_OP,
-    ops::VariableBarracudaOperators as VAR_OP
+    BarracudaInstructions as INSTRUCTION,
+    BarracudaOperators as OP,
+    FixedBarracudaOperators as FIXED_OP,
+    VariableBarracudaOperators as VAR_OP
 };
 
 /// BarracudaIR is linear item format for describing ProgramCode.

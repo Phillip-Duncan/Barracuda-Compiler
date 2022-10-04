@@ -1,10 +1,8 @@
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use super::ASTNode;
 use super::scope::{ScopeId, ScopeIdGenerator};
 use super::datatype::{DataType, PrimitiveDataType};
 use std::fmt;
-use std::fmt::format;
 
 
 /// Symbol types associated with an identifier
@@ -21,6 +19,7 @@ pub enum SymbolType {
 
 /// Barracuda Symbols defines the data associated with an identifier.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Symbol {
     identifier: String,      // Identifier known by
     symbol_type: SymbolType, // Identifier type
@@ -39,16 +38,18 @@ impl Symbol {
         }
     }
 
+    #[allow(dead_code)] // Linter False Positive
     pub fn identifier(&self) -> &String {
         &self.identifier
     }
 
-    pub fn symbol_type(&self) -> SymbolType {
-        self.symbol_type.clone()
-    }
-
+    #[allow(dead_code)] // Linter False Positive
     pub fn scope_id(&self) -> ScopeId {
         self.scope_id.clone()
+    }
+
+    pub fn symbol_type(&self) -> SymbolType {
+        self.symbol_type.clone()
     }
 
     pub fn is_mutable(&self) -> bool {
@@ -82,16 +83,6 @@ pub struct SymbolScope {
 }
 
 impl SymbolScope {
-
-    /// Creates a new empty symbol scope
-    fn new(id: ScopeId, parent: ScopeId, is_subroutine: bool) -> Self {
-        Self {
-            id,
-            parent: Some(parent),
-            subroutine: is_subroutine,
-            symbols: Default::default()
-        }
-    }
 
     /// Add symbol to scope context
     /// @return true if successful, false if symbol already exists
@@ -237,35 +228,6 @@ impl SymbolTable {
             }
         }
     }
-
-    /// Get symbols in scope returns a copy of all symbols in scope at current_scope.
-    pub fn get_symbols_in_scope(&self, current_scope: ScopeId) -> Vec<Symbol>
-    {
-        // Get relevant scope
-        let scope = match self.scope_map.get(&current_scope) {
-            Some(scope) => { scope }
-            None => { return Vec::default() }
-        };
-
-        // Get current scope symbols
-        let mut symbols = scope.symbols.values()
-            .map(|symbol| symbol.clone()).collect();
-
-        // Add parent scope symbols if not subroutine
-        if scope.parent.is_some() && !scope.subroutine {
-            let parent_id = scope.parent.clone().unwrap();
-            let mut parent_symbols = self.get_symbols_in_scope(parent_id);
-            parent_symbols.append(&mut symbols);
-            symbols = parent_symbols;
-        };
-
-        return symbols
-    }
-
-    /// Returns a list of all scopes in the symbol table
-    pub fn get_valid_scope_ids(&self) -> Vec<ScopeId> {
-        self.scope_map.keys().map(|id| id.clone()).collect()
-    }
 }
 
 /// Private Methods
@@ -370,7 +332,7 @@ impl SymbolTable {
     /// @current_scope: Current highest level scope for where we are in the AST. If node is the root
     /// of the AST this should be ScopeId::global()
     fn process_node(&mut self, node: &mut ASTNode, current_scope: ScopeId) {
-        let mut symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
+        let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
 
         match node {
             ASTNode::PARAMETER { identifier, datatype } => {
@@ -476,23 +438,23 @@ impl SymbolTable {
 /// Formatting of Symbol Tree allows for symbol tables to be written as a string.
 impl fmt::Display for SymbolTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn print_scope(table: &SymbolTable, f: &mut fmt::Formatter<'_>, id: ScopeId, depth: usize) {
+        fn print_scope(table: &SymbolTable, f: &mut fmt::Formatter<'_>, id: ScopeId, depth: usize) -> fmt::Result {
             let indent = "\t".repeat(depth);
             let indent_plus = "\t".repeat(depth+1);
 
-            writeln!(f, "{}{{\n", indent);
+            writeln!(f, "{}{{\n", indent)?;
             for symbol in table.scope_map.get(&id).unwrap().symbols.values() {
-                writeln!(f, "{}{:?}\n", indent_plus, symbol);
+                writeln!(f, "{}{:?}\n", indent_plus, symbol)?;
             }
 
             for scope in table.children_of(id) {
-                print_scope(table, f,scope.id.clone(), depth + 1);
+                print_scope(table, f,scope.id.clone(), depth + 1)?;
             }
 
-            writeln!(f, "{}}}\n", indent);
+            writeln!(f, "{}}}\n", indent)
         }
 
-        print_scope(self, f,ScopeId::global(), 0);
+        print_scope(self, f,ScopeId::global(), 0)?;
 
         Ok(())
     }

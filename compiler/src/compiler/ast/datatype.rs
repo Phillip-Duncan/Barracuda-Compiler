@@ -38,6 +38,7 @@ impl PrimitiveDataType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum DataType {
     MUTABLE(PrimitiveDataType),
     CONST(PrimitiveDataType),

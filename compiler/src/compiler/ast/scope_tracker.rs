@@ -119,13 +119,15 @@ impl ScopeTracker {
         match symbol.symbol_type() {
             SymbolType::Variable(_) => {
                 if symbol.is_mutable() {
-                    self.local_var_ids.insert(symbol.unique_id(), self.local_var_count);
+                    let unique_id = symbol.unique_id();
+                    self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
                 }
             }
             SymbolType::EnvironmentVariable(_, _) => {}
             SymbolType::Parameter(_) => {
-                self.parameter_ids.insert(symbol.unique_id(), self.active_parameter_count);
+                let unique_id = symbol.unique_id();
+                self.parameter_ids.insert(unique_id, self.active_parameter_count);
                 self.active_parameter_count += 1;
             }
             SymbolType::Function { .. } => {}
@@ -150,22 +152,6 @@ impl ScopeTracker {
             }
             None => None
         }
-    }
-
-    /// Returns a vector of all symbols that are in scope and have been explicitly declared.
-    pub fn get_symbols_in_scope(&self) -> Vec<Symbol> {
-        let mut symbols = vec![];
-
-        // Get symbols in scope
-        if let Some(symbol_table) = &self.symbol_table {
-            // Get symbols that can be in scope
-            let mut symbols = symbol_table.get_symbols_in_scope(self.current_scope.clone());
-
-            // Remove any symbols not yet declared
-            symbols.retain(|symbol| self.symbols_in_scope.contains(&(symbol.scope_id(), symbol.identifier().clone())));
-        }
-
-        return symbols
     }
 }
 

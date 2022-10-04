@@ -3,7 +3,7 @@ mod program_code_builder;
 pub mod analysis;
 
 use super::ast::AbstractSyntaxTree;
-use super::program_code::ProgramCode;
+use barracuda_common::ProgramCode;
 
 // Abstract Definitions
 

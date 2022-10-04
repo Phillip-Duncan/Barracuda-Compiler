@@ -1,6 +1,6 @@
 use std::cmp::max;
-use crate::compiler::program_code::instructions::BarracudaInstructions;
-use crate::compiler::program_code::ProgramCode;
+use barracuda_common::BarracudaInstructions;
+use barracuda_common::ProgramCode;
 
 pub struct StackEstimator {
 

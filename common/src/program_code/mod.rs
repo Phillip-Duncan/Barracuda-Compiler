@@ -2,12 +2,12 @@ pub mod instructions;
 pub mod ops;
 
 use std::collections::HashMap;
-use self::ops::{
+pub use self::ops::{
     FixedBarracudaOperators,
     VariableBarracudaOperators,
     BarracudaOperators
 };
-use self::instructions::BarracudaInstructions;
+pub use self::instructions::BarracudaInstructions;
 use std::fmt;
 
 
