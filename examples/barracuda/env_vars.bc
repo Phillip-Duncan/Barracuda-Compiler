@@ -1,0 +1,9 @@
+extern a;
+extern b;
+extern c;
+
+fn add(x, y) {
+    c = x + y;
+}
+
+add(a, b);

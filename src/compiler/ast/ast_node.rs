@@ -63,6 +63,11 @@ pub enum ASTNode {
         expression: Box<ASTNode>
     },
 
+    /// External statement defines a external variable for use in future statements in scope.
+    EXTERN {
+        identifier: Box<ASTNode>
+    },
+
     /// Assignment statement assigns a new value to a variable within scope.
     ///
     /// # Syntax:
@@ -266,6 +271,9 @@ impl ASTNode {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }
                 output.push(expression.as_mut());
+            }
+            ASTNode::EXTERN {identifier} => {
+                output.push(identifier.as_mut());
             }
             ASTNode::ASSIGNMENT { identifier, expression } => {
                 output.push(identifier.as_mut());

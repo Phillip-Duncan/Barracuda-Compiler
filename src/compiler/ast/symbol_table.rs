@@ -11,6 +11,7 @@ use std::fmt::format;
 #[derive(Debug, Clone)]
 pub enum SymbolType {
     Variable(DataType),
+    EnvironmentVariable(usize, DataType),
     Parameter(DataType),
     Function {
         func_params: Vec<DataType>,
@@ -134,6 +135,12 @@ pub struct SymbolTable {
     // This implementation is a hashmap to allow for the pruning of scopes without restructuring
     scope_map: HashMap<ScopeId, SymbolScope>,
 
+    env_var_addresses: HashMap<String, usize>,
+
+    /// Main entry scope
+    /// Used to find program generation entry point
+    main_entry_scope: ScopeId,
+
     /// Generator will generate unique ScopeId for the SymbolTable
     scope_generator: ScopeIdGenerator
 }
@@ -146,6 +153,8 @@ impl SymbolTable {
     pub fn new() -> Self {
         let mut symbol_table = SymbolTable {
             scope_map: Default::default(),
+            main_entry_scope: ScopeId::global(),
+            env_var_addresses: Default::default(),
             scope_generator: ScopeIdGenerator::new()
         };
 
@@ -163,11 +172,20 @@ impl SymbolTable {
     /// Generate a Symbol table from a root ASTNode
     /// Each node in the AST is processed to identify the scope structure and symbols.
     /// @root: Root node of an Abstract Syntax Tree. Mutable as scope ids are assigned to scope
+    /// @env_variable_ids: Map of environment variable addresses, identifier:env_address
     /// ast nodes during this process.
-    pub(super) fn from(root: &mut ASTNode) -> SymbolTable {
+    pub(super) fn from(root: &mut ASTNode, env_variable_addresses: HashMap<String, usize>) -> SymbolTable {
         let mut symbol_table = SymbolTable::new();
-        symbol_table.process_node(root, ScopeId::global());
+        symbol_table.env_var_addresses = env_variable_addresses;
+
+        // Add main program scope
+        symbol_table.main_entry_scope = symbol_table.generate_new_scope(ScopeId::global(), true).unwrap();
+        symbol_table.process_node(root, symbol_table.main_entry_scope.clone());
         symbol_table
+    }
+
+    pub fn entry_scope(&self) -> ScopeId {
+        self.main_entry_scope.clone()
     }
 
     /// Find a symbol in the symbol table given the scope within.
@@ -188,6 +206,15 @@ impl SymbolTable {
     /// @identifier: symbol identifier name
     /// @return Symbol if found within scope or parent scopes, otherwise None
     pub fn find_symbol(&self, current_scope: ScopeId, identifier: &String) -> Option<&Symbol> {
+
+        // Check if symbol is in global scope
+        if let Some(global_scope) = self.scope_map.get(&ScopeId::global()) {
+            match global_scope.get_symbol(identifier) {
+                Some(symbol) => {return Some(symbol)}
+                None => {}
+            }
+        }
+
         // Get scope from id
         let symbol_scope = match self.scope_map.get(&current_scope) {
             Some(symbol) => symbol,
@@ -357,6 +384,26 @@ impl SymbolTable {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
+            }
+            ASTNode::EXTERN { identifier} => {
+                let identifier_name = identifier.identifier_name().unwrap();
+
+                let env_address = match self.env_var_addresses.get(&identifier_name) {
+                    Some(address) => address.clone(),
+                    None => panic!("Extern '{}' found, however '{}' is not a defined external symbol", &identifier_name, &identifier_name)
+                };
+
+                // Safe to unwrap as global scope should always be defined
+                self.scope_map.get_mut(&ScopeId::global()).unwrap()
+                    .add_symbol(Symbol::new(
+                    identifier_name,
+                    // In the current implementation all environment variables are doubles
+                    SymbolType::EnvironmentVariable(
+                            env_address,
+                            DataType::MUTABLE(PrimitiveDataType::F64)
+                        )
+                    )
+                );
             }
             ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
                 match Self::process_function(identifier.as_ref(), parameters.as_ref(), return_type.as_ref()) {

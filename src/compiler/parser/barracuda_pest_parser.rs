@@ -6,7 +6,8 @@ use super::super::ast::{
     Literal,
     BinaryOperation,
     UnaryOperation,
-    ScopeId
+    ScopeId,
+    environment_symbol_context::EnvironmentSymbolContext
 };
 
 
@@ -61,6 +62,7 @@ impl PestBarracudaParser {
             Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
             Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
+            Rule::external_statement => { Self::parse_pair_external_statement(pair) },
             Rule::assign_statement =>   { Self::parse_pair_assignment_statement(pair) },
             Rule::if_statement =>       { Self::parse_pair_if_statement(pair) },
             Rule::for_statement =>      { Self::parse_pair_for_statement(pair) },
@@ -163,6 +165,16 @@ impl PestBarracudaParser {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
             expression: Box::new(expression)
+        }
+    }
+
+    /// Parses a pest token pair into an AST external construct statement
+    fn parse_pair_external_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::EXTERN {
+            identifier: Box::new(identifier)
         }
     }
 
@@ -357,7 +369,10 @@ impl AstParser for PestBarracudaParser {
     }
 
     /// Parse processes a source string into an abstract syntax tree
-    fn parse(self, source: &str) -> AbstractSyntaxTree {
-        AbstractSyntaxTree::new(Self::parse_into_node_tree(source))
+    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
+        AbstractSyntaxTree::new(
+            Self::parse_into_node_tree(source),
+            env_vars
+        )
     }
 }

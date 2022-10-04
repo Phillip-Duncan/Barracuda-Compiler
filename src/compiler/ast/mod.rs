@@ -17,6 +17,12 @@ pub(super) use self::{
     scope_tracker::ScopeTracker
 };
 
+pub mod environment_symbol_context;
+
+pub use self::{
+    environment_symbol_context::EnvironmentSymbolContext
+};
+
 use self::symbol_table::SymbolTable;
 
 /// Intermediate Representation of the compiler model
@@ -29,9 +35,9 @@ pub struct AbstractSyntaxTree {
 }
 
 impl AbstractSyntaxTree {
-    pub fn new(root: ASTNode) -> Self {
+    pub fn new(root: ASTNode, env_vars: EnvironmentSymbolContext) -> Self {
         let mut root = root;
-        let symbol_table = SymbolTable::from(&mut root);
+        let symbol_table = SymbolTable::from(&mut root, env_vars.into());
 
         Self {
             root,

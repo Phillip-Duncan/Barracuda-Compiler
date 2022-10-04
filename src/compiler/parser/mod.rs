@@ -9,8 +9,9 @@ pub trait AstParser {
     fn default() -> Self;
 
     /// Parse a source string into an Abstract Syntax Tree
-    fn parse(self, source: &str) -> AbstractSyntaxTree;
+    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree;
 }
 
 // Concrete Definition Export
 pub use self::barracuda_pest_parser::PestBarracudaParser;
+pub use super::ast::EnvironmentSymbolContext;

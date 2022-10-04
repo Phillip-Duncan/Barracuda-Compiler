@@ -11,7 +11,8 @@ use super::super::ast::{
 use super::super::program_code::{
     ProgramCode,
     instructions::BarracudaInstructions as INSTRUCTION,
-    ops::FixedBarracudaOperators as OP
+    ops::FixedBarracudaOperators as OP,
+    ops::VariableBarracudaOperators as VAR_OP
 };
 
 use std::borrow::Borrow;
@@ -204,6 +205,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 self.generate_construct_statement(identifier, datatype, expression);
             }
+            ASTNode::EXTERN { identifier } => {
+                self.generate_extern_statement(identifier);
+            }
             ASTNode::ASSIGNMENT { identifier, expression } => {
                 self.generate_assignment_statement(identifier, expression)
             }
@@ -249,6 +253,9 @@ impl BarracudaByteCodeGenerator {
 
                 self.generate_local_var_address(localvar_id);
                 self.builder.emit_op(OP::STK_READ);
+            }
+            SymbolType::EnvironmentVariable(global_id, _) => {
+                self.builder.emit_var_op(VAR_OP::LDNX(global_id));
             }
             SymbolType::Parameter(datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
@@ -319,14 +326,45 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
     }
 
+    fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        self.add_symbol(identifier_name.clone())
+    }
+
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
-        let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
-        self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-        self.generate_local_var_address(local_var_id);
-        self.generate_node(expression);
-        self.builder.emit_op(OP::STK_WRITE);
+        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+            match symbol.symbol_type() {
+                SymbolType::Variable(_) => {
+                    let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+
+                    self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
+                    self.generate_local_var_address(local_var_id);
+                    self.generate_node(expression);
+                    self.builder.emit_op(OP::STK_WRITE);
+                }
+                SymbolType::EnvironmentVariable(global_id, _) => {
+                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
+                    self.generate_node(expression);
+                    self.builder.emit_var_op(VAR_OP::RCNX(global_id));
+                }
+                Parameter(_) => {
+                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
+
+                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
+                    self.generate_parameter_address(local_param_id);
+                    self.generate_node(expression);
+                    self.builder.emit_op(OP::STK_WRITE);
+                }
+                SymbolType::Function { .. } => {
+                    panic!("Cannot reassign a value to function '{}'", identifier_name);
+                }
+            }
+        } else {
+            panic!("Assignment identifier '{}' not recognised", identifier_name);
+        }
+
     }
 
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {

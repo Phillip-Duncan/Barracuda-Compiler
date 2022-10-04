@@ -35,5 +35,8 @@ clap = {version = "3.2.21", features = ["derive"] }
 # used to simplify program_code/ops.rs
 enum-assoc = "0.3.4"
 
+# Used to implement simple errors for things such as CLI argument parsing
+simple-error = "0.2.3"
+
 [features]
 c-headers = ["safer-ffi/headers"]

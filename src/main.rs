@@ -3,21 +3,81 @@ extern crate pest;
 extern crate exitcode;
 #[macro_use]
 extern crate pest_derive;
+#[macro_use]
+extern crate simple_error;
+extern crate safer_ffi;
 
 
 // Internal Modules
 mod compiler;
 use compiler::Compiler;
+use compiler::EnvironmentSymbolContext;
 
 // Standard Imports
 use std::path::Path;
 use clap::Parser;
-use std::error::Error;
+use std::str::FromStr;
+use simple_error::SimpleError;
+use safer_ffi::core::num::ParseIntError;
+use std::collections::HashSet;
 
 // Basic Compiler Configuration
 type PARSER = compiler::PestBarracudaParser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;
 
+
+#[derive(Debug)]
+struct CLIEnvVarDescriptor {
+    identifier: String,
+    given_address: Option<usize>
+}
+
+impl CLIEnvVarDescriptor {
+    /// Checks if string is a valid identifier as per barracuda.pest identifier requirements
+    /// NOTE: This could be replaced with regex if identifier requirements complicate
+    fn valid_identifier(input: &str) -> bool {
+        // Check first character is alphabetic
+        let valid = input.chars().next()
+            .and_then(|start| Some(start.is_ascii_alphabetic()))
+            .unwrap_or(false);
+
+        // Check all characters are alphanumeric or underscore
+        let valid = valid && input.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_');
+
+        return valid
+    }
+}
+
+impl FromStr for CLIEnvVarDescriptor {
+    type Err = SimpleError;
+
+    /// Convert string to EnvVarDescriptor
+    /// Syntax: identifier(:address)?
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let mut identifier = input;
+        let mut address: Option<usize> = None;
+
+        // if of form identifier:address
+        if let Some((lhs, rhs)) = input.split_once(':') {
+            identifier = lhs;
+            if let Ok(rhs_value) = rhs.parse::<usize>() {
+                address = Some(rhs_value);
+            } else {
+                bail!("Defined environment variable '{}' does not have a valid integer address.", input)
+            }
+        }
+
+        if Self::valid_identifier(identifier) {
+            Ok(Self {
+                identifier: String::from(identifier),
+                given_address: address
+            })
+        } else {
+            bail!("Defined environment variable '{}' does not have a valid identifier '{}'.", input, identifier)
+        }
+    }
+}
 
 /// Command Line interface struct
 /// Describes possible arguments using the clap library
@@ -30,6 +90,13 @@ struct CompilerCLIOptions {
     /// Path to output file, default is <path_filename>.bct
     #[clap(short, long, parse(from_os_str))]
     output: Option<std::path::PathBuf>,
+
+    // Configuration
+
+    /// Environment variables definitions space separated identifiers
+    /// Syntax: identifier(:address)?
+    #[clap(long, multiple = true)]
+    env: Option<Vec<CLIEnvVarDescriptor>>,
 
     // Flags
 
@@ -51,7 +118,35 @@ impl CompilerCLIOptions {
         if self.output.is_none() {
             self.output = Some(self.path.with_extension("bct"))
         }
-        return self
+
+        return self;
+    }
+
+    /// Generate EnvironmentSymbolContext from CLI arguments.
+    /// If addresses were not specified from the args they will be linearly
+    /// set. eg 0, 1, 2. Note this does not check for conflict with user specified addresses
+    /// for instance '--env a:1 b c' will assign a:1, b:0, c:1
+    /// @return EnvironmentSymbolContext created from '--env' args
+    fn get_environment_variables(&self) -> EnvironmentSymbolContext {
+        let mut context =  EnvironmentSymbolContext::new();
+
+        if let Some(env_vars) = &self.env {
+            let mut next_id = 0;
+            for env_var_descriptor in env_vars {
+                let address = match env_var_descriptor.given_address {
+                    Some(id) => id,
+                    None => {
+                        next_id += 1;
+                        next_id - 1
+                    }
+                };
+                let identifier = env_var_descriptor.identifier.clone();
+
+                context.add_symbol(identifier, address);
+            }
+        }
+
+        return context;
     }
 }
 
@@ -59,7 +154,8 @@ fn main() {
     // Parse Command line arguments
     let cli_args = CompilerCLIOptions::parse().derive_defaults();
 
-    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+        .set_environment_variables(cli_args.get_environment_variables());
     let source_path = cli_args.path.as_path();
 
     // Check if output should be to stdout

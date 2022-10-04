@@ -104,18 +104,12 @@ impl ProgramCode {
     }
 
     /// Builder function adds operation to program code while keeping other arrays padded
-    pub fn push_operation(&mut self, operation: FixedBarracudaOperators) {
+    pub fn push_operation(&mut self, operation: BarracudaOperators) {
         self.values.push(0.0);
-        self.operations.push(BarracudaOperators::FIXED(operation));
+        self.operations.push(operation);
         self.instructions.push(BarracudaInstructions::OP);
     }
 
-    /// Builder function adds variable operation to program code while keeping other arrays padded
-    pub fn push_operation_var(&mut self, operation: VariableBarracudaOperators) {
-        self.values.push(0.0);
-        self.operations.push(BarracudaOperators::VARIABLE(operation));
-        self.instructions.push(BarracudaInstructions::OP);
-    }
 
     /// Builder function adds instruction to program code while keeping other arrays padded
     pub fn push_instruction(&mut self, instruction: BarracudaInstructions) {

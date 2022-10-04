@@ -59,7 +59,7 @@ impl ScopeTracker {
 
     pub fn new(symbol_table: SymbolTable) -> Self {
         ScopeTracker {
-            current_scope: ScopeId::global(),
+            current_scope: symbol_table.entry_scope(),
             symbol_table: Some(symbol_table),
             symbols_in_scope: HashSet::default(),
 
@@ -123,6 +123,7 @@ impl ScopeTracker {
                     self.local_var_count += 1;
                 }
             }
+            SymbolType::EnvironmentVariable(_, _) => {}
             SymbolType::Parameter(_) => {
                 self.parameter_ids.insert(symbol.unique_id(), self.active_parameter_count);
                 self.active_parameter_count += 1;

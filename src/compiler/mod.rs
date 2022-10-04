@@ -17,6 +17,7 @@ use self::program_code::ProgramCode;
 // Concrete Definitions Re-Export
 pub use self::backend::BarracudaByteCodeGenerator;
 pub use self::parser::PestBarracudaParser;
+pub use self::ast::EnvironmentSymbolContext;
 
 
 /// Compiler is a simple class that holds the configuration of a compilation configuration.
@@ -27,7 +28,8 @@ pub use self::parser::PestBarracudaParser;
 /// barracuda_code -> AstParser -> AbstractSyntaxTree -> BackEndGenerator -> ProgramCode
 pub struct Compiler<P: AstParser, G: BackEndGenerator> {
     parser: P,
-    generator: G
+    generator: G,
+    env_vars: EnvironmentSymbolContext
 }
 
 #[allow(dead_code)] // Many of the functions on compiler act as a library interface and are not used
@@ -38,21 +40,28 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
     pub fn default() -> Self {
         Compiler {
             parser: P::default(),
-            generator: G::default()
+            generator: G::default(),
+            env_vars: EnvironmentSymbolContext::new()
         }
     }
 
     /// Create new compiler using a preconfigured parser and generator.
-    pub fn new(parser: P, generator: G) -> Self {
+    pub fn new(parser: P, generator: G, env_vars: EnvironmentSymbolContext) -> Self {
         Compiler {
             parser,
-            generator
+            generator,
+            env_vars
         }
+    }
+
+    pub fn set_environment_variables(mut self, env_vars: EnvironmentSymbolContext) -> Self {
+        self.env_vars = env_vars;
+        return self
     }
 
     /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
-        let ast = self.parser.parse(source);
+        let ast = self.parser.parse(source, self.env_vars.clone());
         let program_code = self.generator.generate(ast);
 
         return program_code
