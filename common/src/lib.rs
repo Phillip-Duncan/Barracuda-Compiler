@@ -7,3 +7,10 @@ pub use program_code::{
     VariableBarracudaOperators,
     BarracudaInstructions
 };
+
+mod parser;
+
+pub use parser::{
+    ProgramCodeParser,
+    bct_parser::BarracudaCodeTextParser
+};

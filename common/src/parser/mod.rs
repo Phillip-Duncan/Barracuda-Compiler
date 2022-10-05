@@ -1,14 +1,12 @@
-pub(crate) mod text_parser;
-mod test;
+pub(crate) mod bct_parser;
 
-use crate::emulator::ProgramCode;
+use super::program_code::ProgramCode;
 use std::fs::File;
 use std::io::Read;
-use std::fmt;
 
 /// Program parser is a trait to implemented by parsers of different MathStack file formats
 /// Implementors of the trait have to implement the parse_str function
-pub(crate) trait ProgramParser {
+pub trait ProgramCodeParser {
     // Parse string
     fn parse_str(&self, data : &str) -> Result<ProgramCode, std::io::Error>;
 

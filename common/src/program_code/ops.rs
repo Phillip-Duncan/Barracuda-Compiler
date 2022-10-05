@@ -5,6 +5,8 @@ use num_traits::ToPrimitive;
 use strum_macros::EnumString;
 use enum_assoc::Assoc;
 use std::fmt;
+use regex::Regex;
+use std::str::FromStr;
 
 
 /// BarracudaOperators is a enum of all the operations of the Barracuda VM.
@@ -583,6 +585,50 @@ impl BarracudaOperators {
     }
 }
 
+impl FromStr for VariableBarracudaOperators {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let re = Regex::new(r"(?P<name>[A-Za-z]+)\((?P<args>\d+)\)").unwrap();
+        let caps = re.captures(s).ok_or(())?;
+        let name = &caps["name"];
+        let args = &caps["args"];
+
+        // NOTE: Matching using const strs right now however a more fleshed out solution relying on
+        // the enum names would be perfered.
+        match name {
+            "LDNX" => {
+                let arg_value = usize::from_str(args).map_err(|_| ())?;
+                Ok(VariableBarracudaOperators::LDNX(arg_value))
+            },
+            "RCNX" => {
+                let arg_value = usize::from_str(args).map_err(|_| ())?;
+                Ok(VariableBarracudaOperators::RCNX(arg_value))
+            }
+            _ => {
+                Err(())
+            }
+        }
+    }
+}
+
+impl FromStr for BarracudaOperators {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let fixed_result = FixedBarracudaOperators::from_str(s);
+        let variable_result = VariableBarracudaOperators::from_str(s);
+
+        return if let Ok(op) = fixed_result {
+            Ok(BarracudaOperators::FIXED(op))
+        } else if let Ok(op) = variable_result {
+            Ok(BarracudaOperators::VARIABLE(op))
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl fmt::Display for VariableBarracudaOperators {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -606,5 +652,30 @@ impl fmt::Display for BarracudaOperators {
                 write!(f, "{}", op)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::BarracudaOperators::VARIABLE;
+    use crate::VariableBarracudaOperators;
+    use super::{BarracudaOperators, FixedBarracudaOperators};
+    use super::BarracudaOperators::FIXED;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_from_str_fixed_op() {
+        let test_str = "SUB_PTR";
+        let op = BarracudaOperators::from_str(test_str)
+            .expect("Could not parse string into fixed operator");
+        assert_eq!(op, FIXED(FixedBarracudaOperators::SUB_PTR));
+    }
+
+    #[test]
+    fn test_from_str_variable_op_ldnx() {
+        let test_str = "LDNX(25)";
+        let op = BarracudaOperators::from_str(test_str)
+            .expect("Could not parse string into variable operator");
+        assert_eq!(op, VARIABLE(VariableBarracudaOperators::LDNX(25)));
     }
 }

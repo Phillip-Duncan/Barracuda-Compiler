@@ -219,7 +219,6 @@ impl fmt::Display for ProgramCode {
 mod tests {
     use super::ProgramCode;
     use super::BarracudaInstructions::*;
-    use super::BarracudaOperators::*;
     use super::FixedBarracudaOperators::*;
 
     #[test]
