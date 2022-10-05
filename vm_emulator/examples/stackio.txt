@@ -1,0 +1,9 @@
+# let a = 2; let b = 40;
+0
+0
+0
+2
+STK_WRITE
+1
+40
+STK_WRITE
