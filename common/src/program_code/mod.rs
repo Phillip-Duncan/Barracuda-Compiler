@@ -10,7 +10,6 @@ pub use self::ops::{
 pub use self::instructions::BarracudaInstructions;
 use std::fmt;
 
-
 /// Program Code Decorations holds all non functional data related to a compile program code
 /// presently this is just line comments related to instructions
 #[derive(Debug)]
@@ -213,5 +212,53 @@ impl fmt::Display for ProgramCode {
         };
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProgramCode;
+    use super::BarracudaInstructions::*;
+    use super::BarracudaOperators::*;
+    use super::FixedBarracudaOperators::*;
+
+    #[test]
+    fn test_instruction_values_padding() {
+        let instructions = vec![VALUE, OP, VALUE, OP, VALUE, OP];
+        let unpadded_values = vec![1.0, 2.0, 3.0];
+        let padded_values = ProgramCode::pad_list_to_size_of_instructions(VALUE, &instructions, &unpadded_values, 0.0);
+
+        assert_eq!(padded_values.len(), instructions.len());
+        assert_eq!(padded_values, vec![1.0, 0.0, 2.0, 0.0, 3.0, 0.0]);
+    }
+
+    #[test]
+    fn test_instruction_operations_padding() {
+        let instructions = vec![VALUE, OP, VALUE, OP, VALUE, OP];
+        let unpadded_operations = vec![ADD, SUB, MUL];
+        let padded_operations = ProgramCode::pad_list_to_size_of_instructions(OP, &instructions, &unpadded_operations, NULL);
+
+        assert_eq!(padded_operations.len(), instructions.len());
+        assert_eq!(padded_operations, vec![NULL, ADD, NULL, SUB, NULL, MUL]);
+    }
+
+    #[test]
+    fn test_instruction_values_prepadded() {
+        let instructions = vec![VALUE, OP, VALUE, OP, VALUE, OP];
+        let unpadded_values = vec![1.0, 0.0, 2.0, 0.0, 3.0, 0.0];
+        let padded_values = ProgramCode::pad_list_to_size_of_instructions(VALUE, &instructions, &unpadded_values, 0.0);
+
+        assert_eq!(padded_values.len(), instructions.len());
+        assert_eq!(padded_values, vec![1.0, 0.0, 2.0, 0.0, 3.0, 0.0]);
+    }
+
+    #[test]
+    fn test_instruction_operations_prepadded() {
+        let instructions = vec![VALUE, OP, VALUE, OP, VALUE, OP];
+        let unpadded_operations = vec![NULL, ADD, NULL, SUB, NULL, MUL];
+        let padded_operations = ProgramCode::pad_list_to_size_of_instructions(OP, &instructions, &unpadded_operations, NULL);
+
+        assert_eq!(padded_operations.len(), instructions.len());
+        assert_eq!(padded_operations, vec![NULL, ADD, NULL, SUB, NULL, MUL]);
     }
 }
