@@ -23,17 +23,17 @@ impl BarracudaCodeTextParser {
     const COMMENT_TOKEN: &'static str = "#";
 
     /// Creates new TextParser with the default delimiter '\n'
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             delimiter: String::from('\n')
         }
     }
 
     /// Creates new TextParser with custom delimiter
-    pub(crate) fn using_delimiter(delimiter: String) -> Self {
-        Self {
-            delimiter
-        }
+    #[allow(dead_code)]
+    pub(crate) fn using_delimiter(mut self, delimiter: String) -> Self {
+        self.delimiter = delimiter;
+        self
     }
 
     /// Tries to parse token string as a value.
