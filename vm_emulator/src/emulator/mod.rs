@@ -1,21 +1,24 @@
-pub(crate) mod ops;
-pub(crate) mod instructions;
+use barracuda_common::{
+    ProgramCode,
+    BarracudaOperators,
+    FixedBarracudaOperators,
+    VariableBarracudaOperators,
+    BarracudaInstructions
+};
+
 mod test;
 mod emulator_heap;
+mod instruction_executor;
+mod operation_executor;
 
-use crate::emulator::ops::MathStackOperators;
-use crate::emulator::instructions::MathStackInstructions;
+use self::emulator_heap::EmulatorHeap;
+use self::instruction_executor::BarracudaInstructionExecutor;
 use std::io::{Error, ErrorKind, Write};
-use crate::emulator::ops::MathStackOperators::LDA;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::emulator::emulator_heap::EmulatorHeap;
 use std::fmt;
 use std::borrow::BorrowMut;
-
-/// Environment var count as given by the operations. This needs to be updated manually if adding
-/// more env var load instructions.
-pub const ENV_VAR_COUNT: usize = 56;
+use std::collections::HashMap;
 
 /// Loop tracker holds the current value of iteration of a loop and the max value of the loop
 /// The max value is exclusive
@@ -33,6 +36,14 @@ impl LoopTracker {
             max: end,
             loop_start
         }
+    }
+
+    pub fn current(&self) -> i64 {
+        return self.current;
+    }
+
+    pub fn max(&self) -> i64 {
+        return self.max;
     }
 }
 
@@ -101,73 +112,32 @@ impl fmt::Debug for StackValue {
     }
 }
 
-/// ProgramCode describes the tables required to run mathstack code
-#[derive(Debug)]
-pub struct ProgramCode {
-    /// Value lists loaded with instruction VALUE. This list is padded to align with instructions
-    values: Vec<f64>,
-
-    /// Operation list loaded with instruction OP. This list is padded to align with instructions
-    operations: Vec<MathStackOperators>,
-
-    /// Instruction list denotes the execution of the program from top to bottom
-    instructions: Vec<MathStackInstructions>,
+#[derive(Clone)]
+pub struct EnvironmentVariable {
+    pub name: Option<String>,
+    pub address: usize,
+    pub value: f64
 }
 
-impl ProgramCode {
-    /// When creating program code all three lists will be padded to be the same size as instructions.
-    pub fn new(values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>) -> ProgramCode {
-        ProgramCode {
-            values: Self::pad_list_to_size_of_instructions(MathStackInstructions::VALUE, &instructions, &values, 0.0),
-            operations: Self::pad_list_to_size_of_instructions(MathStackInstructions::OP, &instructions, &operations, MathStackOperators::NULL),
-            instructions
+impl EnvironmentVariable {
+    pub fn new(name: String, address: usize, value: f64) -> Self {
+        Self {
+            name: Some(name),
+            address,
+            value
         }
     }
+}
 
-    /// Generic padding function for the values/operations list to be padded to align with the instruction list
-    /// This will create a new aligned list where each value is found where the alignment_instr is found
-    /// This allows for the program counter to be used for all lists without misalignment.
-    /// @alignment_instr: Expected either OP or VALUE
-    /// @instructions: The list of instructions for the program
-    /// @unaligned_list: Either the inputted values or operations list
-    /// @null_value: what the padded spaces should be filled with
-    /// @return: unaligned_list padded to size of instructions.len()
-    pub fn pad_list_to_size_of_instructions<T: std::clone::Clone>(alignment_instr: MathStackInstructions, instructions: &Vec<MathStackInstructions>, unaligned_list: &Vec<T>, null_value: T) -> Vec<T> {
-        // Check if the lists are already the same size.
-        // Note: It is impossible to verify if the alignment is correct as the null_value can
-        // be used for padding as well as a unaligned value. Best is to just verify length.
-        if instructions.len() == unaligned_list.len() {
-            return unaligned_list.clone();
+impl Default for EnvironmentVariable {
+    fn default() -> Self {
+        Self {
+            name: None,
+            address: 0,
+            value: 0.0
         }
-
-        // Pad list with null_value where instructions matches alignment_instr the unaligned_list
-        // value is substituted.
-        let mut aligned_list: Vec<T> = Vec::new();
-        let mut unaligned_index: usize = 0;
-
-        for i in 0..instructions.len() {
-            let instr = instructions[i];
-            if instr == alignment_instr {
-                aligned_list.push(unaligned_list[unaligned_index].clone());
-                unaligned_index += 1;
-            } else {
-                aligned_list.push(null_value.clone());
-            }
-        };
-
-        aligned_list
     }
 }
-
-impl PartialEq for ProgramCode {
-    fn eq(&self, other: &Self) -> bool {
-        self.instructions == other.instructions &&
-            self.operations == other.operations &&
-        self.values == other.values
-    }
-}
-impl Eq for ProgramCode {}
-
 
 /// Thread context is a struct that represents all the information an individual thread would
 /// have access to. It also includes functions with step() and run_till_halt() to emulate the
@@ -188,9 +158,8 @@ pub struct ThreadContext {
     /// emulator but is used to enforce a set max size.
     stack_maxsize: usize,
 
-    /// Environment variable can be loaded in using specific instructions such as LDA..LDZ0 and set
-    /// with RCA..RCZ
-    env_vars: [f64; ENV_VAR_COUNT],
+    /// Environment variable can be loaded in using specific instructions such as LDNX
+    env_vars: HashMap<usize, EnvironmentVariable>,
 
     /// Program code to execute
     program_code: ProgramCode,
@@ -216,13 +185,13 @@ impl ThreadContext {
     /// @instructions: Vector of instructions that are executed from top to bottom.
     /// @output_stream: Object that implements std::io::Write. This is used for output operations
     ///                 such as PRINTFF, PRINTC.
-    pub(crate) fn new(stack_size: usize, values: Vec<f64>, operations: Vec<MathStackOperators>, instructions: Vec<MathStackInstructions>, output_stream: Rc<RefCell<dyn Write>>) -> ThreadContext {
+    pub(crate) fn new(stack_size: usize, values: Vec<f64>, operations: Vec<BarracudaOperators>, instructions: Vec<BarracudaInstructions>, output_stream: Rc<RefCell<dyn Write>>) -> ThreadContext {
         ThreadContext {
             thread_id: 0,
             output_handle: output_stream,
             program_counter: 0,
             stack_maxsize: stack_size,
-            env_vars: [0.0; ENV_VAR_COUNT],
+            env_vars: Default::default(),
             program_code: ProgramCode::new(
                 values,
                 operations,
@@ -246,12 +215,18 @@ impl ThreadContext {
             output_handle: output_stream,
             program_counter: 0,
             stack_maxsize: stack_size,
-            env_vars: [0.0; ENV_VAR_COUNT],
+            env_vars: Default::default(),
             program_code,
             stack: Vec::new(),
             heap: EmulatorHeap::new(),
             loop_counters: Vec::new()
         }
+    }
+
+    /// Adds environment variables to thread context
+    pub fn with_env_vars(mut self, vars: HashMap<usize, EnvironmentVariable>) -> Self {
+        self.env_vars = vars;
+        return self;
     }
 
     /// Pushes a value onto the execution stack.
@@ -313,9 +288,9 @@ impl ThreadContext {
     }
 
     /// Returns current operation at pc in operation list
-    /// @return: MathStackOperator if successful, otherwise if the stack_pointer is at the end of
+    /// @return: BarracudaOperator if successful, otherwise if the stack_pointer is at the end of
     ///          operation list ErrorKind::AddrNotAvailable
-    fn get_operation(&mut self) -> Result<MathStackOperators, Error> {
+    fn get_operation(&mut self) -> Result<BarracudaOperators, Error> {
         match self.program_code.operations.get(self.program_code.operations.len() - self.program_counter - 1) {
             Some(value) => Ok(*value),
             None => Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to read next operation. Reached end of operation list"))
@@ -323,9 +298,9 @@ impl ThreadContext {
     }
 
     /// Returns current instruction at pc in instruction list
-    /// @return: MathStackInstruction if successful, otherwise if the stack_pointer is at the
+    /// @return: BarracudaInstruction if successful, otherwise if the stack_pointer is at the
     ///          end of program list ErrorKind::AddrNotAvailable
-    fn get_instruction(&mut self) -> Result<MathStackInstructions, Error> {
+    fn get_instruction(&mut self) -> Result<BarracudaInstructions, Error> {
         match self.program_code.instructions.get(self.program_code.instructions.len() - self.program_counter - 1) {
             Some(value) => {
                 Ok(*value)
@@ -390,13 +365,12 @@ impl ThreadContext {
     }
 
     /// Sets an environment variable of the program denoted by var_id
-    /// Currently there are 56 env variables available
-    /// @var_id: env variable index inclusive of 0-55
+    /// @var_id: env variable index
     /// @value: value to set env variable to.
     /// @return: Ok if successful otherwise ErrorKind::AddrNotAvailable
     pub(crate) fn set_env_var(&mut self, var_id: usize, value: f64) -> Result<(), Error>  {
-        if var_id < ENV_VAR_COUNT {
-            self.env_vars[var_id] = value;
+        if let Some(env_var) = self.env_vars.get_mut(&var_id) {
+            env_var.value = value;
             Ok(())
         } else {
             Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to set env var that does not exist."))
@@ -408,29 +382,16 @@ impl ThreadContext {
     /// @var_id: env variable index inclusive of 0-55
     /// @return: env_vars[var_id] if ok otherwise ErrorKind::AddrNotAvailable
     pub(crate) fn get_env_var(&self, var_id: usize) -> Result<f64, Error>  {
-        if var_id < ENV_VAR_COUNT {
-            Ok(self.env_vars[var_id])
+        if let Some(env_var) = self.env_vars.get(&var_id) {
+            Ok(env_var.value.clone())
         } else {
             Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to get env var that does not exist."))
         }
     }
 
-    /// Returns the associated environment variable name from the load opcodes
-    /// @var_id: env variable index inclusive of 0-55
-    /// @return: name of env_vars[var_id] if ok otherwise ErrorKind::AddrNotAvailable
-    pub(crate) fn get_env_var_name(&self, var_id: usize) -> Result<String, Error> {
-        if var_id < ENV_VAR_COUNT {
-            // Bit of a dirty solution but just taking the name from the load opcodes
-            match MathStackOperators::from(LDA as u32 + var_id as u32) {
-                Some(load_op) => {
-                    let load_op_name = format!("{:?}", load_op);
-                    Ok(String::from(&load_op_name[2..]))
-                }
-                None => Err(Error::new(ErrorKind::NotFound, "Could not find the load env var op name"))
-            }
-        } else {
-            Err(Error::new(ErrorKind::AddrNotAvailable, "Tried to get env var name that does not exist."))
-        }
+    /// Returns an immutable map of environment variables the thread context is using
+    pub fn get_env_vars(&self) -> &HashMap<usize, EnvironmentVariable> {
+        &self.env_vars
     }
 
     /// Sets the output stream for instructions like PRINTC.
@@ -468,12 +429,12 @@ impl ThreadContext {
     }
 
     /// Returns a reference of the instructions
-    pub(crate) fn get_instructions(&self) -> &Vec<MathStackInstructions> {
+    pub(crate) fn get_instructions(&self) -> &Vec<BarracudaInstructions> {
         &self.program_code.instructions
     }
 
     /// Returns a reference of the operations
-    pub(crate) fn get_operations(&self) -> &Vec<MathStackOperators> {
+    pub(crate) fn get_operations(&self) -> &Vec<BarracudaOperators> {
         &self.program_code.operations
     }
 
@@ -498,7 +459,8 @@ impl ThreadContext {
     pub(crate) fn step(&mut self) -> Result<(), Error> {
         if self.program_counter < self.program_code.instructions.len() {
             let instruction = self.get_instruction()?;
-            instruction.execute(self)
+            let executor = BarracudaInstructionExecutor::new(instruction);
+            executor.execute(self)
         } else {
             Ok(())
         }

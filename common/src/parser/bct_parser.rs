@@ -8,7 +8,7 @@ use std::io::Error;
 use std::str::FromStr;
 
 
-/// TextParser for basic text of MathStack program identified by the extension .bct.
+/// TextParser for basic text of Barracuda program identified by the extension .bct.
 /// Each instruction is loaded in by each line (By default).
 /// If the instruction name matches an operation. That operation and an OP instruction is added to the
 /// program. If the instruction name matches a number. The value is put on the values list and a VALUE
@@ -162,7 +162,7 @@ mod tests {
         );
 
         let text = "4.5,8,ADD,PRINTFF,0,GOTO";
-        let code = BarracudaCodeTextParser::using_delimiter(String::from(",")).parse_str(text).unwrap();
+        let code = BarracudaCodeTextParser::new().using_delimiter(String::from(",")).parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 

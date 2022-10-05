@@ -11,6 +11,9 @@ crate-type = [
     "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
 ]
 
+# Prevents cargo test from interpreting some of the docstrings as tests
+doctest = false
+
 
 [dependencies]
 barracuda_common = { path = "../common" }

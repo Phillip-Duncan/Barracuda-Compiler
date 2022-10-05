@@ -7,3 +7,4 @@ fn add(x, y) {
 }
 
 add(a, b);
+print c;

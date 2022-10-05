@@ -1,9 +1,9 @@
-# MathStack CPU VM
-+ This program allows for the emulations of the MathStack VM. The MathStack language
+# Barracuda CPU VM
++ This program allows for the emulations of the Barracuda VM. The Barracuda language
   was developed to be run parallel on CUDA cores on a GPU. This has a few technical
   difficulties in debugging and testing programs developed. This emulator hopes to
   solve those problems by being an emulator/debugger and is being developed to develop
-  a high-level language for the MathStack Assembly.
+  a high-level language for the Barracuda Assembly.
   
 ## Execution
 + The emulator can be executed using the `cargo run -- <filename>` command
@@ -24,4 +24,4 @@
 + You can also contact me directly if you have questions at csm119@uclive.ac.nz
 
 **Maintainer: Connor Macdonald (csm119@uclive.ac.nz)** \
-**MathStack Creator: Phillip Duncan-Gelder (phillipduncangelder@gmail.com)**
+**Barracuda Creator: Phillip Duncan-Gelder (phillipduncangelder@gmail.com)**

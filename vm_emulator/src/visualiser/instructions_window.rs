@@ -1,10 +1,10 @@
 use tui::widgets::{ListItem, ListState, Block, Borders, BorderType, List};
 use crate::emulator::ThreadContext;
-use crate::emulator::instructions::MathStackInstructions::{VALUE, OP, LOOP_ENTRY};
 use tui::backend::Backend;
 use tui::Frame;
 use tui::layout::Rect;
 use tui::style::{Style, Modifier};
+use barracuda_common::BarracudaInstructions::*;
 
 pub struct InstructionsWindow {
     instructions_state: ListState,
@@ -27,12 +27,13 @@ impl InstructionsWindow {
         self.instructions.clear();
         for i in 0..instructions.len() {
             let index = instructions.len()-1-i;
-            let instruction_str = match instructions[index] {
+            let instruction = instructions[index];
+            let instruction_str = match instruction {
                 VALUE => {
                     format!("VALUE={}", values[index])
                 },
                 OP => {
-                    format!("{:?}", operations[index])
+                    format!("{}", operations[index])
                 },
                 LOOP_ENTRY => {
                     match context.get_loop_counter_stack()
@@ -42,12 +43,12 @@ impl InstructionsWindow {
                             format!("LOOP_ENTRY({} < {})", loop_counter.current(), loop_counter.max())
                         },
                         Err(_) => {
-                            format!("{:?}", instructions[index])
+                            format!("{:?}", instruction)
                         }
                     }
                 },
                 _ => {
-                    format!("{:?}", instructions[index])
+                    format!("{:?}", instruction)
                 }
             };
             self.instructions.push(format!("{}: {}", i, instruction_str));

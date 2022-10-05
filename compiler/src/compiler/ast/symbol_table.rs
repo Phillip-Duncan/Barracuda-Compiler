@@ -571,9 +571,9 @@ mod tests {
     #[test]
     fn symbol_table_generation() {
         let mut ast = generate_test_ast();
-        let symbol_table = SymbolTable::from(&mut ast);
-        assert_eq!(symbol_table.scope_map.len(), 4);
+        let symbol_table = SymbolTable::from(&mut ast, Default::default());
 
-
+        // 4 Program Scopes + 1 Global Scope
+        assert_eq!(symbol_table.scope_map.len(), 5);
     }
 }

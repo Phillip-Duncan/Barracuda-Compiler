@@ -1,4 +1,4 @@
-use crate::emulator::{ThreadContext, ENV_VAR_COUNT};
+use crate::emulator::ThreadContext;
 use crate::visualiser::scrollable_list::ScrollableList;
 use crate::visualiser::event_widget::EventWidget;
 use tui::widgets::{Block, Borders, BorderType, ListItem};
@@ -6,6 +6,7 @@ use tui::backend::Backend;
 use tui::Frame;
 use tui::layout::Rect;
 use crossterm::event::{KeyEvent, KeyCode};
+use crate::EnvironmentVariable;
 
 pub struct EnvVarWindow {
     env_vars: Vec<String>,
@@ -15,18 +16,23 @@ pub struct EnvVarWindow {
 impl EnvVarWindow {
     pub(crate) fn new() -> Self {
         EnvVarWindow {
-            env_vars: Vec::new(),
+            env_vars: Default::default(),
             scroll_list: ScrollableList::new()
         }
     }
 
     pub(crate) fn update_env_vars(&mut self, context: &ThreadContext) {
         self.env_vars.clear();
-        for i in 0..ENV_VAR_COUNT {
-            let value = context.get_env_var(i).unwrap_or(0.0);
-            let name = context.get_env_var_name(i).unwrap_or(String::from("N/A"));
 
-            self.env_vars.push(format!("{}={}", name, value));
+        let mut env_vars: Vec<EnvironmentVariable> = context.get_env_vars().values().cloned().collect();
+        env_vars.sort_by(|a,b| a.address.cmp(&b.address));
+
+        for var in env_vars {
+            let address = var.address;
+            let value = var.value;
+            let name = var.name.clone().unwrap_or(String::from("N/A"));
+
+            self.env_vars.push(format!("{}:{}={}", address, name, value));
         }
     }
 

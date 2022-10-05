@@ -7,7 +7,7 @@ use endiannezz::ext::{EndianWriter, EndianReader};
 use std::mem::size_of;
 use std::collections::hash_map::Keys;
 
-/// Memory heap used by MathStack program code
+/// Memory heap used by Barracuda program code
 /// ## Summary
 /// Virtualized as a vector of memory regions. To simplify page allocation that the gpu would
 /// be using the pointers given for memory are stored with the first 16 bits storing the memory

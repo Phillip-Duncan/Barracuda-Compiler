@@ -4,7 +4,7 @@ use super::program_code::ProgramCode;
 use std::fs::File;
 use std::io::Read;
 
-/// Program parser is a trait to implemented by parsers of different MathStack file formats
+/// Program parser is a trait to implemented by parsers of different Barracuda file formats
 /// Implementors of the trait have to implement the parse_str function
 pub trait ProgramCodeParser {
     // Parse string

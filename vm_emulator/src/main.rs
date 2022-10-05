@@ -101,7 +101,7 @@ fn main()  -> Result<()> {
     context = context.with_env_vars(args.get_environment_variables());
 
     if args.debug {
-        let mut visualiser = visualiser::MathStackVisualiser::new(context);
+        let mut visualiser = visualiser::BarracudaVisualiser::new(context);
         visualiser.run().with_context(|| "Visualiser failed to run")?;
     } else {
         context.run_till_halt().with_context(|| "An unrecoverable error occured while running the program")?;

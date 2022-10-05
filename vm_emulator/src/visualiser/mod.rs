@@ -86,7 +86,7 @@ impl VisualiserUIWindows {
 
 
 
-pub(crate) struct MathStackVisualiser {
+pub(crate) struct BarracudaVisualiser {
     thread_context: ThreadContext,
     instruction_window: InstructionsWindow,
     stack_window: StackWindow,
@@ -102,9 +102,9 @@ pub(crate) struct MathStackVisualiser {
 }
 
 
-impl MathStackVisualiser {
+impl BarracudaVisualiser {
     pub(crate) fn new(context: ThreadContext) -> Self {
-        MathStackVisualiser {
+        BarracudaVisualiser {
             thread_context: context,
             instruction_window: InstructionsWindow::new(),
             stack_window: StackWindow::new(),
