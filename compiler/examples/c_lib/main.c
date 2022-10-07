@@ -18,6 +18,7 @@ int main(int argc, char *argv[]) {
 
         // Process Response
         printf("Code:\n%s\n\n", test_code);
+        printf("Stack Size: %d\n", response.recommended_stack_size);
         printf("Compiled:\n%s\n", response.code_text);
         for(int i = 0; i < response.values_list.len; i++) {
             printf("%f\n", response.values_list.ptr[i]);

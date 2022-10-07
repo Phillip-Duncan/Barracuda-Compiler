@@ -2,7 +2,7 @@
 
 PROJECT_ROOT=../..
 INCLUDE_DIR=$(PROJECT_ROOT)/include
-LIB=$(PROJECT_ROOT)/target/debug
+LIB=$(PROJECT_ROOT)/../target/debug
 OUT=c_lib_test
 
 barracuda_header:
