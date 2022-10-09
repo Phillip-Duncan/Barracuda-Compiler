@@ -22,7 +22,6 @@ use std::collections::HashMap;
 
 /// Loop tracker holds the current value of iteration of a loop and the max value of the loop
 /// The max value is exclusive
-#[derive(Getters)]
 pub(crate) struct LoopTracker {
     current: i64,
     max: i64,
@@ -36,6 +35,10 @@ impl LoopTracker {
             max: end,
             loop_start
         }
+    }
+
+    pub fn loop_start(&self) -> usize {
+        return self.loop_start;
     }
 
     pub fn current(&self) -> i64 {

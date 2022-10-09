@@ -37,7 +37,7 @@ impl InstructionsWindow {
                 },
                 LOOP_ENTRY => {
                     match context.get_loop_counter_stack()
-                        .binary_search_by(|loop_counter| i.cmp(loop_counter.loop_start())) {
+                        .binary_search_by(|loop_counter| i.cmp(&loop_counter.loop_start())) {
                         Ok(loop_counter_index) => {
                             let loop_counter = context.get_loop_counter_stack().get(loop_counter_index).unwrap();
                             format!("LOOP_ENTRY({} < {})", loop_counter.current(), loop_counter.max())
