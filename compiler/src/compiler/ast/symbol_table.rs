@@ -573,7 +573,7 @@ mod tests {
     fn symbol_table_generation() {
         let mut ast = generate_test_ast();
         let symbol_table = SymbolTable::from(&mut ast, HashMap::default());
-        assert_eq!(symbol_table.scope_map.len(), 4);
+        assert_eq!(symbol_table.scope_map.len(), 5);
 
 
     }
