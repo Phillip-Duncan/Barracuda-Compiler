@@ -466,6 +466,7 @@ impl fmt::Display for SymbolTable {
 mod tests {
     use crate::compiler::ast::{ASTNode, BinaryOperation, Literal, ScopeId};
     use crate::compiler::ast::symbol_table::SymbolTable;
+    use std::collections::HashMap;
 
     /// Generates an example ast directly using ASTNodes. Example program is equivalent to:
     ///     fn add(x: f64, y: f64) -> f64 {
@@ -571,7 +572,7 @@ mod tests {
     #[test]
     fn symbol_table_generation() {
         let mut ast = generate_test_ast();
-        let symbol_table = SymbolTable::from(&mut ast);
+        let symbol_table = SymbolTable::from(&mut ast, HashMap::default());
         assert_eq!(symbol_table.scope_map.len(), 4);
 
 

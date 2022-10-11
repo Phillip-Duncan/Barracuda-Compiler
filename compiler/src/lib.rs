@@ -4,10 +4,11 @@ extern crate pest;
 extern crate pest_derive;
 extern crate safer_ffi;
 extern crate core;
+extern crate barracuda_common;
 
 use safer_ffi::prelude::*;
 
-use compiler::Compiler;
+use compiler::{Compiler, EnvironmentSymbolContext};
 
 // Internal Modules
 mod compiler;
@@ -37,6 +38,19 @@ pub struct CompilerResponse {
     values_list: repr_c::Vec<f32>
 }
 
+/// EnvironmentVariable describes an environment variable the program will have access to in the
+/// target environment. These variables can be loaded in code using 'extern <identifier>;' statements.
+/// If the environment variable is not defined the compiler will throw an error.
+#[derive_ReprC]
+#[repr(C)]
+pub struct EnvironmentVariable {
+    /// Identifier is the name of the variable to use in the script.
+    identifier: char_p::Box,
+
+    /// ptr offset describes the location of the variable in the host environment.
+    ptr_offset: usize
+}
+
 /// Compiler request describes the content needed to attempt a compilation.
 /// It contains the code text string and compilation options.
 #[derive_ReprC]
@@ -44,7 +58,26 @@ pub struct CompilerResponse {
 pub struct CompilerRequest {
     /// Code text is a null-terminated string with the textual representation
     /// of barracuda high-level code.
-    code_text: char_p::Box       // C repr: char *
+    code_text: char_p::Box,       // C repr: char *
+
+    /// Environment variables are used to share data between the host environment and user code
+    /// they are mutable and defined by their name for use in barracuda code and their offset
+    /// for the memory location in the host environment user space.
+    env_vars: repr_c::Vec<EnvironmentVariable>
+}
+
+// Private
+fn generate_environment_context(request: &CompilerRequest) -> EnvironmentSymbolContext {
+    let mut context = EnvironmentSymbolContext::new();
+
+    for env_var in request.env_vars.iter() {
+        let identifier = String::from(env_var.identifier.to_str());
+        let address = env_var.ptr_offset;
+
+        context.add_symbol(identifier, address);
+    }
+
+    return context;
 }
 
 /// Compile attempts to compile a CompilerRequest into Barracuda VM
@@ -53,7 +86,10 @@ pub struct CompilerRequest {
 /// free this memory via free_compile_response.
 #[ffi_export]
 pub fn compile(request: &CompilerRequest) -> CompilerResponse {
-    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+    let env_vars = generate_environment_context(&request);
+
+    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+        .set_environment_variables(env_vars);
     let program_code = compiler.compile_str(request.code_text.to_str());
     let compiled_text = program_code.to_string();
 

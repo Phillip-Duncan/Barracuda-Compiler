@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := c_lib_test
 
-PROJECT_ROOT=../..
-INCLUDE_DIR=$(PROJECT_ROOT)/include
+PROJECT_ROOT=../../..
+INCLUDE_DIR=$(PROJECT_ROOT)/compiler/include
 LIB=$(PROJECT_ROOT)/target/debug
 OUT=c_lib_test
 
