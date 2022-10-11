@@ -11,6 +11,9 @@ crate-type = [
     "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
 ]
 
+# Prevents cargo test from interpreting some of the docstrings as tests
+doctest = false
+
 
 [dependencies]
 barracuda_common = { path = "../common" }
@@ -28,9 +31,6 @@ safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
 
 # Command line argument parser
 clap = {version = "3.2.21", features = ["derive"] }
-
-# Used to implement simple errors for things such as CLI argument parsing
-simple-error = "0.2.3"
 
 [features]
 c-headers = ["safer-ffi/headers"]

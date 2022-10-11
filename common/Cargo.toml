@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+regex = "1.6.0"         # Provides regular expression matching
 strum = "0.24"          # Strum provides enum to string macros
 strum_macros = "0.24"   # strum macro crate
 
@@ -15,3 +16,6 @@ num-derive = "0.2"      # num-traits macro ctatr
 # Procedural Macro to associate constant values for enum variants
 # used to simplify program_code/ops.rs
 enum-assoc = "0.3.4"
+
+# Used to implement simple errors for things such as CLI argument parsing
+simple-error = "0.2.3"

@@ -3,8 +3,6 @@ extern crate pest;
 extern crate exitcode;
 #[macro_use]
 extern crate pest_derive;
-#[macro_use]
-extern crate simple_error;
 extern crate safer_ffi;
 
 
@@ -13,68 +11,16 @@ mod compiler;
 use compiler::Compiler;
 use compiler::EnvironmentSymbolContext;
 
+use barracuda_common::CLIEnvVarDescriptor;
+
 // Standard Imports
 use clap::Parser;
-use std::str::FromStr;
-use simple_error::SimpleError;
 
 // Basic Compiler Configuration
 type PARSER = compiler::PestBarracudaParser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;
 
 
-#[derive(Debug)]
-struct CLIEnvVarDescriptor {
-    identifier: String,
-    given_address: Option<usize>
-}
-
-impl CLIEnvVarDescriptor {
-    /// Checks if string is a valid identifier as per barracuda.pest identifier requirements
-    /// NOTE: This could be replaced with regex if identifier requirements complicate
-    fn valid_identifier(input: &str) -> bool {
-        // Check first character is alphabetic
-        let valid = input.chars().next()
-            .and_then(|start| Some(start.is_ascii_alphabetic()))
-            .unwrap_or(false);
-
-        // Check all characters are alphanumeric or underscore
-        let valid = valid && input.chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_');
-
-        return valid
-    }
-}
-
-impl FromStr for CLIEnvVarDescriptor {
-    type Err = SimpleError;
-
-    /// Convert string to EnvVarDescriptor
-    /// Syntax: identifier(:address)?
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut identifier = input;
-        let mut address: Option<usize> = None;
-
-        // if of form identifier:address
-        if let Some((lhs, rhs)) = input.split_once(':') {
-            identifier = lhs;
-            if let Ok(rhs_value) = rhs.parse::<usize>() {
-                address = Some(rhs_value);
-            } else {
-                bail!("Defined environment variable '{}' does not have a valid integer address.", input)
-            }
-        }
-
-        if Self::valid_identifier(identifier) {
-            Ok(Self {
-                identifier: String::from(identifier),
-                given_address: address
-            })
-        } else {
-            bail!("Defined environment variable '{}' does not have a valid identifier '{}'.", input, identifier)
-        }
-    }
-}
 
 /// Command Line interface struct
 /// Describes possible arguments using the clap library

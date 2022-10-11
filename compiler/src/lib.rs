@@ -35,7 +35,12 @@ pub struct CompilerResponse {
     operations_list: repr_c::Vec<u64>,
 
     /// Value list describes the value to load during a VALUE instruction.
-    values_list: repr_c::Vec<f32>
+    values_list: repr_c::Vec<f32>,
+
+    /// Recommended stack size is an auto generated estimate for the stack size required
+    /// to execute the program code. This will give the exact min required size if analysis
+    /// goes okay otherwise it will use a default large size.
+    recommended_stack_size: usize
 }
 
 /// EnvironmentVariable describes an environment variable the program will have access to in the
@@ -105,7 +110,8 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
         instructions_list: repr_c::Vec::try_from(instructions).unwrap(),
         operations_list: repr_c::Vec::try_from(operations).unwrap(),
-        values_list: repr_c::Vec::try_from(values).unwrap()
+        values_list: repr_c::Vec::try_from(values).unwrap(),
+        recommended_stack_size: program_code.max_stack_size
     }
 }
 

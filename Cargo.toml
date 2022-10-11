@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "common",
     "compiler",
-    "common"
+    "vm_emulator"
 ]
