@@ -29,6 +29,7 @@ identifier_char = _{
 
 identifier = @{ASCII_ALPHA ~ identifier_char*}
 literal = _{decimal | integer | boolean | string}
+qualifier = @{ "*"* ~ "&"* }
 
 func_arg = {expression}
 func_call = {identifier ~ "(" ~ ")" |
@@ -51,6 +52,7 @@ div = {"/"}
 mul = {"*"}
 modulus = {"%"}
 pow = {"^"}
+addr = {"&"}
 
 equal = {"=="}
 not_equal = {"!="}
@@ -80,7 +82,10 @@ statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
-                       "let " ~ identifier ~ "=" ~ expression}
+                       "let " ~ identifier ~ "=" ~ expression |
+                       "let " ~ identifier ~ ":" ~ datatype |
+                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression |
+                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype}
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
@@ -88,6 +93,7 @@ external_statement = {"extern " ~ identifier}
 
 assign_statement = {identifier ~ "=" ~ expression}
 datatype = _{identifier}
+datatype_qual = _{qualifier}
 
 print_statement = {"print" ~ expression}
 

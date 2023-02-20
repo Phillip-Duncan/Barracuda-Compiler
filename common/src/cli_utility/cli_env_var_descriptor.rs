@@ -6,7 +6,9 @@ use regex::Regex;
 pub struct CLIEnvVarDescriptor {
     pub identifier: String,
     pub given_address: Option<usize>,
-    pub given_value: Option<f64>
+    pub given_value: Option<f64>,
+    pub datatype: String,
+    pub qualifier: String
 }
 
 impl FromStr for CLIEnvVarDescriptor {
@@ -15,7 +17,7 @@ impl FromStr for CLIEnvVarDescriptor {
     /// Convert string to EnvVarDescriptor
     /// Syntax: identifier(:address)?(=value)?
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let re = Regex::new(r"(?P<identifier>[A-Za-z][a-zA-Z0-9_]*)(:(?P<address>[0-9]+))?(=(?P<value>[+-]?([0-9]*[.])?[0-9]+))?").unwrap();
+        let re = Regex::new(r"(?P<identifier>[A-Za-z][a-zA-Z0-9_]*)(?P<qualifier>[*]*)(:(?P<address>[0-9]+))(:(?P<datatype>[A-Za-z][a-zA-Z0-9_]*))?(=(?P<value>[+-]?([0-9]*[.])?[0-9]+))?").unwrap();
 
         if let Some(caps) = re.captures(input) {
             let identifier = caps.name("identifier")
@@ -27,14 +29,22 @@ impl FromStr for CLIEnvVarDescriptor {
             let value = caps.name("value")
                 .and_then(|m| Some(String::from(m.as_str())))
                 .and_then(|s| s.parse::<f64>().ok());
+            let datatype = caps.name("datatype")
+                .and_then(|m| Some(String::from(m.as_str())))
+                .ok_or(SimpleError::new("Environment variable must have a valid datatype"))?;
+            let qualifier = caps.name("qualifier")
+                .and_then(|m| Some(String::from(m.as_str())))
+                .ok_or(SimpleError::new("Environment variable must have a valid qualifier"))?;
 
             Ok(Self {
                 identifier,
                 given_address: address,
-                given_value: value
+                given_value: value,
+                datatype,
+                qualifier
             })
         } else {
-            bail!("Environment variable must be of the form identifier(:address)?(=value)?")
+            bail!("Environment variable must be of the form identifier(:address:datatype)?(=value)?")
         }
     }
 }

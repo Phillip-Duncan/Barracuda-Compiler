@@ -73,7 +73,8 @@ impl PestBarracudaParser {
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
-            Rule::scope_block =>        { Self::parse_pair_scope_block(pair) }
+            Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
+            Rule::qualifier => { Self::parse_pair_identifier(pair) }
             _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }
         }
     }
@@ -152,7 +153,21 @@ impl PestBarracudaParser {
         let identifier = Self::parse_pair_node(pair.next().unwrap());
 
         let mut datatype = None;
-        let datatype_or_expression = Self::parse_pair_node(pair.next().unwrap());
+        let mut qualifier = None;
+
+        // qualifier, datatype or expression
+        let qd_or_expression = Self::parse_pair_node(pair.next().unwrap());
+
+        // Qualifier match
+        let datatype_or_expression = match pair.next() {
+            Some(expression_pair) => {
+                qualifier = Some(qd_or_expression);
+                Self::parse_pair_node(expression_pair)
+            }
+            None => qd_or_expression
+        };
+        
+        // Datatype match
         let expression = match pair.next() {
             Some(expression_pair) => {
                 datatype = Some(datatype_or_expression);
@@ -164,6 +179,7 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
+            qualifier: Box::new(qualifier),
             expression: Box::new(expression)
         }
     }

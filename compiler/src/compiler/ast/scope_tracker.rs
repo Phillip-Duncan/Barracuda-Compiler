@@ -117,14 +117,14 @@ impl ScopeTracker {
         // Assign resource ids to symbols
         let symbol = self.find_symbol(&identifier).unwrap();
         match symbol.symbol_type() {
-            SymbolType::Variable(_) => {
+            SymbolType::Variable(_,_) => {
                 if symbol.is_mutable() {
                     let unique_id = symbol.unique_id();
                     self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
                 }
             }
-            SymbolType::EnvironmentVariable(_, _) => {}
+            SymbolType::EnvironmentVariable(_, _, _) => {}
             SymbolType::Parameter(_) => {
                 let unique_id = symbol.unique_id();
                 self.parameter_ids.insert(unique_id, self.active_parameter_count);

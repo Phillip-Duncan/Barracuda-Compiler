@@ -10,6 +10,7 @@ extern crate safer_ffi;
 mod compiler;
 use compiler::Compiler;
 use compiler::EnvironmentSymbolContext;
+use compiler::PrimitiveDataType;
 
 use barracuda_common::CLIEnvVarDescriptor;
 
@@ -84,8 +85,10 @@ impl CompilerCLIOptions {
                     }
                 };
                 let identifier = env_var_descriptor.identifier.clone();
+                let datatype = PrimitiveDataType::parse(env_var_descriptor.datatype.clone()).unwrap();
+                let qualifier = env_var_descriptor.qualifier.clone();
 
-                context.add_symbol(identifier, address);
+                context.add_symbol(identifier, address, datatype, qualifier);
             }
         }
 

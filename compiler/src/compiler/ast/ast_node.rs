@@ -60,6 +60,7 @@ pub enum ASTNode {
     CONSTRUCT {
         identifier: Box<ASTNode>,
         datatype: Box<Option<ASTNode>>,
+        qualifier: Box<Option<ASTNode>>,
         expression: Box<ASTNode>
     },
 
@@ -264,9 +265,12 @@ impl ASTNode {
                 output.push(lhs.as_mut());
                 output.push(rhs.as_mut());
             }
-            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
+            ASTNode::CONSTRUCT { identifier, qualifier, datatype, expression } => {
                 output.push(identifier.as_mut());
 
+                if qualifier.is_some() {
+                    output.push(qualifier.as_mut().as_mut().unwrap());
+                }
                 if datatype.is_some() {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }

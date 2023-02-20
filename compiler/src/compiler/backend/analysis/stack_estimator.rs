@@ -98,6 +98,7 @@ impl StackEstimator {
             }
         };
 
+        max_stack_size = max(max_stack_size, stack_size);
         return max_stack_size;
     }
 

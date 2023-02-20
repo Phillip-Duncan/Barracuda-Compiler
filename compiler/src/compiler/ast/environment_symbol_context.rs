@@ -1,8 +1,9 @@
+use super::datatype::PrimitiveDataType;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct EnvironmentSymbolContext {
-    environment_variable_addresses: HashMap<String, usize>
+    environment_variable_addresses: HashMap<String, (usize, PrimitiveDataType, String)>
 }
 
 impl EnvironmentSymbolContext {
@@ -13,11 +14,11 @@ impl EnvironmentSymbolContext {
     }
 
     #[allow(dead_code)] // Linter False Positive
-    pub fn add_symbol(&mut self, identifier: String, address: usize) -> bool {
-        self.environment_variable_addresses.insert(identifier, address).is_some()
+    pub fn add_symbol(&mut self, identifier: String, address: usize, datatype: PrimitiveDataType, qualifier: String) -> bool {
+        self.environment_variable_addresses.insert(identifier, (address, datatype, qualifier)).is_some()
     }
 
-    pub fn into(self) -> HashMap<String, usize> {
+    pub fn into(self) -> HashMap<String, (usize, PrimitiveDataType, String)> {
         return self.environment_variable_addresses;
     }
 }

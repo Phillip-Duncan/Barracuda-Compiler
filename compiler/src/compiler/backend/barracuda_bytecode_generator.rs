@@ -78,6 +78,8 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
             // Frame pointer
             // must point to local_var:0 - 1
             Self::static_register_count() as f64 - 1.0,
+            // TODO CHANGE to f64 bit-wise representation of integer for final output.
+            //f64::from_be_bytes((Self::static_register_count() - 1).to_be_bytes()),
         ];
 
         // Generate code
@@ -139,6 +141,8 @@ impl BarracudaByteCodeGenerator {
 
     /// Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {
+        // TODO: Change all emit_values to use f64 bit-wise representation
+        //self.builder.emit_value(f64::from_be_bytes(Self::frame_ptr_address().to_be_bytes()));
         self.builder.emit_value(Self::frame_ptr_address() as f64);
         self.builder.emit_op(OP::STK_READ);
     }
@@ -204,8 +208,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.generate_binary_op(op, lhs, rhs)
             }
-            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
-                self.generate_construct_statement(identifier, datatype, expression);
+            ASTNode::CONSTRUCT { identifier, qualifier, datatype, expression } => {
+                self.generate_construct_statement(identifier, qualifier, datatype, expression);
             }
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
@@ -250,14 +254,18 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype) => {
+            SymbolType::Variable(_datatype, qualifier) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
 
                 self.generate_local_var_address(localvar_id);
                 self.builder.emit_op(OP::STK_READ);
             }
-            SymbolType::EnvironmentVariable(global_id, _) => {
+            SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+                let ptr_depth = qualifier.matches("*").count();
                 self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                for _n in 0..ptr_depth {
+                    self.builder.emit_op(OP::READ);
+                }
             }
             SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
@@ -315,9 +323,9 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _qualifier: &Box<Option<ASTNode>>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
-
+        
         // Leave result of expression at top of stack as this is the allocated
         // region for the local variable
         self.generate_node(expression);
@@ -338,7 +346,7 @@ impl BarracudaByteCodeGenerator {
 
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_) => {
+                SymbolType::Variable(_, qualifier) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
@@ -346,10 +354,21 @@ impl BarracudaByteCodeGenerator {
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }
-                SymbolType::EnvironmentVariable(global_id, _) => {
+                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
                     self.generate_node(expression);
-                    self.builder.emit_var_op(VAR_OP::RCNX(global_id));
+                    if qualifier.contains("*") {
+                        self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                        let ptr_depth = qualifier.matches("*").count();
+                        for _n in 0..ptr_depth-1 {
+                            self.builder.emit_op(OP::READ);
+                        }
+                        self.builder.emit_op(OP::SWAP);
+                        self.builder.emit_op(OP::WRITE);
+                    }
+                    else {
+                        self.builder.emit_var_op(VAR_OP::RCNX(global_id));
+                    }
                 }
                 SymbolType::Parameter(_) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();

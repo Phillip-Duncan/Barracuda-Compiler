@@ -8,8 +8,8 @@ use std::fmt;
 /// Symbol types associated with an identifier
 #[derive(Debug, Clone)]
 pub enum SymbolType {
-    Variable(DataType),
-    EnvironmentVariable(usize, DataType),
+    Variable(DataType, String),
+    EnvironmentVariable(usize, DataType, String),
     Parameter(DataType),
     Function {
         func_params: Vec<DataType>,
@@ -54,7 +54,7 @@ impl Symbol {
 
     pub fn is_mutable(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(datatype) => match datatype {
+            SymbolType::Variable(datatype,_) => match datatype {
                 DataType::MUTABLE(_) => true,
                 DataType::UNKNOWN => true,      // TODO(Connor): This should be removed once the type system is implemented
                 _ => false
@@ -126,7 +126,7 @@ pub struct SymbolTable {
     // This implementation is a hashmap to allow for the pruning of scopes without restructuring
     scope_map: HashMap<ScopeId, SymbolScope>,
 
-    env_var_addresses: HashMap<String, usize>,
+    env_var_data: HashMap<String, (usize, PrimitiveDataType, String)>,
 
     /// Main entry scope
     /// Used to find program generation entry point
@@ -145,7 +145,7 @@ impl SymbolTable {
         let mut symbol_table = SymbolTable {
             scope_map: Default::default(),
             main_entry_scope: ScopeId::global(),
-            env_var_addresses: Default::default(),
+            env_var_data: Default::default(),
             scope_generator: ScopeIdGenerator::new()
         };
 
@@ -163,11 +163,11 @@ impl SymbolTable {
     /// Generate a Symbol table from a root ASTNode
     /// Each node in the AST is processed to identify the scope structure and symbols.
     /// @root: Root node of an Abstract Syntax Tree. Mutable as scope ids are assigned to scope
-    /// @env_variable_ids: Map of environment variable addresses, identifier:env_address
+    /// @env_variable_ids: Map of environment variable data, identifier:(env_address, datatype, type qualifier)
     /// ast nodes during this process.
-    pub(super) fn from(root: &mut ASTNode, env_variable_addresses: HashMap<String, usize>) -> SymbolTable {
+    pub(super) fn from(root: &mut ASTNode, env_variable_data: HashMap<String, (usize, PrimitiveDataType, String)>) -> SymbolTable {
         let mut symbol_table = SymbolTable::new();
-        symbol_table.env_var_addresses = env_variable_addresses;
+        symbol_table.env_var_data = env_variable_data;
 
         // Add main program scope
         symbol_table.main_entry_scope = symbol_table.generate_new_scope(ScopeId::global(), true).unwrap();
@@ -253,7 +253,7 @@ impl SymbolTable {
 
     /// Helper function to simplify processing variables where data is stored within deeper
     /// ASTNodes.
-    fn process_variable(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
+    fn process_variable(identifier: &ASTNode, qualifier: &Option<ASTNode>, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
         let identifier = match identifier {
             ASTNode::IDENTIFIER(name) => name.clone(),
@@ -266,7 +266,20 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
+        // Identify the variable type qualifier
+        //let qual = qualifier.as_ref().unwrap();
+        let emptyqual = ASTNode::IDENTIFIER(String::from(""));
+        let qual = match qualifier {
+            Some(qualifier_node) => qualifier_node,
+            None => &emptyqual
+        };
+
+        let qualifier = match qual {
+            ASTNode::IDENTIFIER(name) => name.clone(),
+            _ => String::new()
+        };
+
+        Some(Symbol::new(identifier, SymbolType::Variable(datatype, qualifier)))
     }
 
     /// Helper function to simplify processing parameters where data is stored within deeper
@@ -341,8 +354,8 @@ impl SymbolTable {
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::CONSTRUCT{ identifier, datatype, expression:_ } => {
-                match Self::process_variable(identifier.as_ref(), datatype.as_ref()) {
+            ASTNode::CONSTRUCT{ identifier, qualifier, datatype, expression:_ } => {
+                match Self::process_variable(identifier.as_ref(), qualifier.as_ref(), datatype.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
@@ -350,7 +363,7 @@ impl SymbolTable {
             ASTNode::EXTERN { identifier} => {
                 let identifier_name = identifier.identifier_name().unwrap();
 
-                let env_address = match self.env_var_addresses.get(&identifier_name) {
+                let env_address = match self.env_var_data.get(&identifier_name) {
                     Some(address) => address.clone(),
                     None => panic!("Extern '{}' found, however '{}' is not a defined external symbol", &identifier_name, &identifier_name)
                 };
@@ -361,8 +374,9 @@ impl SymbolTable {
                     identifier_name,
                     // In the current implementation all environment variables are doubles
                     SymbolType::EnvironmentVariable(
-                            env_address,
-                            DataType::MUTABLE(PrimitiveDataType::F64)
+                            env_address.0,
+                            DataType::MUTABLE(env_address.1),
+                            env_address.2
                         )
                     )
                 );
@@ -483,6 +497,7 @@ mod tests {
     ///     }
     fn generate_test_ast() -> ASTNode {
         let f64_datatype = Box::new(Some(ASTNode::IDENTIFIER(String::from("f64"))));
+        let no_qualifier = Box::new(None);
         let ast = ASTNode::STATEMENT_LIST(vec![
             // fn add(x: f64, y: f64) -> f64
             ASTNode::FUNCTION {
@@ -505,6 +520,7 @@ mod tests {
                         // let z: f64 = 2.0;
                         ASTNode::CONSTRUCT {
                             identifier: Box::new(ASTNode::IDENTIFIER(String::from("z"))),
+                            qualifier: no_qualifier.clone(),
                             datatype: f64_datatype.clone(),
                             expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(2.0)))
                         },
@@ -527,12 +543,14 @@ mod tests {
             // let a: f64 = 10.0;
             ASTNode::CONSTRUCT {
                 identifier: Box::new(ASTNode::IDENTIFIER(String::from("a"))),
+                qualifier: no_qualifier.clone(),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(10.0)))
             },
             // let b: f64 = 25.0;
             ASTNode::CONSTRUCT {
                 identifier: Box::new(ASTNode::IDENTIFIER(String::from("b"))),
+                qualifier: no_qualifier.clone(),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(25.0)))
             },
@@ -544,6 +562,7 @@ mod tests {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
                         identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
+                        qualifier: Box::new(None),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::FUNC_CALL {
                             identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
@@ -559,6 +578,7 @@ mod tests {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
                         identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
+                        qualifier: Box::new(None),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(5.0)))
                     }),

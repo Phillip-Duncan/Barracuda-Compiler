@@ -18,6 +18,7 @@ use barracuda_common::ProgramCode;
 pub use self::backend::BarracudaByteCodeGenerator;
 pub use self::parser::PestBarracudaParser;
 pub use self::ast::EnvironmentSymbolContext;
+pub use self::ast::datatype::PrimitiveDataType;
 
 
 /// Compiler is a simple class that holds the configuration of a compilation configuration.

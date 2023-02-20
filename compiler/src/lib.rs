@@ -8,7 +8,7 @@ extern crate barracuda_common;
 
 use safer_ffi::prelude::*;
 
-use compiler::{Compiler, EnvironmentSymbolContext};
+use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType};
 
 // Internal Modules
 mod compiler;
@@ -53,7 +53,11 @@ pub struct EnvironmentVariable {
     identifier: char_p::Box,
 
     /// ptr offset describes the location of the variable in the host environment.
-    ptr_offset: usize
+    ptr_offset: usize,
+
+    datatype: char_p::Box,
+
+    qualifier: char_p::Box,
 }
 
 /// Compiler request describes the content needed to attempt a compilation.
@@ -78,8 +82,10 @@ fn generate_environment_context(request: &CompilerRequest) -> EnvironmentSymbolC
     for env_var in request.env_vars.iter() {
         let identifier = String::from(env_var.identifier.to_str());
         let address = env_var.ptr_offset;
+        let datatype = PrimitiveDataType::parse(String::from(env_var.datatype.to_str())).unwrap();
+        let qualifier = String::from(env_var.qualifier.to_str());
 
-        context.add_symbol(identifier, address);
+        context.add_symbol(identifier, address, datatype, qualifier);
     }
 
     return context;
