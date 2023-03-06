@@ -264,7 +264,12 @@ impl BarracudaByteCodeGenerator {
                 let ptr_depth = qualifier.matches("*").count();
                 self.builder.emit_var_op(VAR_OP::LDNX(global_id));
                 for _n in 0..ptr_depth {
-                    self.builder.emit_op(OP::READ);
+                    if (_n == ptr_depth - 1) {
+                        self.builder.emit_op(OP::READ);
+                    }
+                    else {
+                        self.builder.emit_op(OP::PTR_DEREF);
+                    }
                 }
             }
             SymbolType::Parameter(_datatype) => {
@@ -360,8 +365,14 @@ impl BarracudaByteCodeGenerator {
                     if qualifier.contains("*") {
                         self.builder.emit_var_op(VAR_OP::LDNX(global_id));
                         let ptr_depth = qualifier.matches("*").count();
-                        for _n in 0..ptr_depth-1 {
-                            self.builder.emit_op(OP::READ);
+                        for _n in 0..ptr_depth {
+                            if (_n == ptr_depth - 1) {
+                                //self.builder.emit_op(OP::READ);
+                                continue;
+                            }
+                            else {
+                                self.builder.emit_op(OP::PTR_DEREF);
+                            }
                         }
                         self.builder.emit_op(OP::SWAP);
                         self.builder.emit_op(OP::WRITE);

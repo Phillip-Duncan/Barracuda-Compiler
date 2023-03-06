@@ -135,6 +135,10 @@ pub enum FixedBarracudaOperators {
     LTEQ       = 0x03EB,
 
     // READ / WRITE OP CODES
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    PTR_DEREF  = 0x03EC,
+
 
     #[assoc(consume=1)]
     #[assoc(produce=1)]
