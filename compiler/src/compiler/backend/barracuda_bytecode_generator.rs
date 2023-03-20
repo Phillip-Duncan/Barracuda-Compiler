@@ -77,9 +77,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
             // Frame pointer
             // must point to local_var:0 - 1
-            Self::static_register_count() as f64 - 1.0,
-            // TODO CHANGE to f64 bit-wise representation of integer for final output.
-            //f64::from_be_bytes((Self::static_register_count() - 1).to_be_bytes()),
+            f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes()),
         ];
 
         // Generate code
@@ -143,26 +141,26 @@ impl BarracudaByteCodeGenerator {
     fn generate_get_frame_ptr(&mut self) {
         // TODO: Change all emit_values to use f64 bit-wise representation
         //self.builder.emit_value(f64::from_be_bytes(Self::frame_ptr_address().to_be_bytes()));
-        self.builder.emit_value(Self::frame_ptr_address() as f64);
+        self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::STK_READ);
     }
 
     /// Generate code to push return store on the top of the stack
     fn generate_get_return_store(&mut self) {
-        self.builder.emit_value(Self::return_store_address() as f64);
+        self.builder.emit_value(f64::from_ne_bytes(Self::return_store_address().to_ne_bytes()));
         self.builder.emit_op(OP::STK_READ);
     }
 
     /// Generate code to set return store with the result of an expression
     fn generate_set_return_store(&mut self, expression: &ASTNode) {
-        self.builder.emit_value(Self::return_store_address() as f64);
+        self.builder.emit_value(f64::from_ne_bytes(Self::return_store_address().to_ne_bytes()));
         self.generate_node(expression);
         self.builder.emit_op(OP::STK_WRITE);
     }
 
     /// Generate code to push local variable stack address onto the top of the stack
     fn generate_local_var_address(&mut self, localvar_index: usize) {
-        self.builder.emit_value((localvar_index + 1) as f64); // id
+        self.builder.emit_value(f64::from_ne_bytes((localvar_index + 1).to_ne_bytes())); // id
         self.generate_get_frame_ptr();
         self.builder.emit_op(OP::ADD_PTR);  // FRAME_PTR + (id + 1)
     }
@@ -170,7 +168,7 @@ impl BarracudaByteCodeGenerator {
     /// Generate code to push parameter stack address onto the top of the stack
     fn generate_parameter_address(&mut self, parameter_index: usize) {
         self.generate_get_frame_ptr();
-        self.builder.emit_value((parameter_index + 2) as f64); // id
+        self.builder.emit_value(f64::from_ne_bytes((parameter_index + 2).to_ne_bytes())); // id
         self.builder.emit_op(OP::SUB_PTR);  // FRAME_PTR - (id + 1)
     }
 
@@ -412,7 +410,7 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_op(OP::RCSTK_PTR);
 
         // Set frame ptr to old frame ptr
-        self.builder.emit_value(Self::frame_ptr_address() as f64);
+        self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
 
@@ -588,7 +586,7 @@ impl BarracudaByteCodeGenerator {
         // Update frame pointer
         self.builder.comment(format!("UPDATE FRAME POINTER"));
         self.builder.emit_op(OP::LDSTK_PTR);
-        self.builder.emit_value(Self::frame_ptr_address() as f64);
+        self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
 
