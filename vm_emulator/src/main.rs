@@ -96,7 +96,7 @@ fn main()  -> Result<()> {
     let file = File::open(path).with_context(|| format!("Could not open file {:?}", &path))?;
     let code = parser.parse(file)
                             .with_context(|| format!("Could not parse file into program code {:?}", &path))?;
-
+    println!("enter.... if you dare....");
     let mut context = ThreadContext::from_code(args.stack_size, code, Rc::new(RefCell::new(io::stdout())));
     context = context.with_env_vars(args.get_environment_variables());
 

@@ -61,7 +61,7 @@ impl StackEstimator {
                     // If no last value is set then the function must be returning from a call
                     // as this is the only context for this action at present
                     if let Some(address) = last_value {
-                        pc = *address as usize;
+                        pc = usize::from_ne_bytes((*address).to_ne_bytes());
                     } else {
                         break;
                     }
@@ -71,7 +71,7 @@ impl StackEstimator {
                     stack_size -= 2;
 
                     if let Some(address) = last_value {
-                        let false_pc = *address as usize;
+                        let false_pc = usize::from_ne_bytes((*address).to_ne_bytes());
 
                         // Follow true path if not matching current execution path
                         // as this implies a loop iteration with no expected change.
