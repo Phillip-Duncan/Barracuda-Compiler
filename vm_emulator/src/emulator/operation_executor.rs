@@ -593,9 +593,9 @@ impl BarracudaOperationExecutor {
                 Ok(())
             },
             PRINTFF => {
-                println!("TODO WHY DO I NEED THIS! (check other prints too)");
-                // let a = context.pop()?.into_f64();
-                let a = context.pop()?.into_u64();
+                // NOTE(LUKE) : TODO WHY DO I NEED THIS! (check other prints too)
+                let a = context.pop()?.into_f64();
+                //let a = context.pop()?.into_u64();
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },

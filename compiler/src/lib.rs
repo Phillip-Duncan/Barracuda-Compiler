@@ -35,7 +35,7 @@ pub struct CompilerResponse {
     operations_list: repr_c::Vec<u64>,
 
     /// Value list describes the value to load during a VALUE instruction.
-    values_list: repr_c::Vec<f32>,
+    values_list: repr_c::Vec<f64>,
 
     /// Recommended stack size is an auto generated estimate for the stack size required
     /// to execute the program code. This will give the exact min required size if analysis
@@ -109,8 +109,8 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
                                     .map(|instr| instr.as_u32()).collect();
     let operations: Vec<u64> = program_code.operations.into_iter().rev()
                                     .map(|op| op.as_u32() as u64).collect();
-    let values: Vec<f32> = program_code.values.into_iter().rev()
-                                    .map(|value| value as f32).collect();
+    let values: Vec<f64> = program_code.values.into_iter().rev()
+                                    .map(|value| value as f64).collect();
 
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),

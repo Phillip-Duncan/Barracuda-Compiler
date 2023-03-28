@@ -169,7 +169,7 @@ impl BarracudaProgramCodeBuilder {
                     output_program.push_operation(operation.clone());
                 }
                 BarracudaIR::Value(value) => {
-                    output_program.push_value(f64::from_ne_bytes((value.clone() as u64).to_ne_bytes()));
+                    output_program.push_value(value.clone());
                 }
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_ne_bytes(locations[*id as usize].clone().to_ne_bytes()));
