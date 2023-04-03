@@ -61,7 +61,7 @@ fn vm_example_2() {
 #[test]
 fn vm_example_3() {
     let mut context = emulator::ThreadContext::new(6,
-                                                   vec![12.0, 5.0, 6.0, 10.0],
+                                                   vec![f64::from_be_bytes((12 as u64).to_be_bytes()), 5.0, 6.0, 10.0],
                                                    vec![FIXED(DIV),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(SIN),FIXED(ADD)],
                                                    vec![OP, GOTO, VALUE, OP, OP, OP, OP, OP, OP, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
