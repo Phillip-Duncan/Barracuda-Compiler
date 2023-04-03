@@ -135,6 +135,10 @@ pub enum FixedBarracudaOperators {
     LTEQ       = 0x03EB,
 
     // READ / WRITE OP CODES
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    PTR_DEREF  = 0x03EC,
+
 
     #[assoc(consume=1)]
     #[assoc(produce=1)]
@@ -423,10 +427,10 @@ pub enum FixedBarracudaOperators {
 
     #[assoc(consume=0)]
     #[assoc(produce=1)]
-    LDSTK_PTR  = 0x1336 ,
+    LDSTK_PTR  = 0x12FF ,
     #[assoc(consume=1)]
     #[assoc(produce=0)]
-    RCSTK_PTR  = 0x1337 ,
+    RCSTK_PTR  = 0x1300 ,
 
     // Lower (0) and upper (1) ranges for Load and Store into Nth variate userspace.
     #[assoc(consume=0)]
