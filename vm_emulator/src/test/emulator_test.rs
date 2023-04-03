@@ -49,7 +49,7 @@ fn vm_example_1() {
 #[test]
 fn vm_example_2() {
     let mut context = emulator::ThreadContext::new(10,
-                                                   vec![0.0,0.0,0.0,1.0,0.0,10.0,0.0,0.0,0.0,1.0,0.0,10.0,0.0,0.0,10.0,0.0,5.0],
+                                                   vec![0.0,0.0,0.0,1.0,0.0,f64::from_be_bytes((10 as u64).to_be_bytes()),0.0,0.0,0.0,1.0,0.0,f64::from_be_bytes((10 as u64).to_be_bytes()),0.0,0.0,f64::from_be_bytes((10 as u64).to_be_bytes()),0.0,5.0],
                                                    vec![FIXED(ADD), FIXED(ADD)],
                                                    vec![LOOP_END, LOOP_END, OP, VALUE, LOOP_ENTRY, VALUE, VALUE, LOOP_END, OP, VALUE, LOOP_ENTRY, VALUE, VALUE, LOOP_ENTRY, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
@@ -76,7 +76,7 @@ fn vm_example_3() {
 #[test]
 fn vm_example_4() {
     let mut context = emulator::ThreadContext::new(6,
-                                                   vec![0.0, 0.0, 3.0, 0.0, 0.0, 10.0, 0.0, 1.0, 0.0, 7.0, 5.0],
+                                                   vec![0.0, 0.0, f64::from_be_bytes((3 as u64).to_be_bytes()), 0.0, 0.0, f64::from_be_bytes((10 as u64).to_be_bytes()), 0.0, 1.0, 0.0, f64::from_be_bytes((7 as u64).to_be_bytes()), 5.0],
                                                    vec![FIXED(NULL), FIXED(ADD)],
                                                                // 10    9        8      7      6    5      4    3     2     1       0
                                                    vec![OP, GOTO_IF, VALUE, VALUE, GOTO, VALUE, OP, VALUE, GOTO, VALUE, VALUE],
