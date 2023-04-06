@@ -140,6 +140,10 @@ impl BarracudaOperationExecutor {
                 let a = context.pop()?.into_u64();
                 Ok(context.push(UINT(a >> b))?)
             },
+            NEGATE => {
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(-a))?)
+            },
             MALLOC => {
                 let a = context.pop()?.into_u64() as usize;
                 let region_address = context.heap.malloc(a)?;
@@ -216,6 +220,11 @@ impl BarracudaOperationExecutor {
                 let b = context.pop()?.into_u64();
                 let a = context.pop()?.into_u64();
                 context.push(UINT((a <= b) as u64))
+            },
+            NEQ => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a != b) as u64))
             },
             STK_READ => {
                 let a = context.pop()?.into_u64() as usize;

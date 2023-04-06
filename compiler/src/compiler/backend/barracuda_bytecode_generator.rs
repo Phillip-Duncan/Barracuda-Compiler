@@ -298,11 +298,8 @@ impl BarracudaByteCodeGenerator {
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
         self.generate_node(expression);
         match op {
-            UnaryOperation::NOT => {self.builder.emit_op(OP::NOT)}
-            UnaryOperation::NEGATE => {
-                self.builder.emit_value(0.0);
-                self.builder.emit_op(OP::SUB);
-            }
+            UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
+            UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
         };
     }
 
@@ -317,10 +314,7 @@ impl BarracudaByteCodeGenerator {
             BinaryOperation::MOD   => { self.builder.emit_op(OP::FMOD); }
             BinaryOperation::POW   => { self.builder.emit_op(OP::POW); }
             BinaryOperation::EQUAL => { self.builder.emit_op(OP::EQ); }
-            BinaryOperation::NOT_EQUAL => {
-                self.builder.emit_op(OP::EQ);
-                self.builder.emit_op(OP::NOT);
-            }
+            BinaryOperation::NOT_EQUAL => { self.builder.emit_op(OP::NEQ); }
             BinaryOperation::GREATER_THAN  => { self.builder.emit_op(OP::GT); }
             BinaryOperation::LESS_THAN     => { self.builder.emit_op(OP::LT); }
             BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
