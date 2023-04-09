@@ -325,6 +325,22 @@ mod tests {
         vec![VALUE], 
         vec![FIXED(NULL)]);
     }
+
+    #[test]
+    fn boolean_false() {
+        check_stacks("false;", 
+        vec![0.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn boolean_true() {
+        check_stacks("true;", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
     
 
 }
