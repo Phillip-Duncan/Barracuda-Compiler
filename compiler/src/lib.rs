@@ -143,3 +143,88 @@ fn generate_headers() -> std::io::Result<()> {
         .to_file("include/barracuda_compiler.h")?
         .generate()
 }
+
+#[cfg(test)]
+mod tests {
+    use barracuda_common::{BarracudaInstructions, BarracudaOperators};
+    use barracuda_common::BarracudaInstructions::*;
+    use barracuda_common::BarracudaOperators::*;
+    use barracuda_common::FixedBarracudaOperators::*;
+    use barracuda_common::VariableBarracudaOperators::*;
+
+    use super::*;
+   
+    // Compiles a string and checks that the generated values, instructions, and operations match what is expected.
+    // Ignores the first two values of each as every program includes two default values.
+    fn check_stacks(code_str: &str, values: Vec<f64>, instructions: Vec<BarracudaInstructions>, operations: Vec<BarracudaOperators>) {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+        let code = compiler.compile_str(code_str);
+        assert_eq!(values, code.values[2..]);
+        assert_eq!(instructions, code.instructions[2..]);
+        assert_eq!(operations, code.operations[2..]);
+    }
+
+    // Tries to compile a program. For use when the program should fail to compile.
+    fn check_fails_compile(code_str: &str) {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+        compiler.compile_str(code_str);
+    }
+
+    #[test]
+    fn empty() {
+        check_stacks("", vec![], vec![], vec![]);
+    }
+
+    #[test]
+    fn integer() {
+        check_stacks("4;", vec![4.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn integer_zero() {
+        check_stacks("0;", vec![0.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn integer_too_many_zeros() {
+        check_fails_compile("00;");
+    }
+
+    #[test]
+    fn integer_big() {
+        check_stacks("10000000;", vec![10000000.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn integer_max_safe() {
+        check_stacks("9007199254740991;", vec![9007199254740991.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float() {
+        check_stacks("4.0;", vec![4.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_zero() {
+        check_stacks("0.0;", vec![0.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_decimal() {
+        check_stacks("0.4;", vec![0.4], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_very_small() {
+        check_stacks("0.000000000000004;", vec![0.000000000000004], vec![VALUE], vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_max_safe() {
+        check_stacks("9007199254740991.0;", vec![9007199254740991.0], vec![VALUE], vec![FIXED(NULL)]);
+    }
+    
+
+}
