@@ -172,17 +172,32 @@ mod tests {
 
     #[test]
     fn empty() {
-        check_stacks("", vec![], vec![], vec![]);
+        check_stacks("", 
+        vec![], 
+        vec![], 
+        vec![]);
+    }
+    
+    #[test]
+    #[should_panic]
+    fn no_semicolon() {
+        check_fails_compile("4");
     }
 
     #[test]
     fn integer() {
-        check_stacks("4;", vec![4.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("4;", 
+        vec![4.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn integer_zero() {
-        check_stacks("0;", vec![0.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("0;", 
+        vec![0.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
@@ -193,37 +208,122 @@ mod tests {
 
     #[test]
     fn integer_big() {
-        check_stacks("10000000;", vec![10000000.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("10000000;", 
+        vec![10000000.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn integer_max_safe() {
-        check_stacks("9007199254740991;", vec![9007199254740991.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("9007199254740991;", 
+        vec![9007199254740991.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn float() {
-        check_stacks("4.0;", vec![4.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("4.;", 
+        vec![4.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn float_zero() {
-        check_stacks("0.0;", vec![0.0], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("0.;", 
+        vec![0.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn float_decimal() {
-        check_stacks("0.4;", vec![0.4], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("0.4;", 
+        vec![0.4], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
     fn float_very_small() {
-        check_stacks("0.000000000000004;", vec![0.000000000000004], vec![VALUE], vec![FIXED(NULL)]);
+        check_stacks("0.000000000000004;", 
+        vec![0.000000000000004], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
 
     #[test]
-    fn float_max_safe() {
-        check_stacks("9007199254740991.0;", vec![9007199254740991.0], vec![VALUE], vec![FIXED(NULL)]);
+    fn float_max_safe_int() {
+        check_stacks("9007199254740991.0;", 
+        vec![9007199254740991.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_max() {
+        check_stacks(&format!("{}.;", f64::MAX), 
+        vec![f64::MAX], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_min_positive() {
+        check_stacks(&format!("{};", f64::MIN_POSITIVE), 
+        vec![f64::MIN_POSITIVE], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_exponent() {
+        check_stacks("1.e3;", 
+        vec![100.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_zero_exponent() {
+        check_stacks("1.e0;", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_positive_exponent() {
+        check_stacks("1.e+3;", 
+        vec![100.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_zero_positive_exponent() {
+        check_stacks("1.e+0;", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_negative_exponent() {
+        check_stacks("1.e-3;", 
+        vec![0.001], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn float_zero_negative_exponent() {
+        check_stacks("1.e-0;", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
     }
     
 
