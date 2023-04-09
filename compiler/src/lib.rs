@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn float_exponent() {
         check_stacks("1.e3;", 
-        vec![100.0], 
+        vec![1000.0], 
         vec![VALUE], 
         vec![FIXED(NULL)]);
     }
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn float_positive_exponent() {
         check_stacks("1.e+3;", 
-        vec![100.0], 
+        vec![1000.0], 
         vec![VALUE], 
         vec![FIXED(NULL)]);
     }
@@ -341,6 +341,69 @@ mod tests {
         vec![VALUE], 
         vec![FIXED(NULL)]);
     }
-    
+
+    // The statement 'true;' has no signigicance in the below tests.
+    // Whitespace and comments are what is being tested.
+    #[test]
+    fn whitespace_spaces_ignored() {
+        check_stacks("     true    ;    ", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn whitespace_tabs_ignored() {
+        check_stacks("\ttrue\t;\t", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn whitespace_returns_ignored() {
+        check_stacks("\rtrue\r;\r", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn whitespace_counts_inside_literal() {
+        check_fails_compile("tr\nue;");
+    }
+
+    #[test]
+    fn comment_inline_ignored() {
+        check_stacks("//comment\ntrue;//comment\n//comment", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn comment_inline_removes_statement() {
+        check_stacks("//comment true;", 
+        vec![], 
+        vec![], 
+        vec![]);
+    }
+
+    #[test]
+    fn comment_multiline_ignored() {
+        check_stacks("/*multiline\ncomment*/true;/*multiline comment*//*multiline\ncomment*/", 
+        vec![1.0], 
+        vec![VALUE], 
+        vec![FIXED(NULL)]);
+    }
+
+    #[test]
+    fn comment_multiline_removes_statement() {
+        check_stacks("/*\ntrue;\n*/", 
+        vec![], 
+        vec![], 
+        vec![]);
+    }
 
 }
