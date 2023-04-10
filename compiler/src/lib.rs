@@ -314,4 +314,71 @@ mod tests {
         }
     }
 
+    #[test]
+    fn unary_operator_precedence() {
+        check_stacks("-4-3;", 
+        vec![4.0, 0.0, 3.0, 0.0], 
+        vec![VALUE, OP, VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(SUB)]);
+
+        check_stacks("4--3;", 
+        vec![4.0, 3.0, 0.0, 0.0], 
+        vec![VALUE, VALUE, OP, OP], 
+        vec![FIXED(NULL), FIXED(NULL), FIXED(NEGATE), FIXED(SUB)]);
+
+        check_stacks("--4--3;", 
+        vec![4.0, 0.0, 0.0, 3.0, 0.0, 0.0], 
+        vec![VALUE, OP, OP, VALUE, OP, OP], 
+        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NEGATE), FIXED(NULL), FIXED(NEGATE), FIXED(SUB)]);
+
+        check_stacks("-4+3;", 
+        vec![4.0, 0.0, 3.0, 0.0], 
+        vec![VALUE, OP, VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(ADD)]);
+
+        check_stacks("-4^3;", 
+        vec![4.0, 0.0, 3.0, 0.0], 
+        vec![VALUE, OP, VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(POW)]);
+
+        check_stacks("4+-3;", 
+        vec![4.0, 3.0, 0.0, 0.0], 
+        vec![VALUE, VALUE, OP, OP], 
+        vec![FIXED(NULL), FIXED(NULL), FIXED(NEGATE), FIXED(ADD)]);
+    }
+
+    #[test]
+    fn binary_operator_precedence() {
+        let operators = vec![
+            ("+", 3, FIXED(ADD)),
+            ("-", 3, FIXED(SUB)),
+            ("/", 4, FIXED(DIV)),
+            ("%", 4, FIXED(FMOD)),
+            ("*", 4, FIXED(MUL)),
+            ("^", 5, FIXED(POW)),
+            ("==", 1, FIXED(EQ)),
+            ("!=", 1, FIXED(NEQ)),
+            (">", 2, FIXED(GT)),
+            ("<", 2, FIXED(LT)),
+            (">=", 2, FIXED(GTEQ)),
+            ("<=", 2, FIXED(LTEQ)),
+        ];
+
+        for (op_str_1, precedence_1, operation_1) in &operators {
+            for (op_str_2, precedence_2, operation_2) in &operators {
+                let code_str = &format!("1{}2{}3;", op_str_1, op_str_2);
+                if precedence_1 >= precedence_2 {
+                    check_stacks(&code_str, 
+                        vec![1.0, 2.0, 0.0, 3.0, 0.0], 
+                        vec![VALUE, VALUE, OP, VALUE, OP], 
+                        vec![FIXED(NULL), FIXED(NULL), *operation_1, FIXED(NULL), *operation_2]);
+                } else {
+                    check_stacks(&code_str, 
+                        vec![1.0, 2.0, 3.0, 0.0, 0.0], 
+                        vec![VALUE, VALUE, VALUE, OP, OP], 
+                        vec![FIXED(NULL), FIXED(NULL), FIXED(NULL), *operation_2, *operation_1]);
+                }
+            }
+        }
+    }
 }
