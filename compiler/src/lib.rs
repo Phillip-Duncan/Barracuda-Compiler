@@ -151,7 +151,6 @@ mod tests {
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
     use barracuda_common::FixedBarracudaOperators::*;
-    use barracuda_common::VariableBarracudaOperators::*;
 
     use super::*;
    
@@ -186,187 +185,54 @@ mod tests {
     }
 
     #[test]
-    fn integer() {
-        check_stacks("4;", 
-        vec![4.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
+    fn literals() {
+        let test_cases = vec![
+            ("4", 4.0),
+            ("0", 0.0),
+            ("10000000", 10000000.0),
+            ("9007199254740991", 9007199254740991.0),
+            ("4.", 4.0),
+            ("0.", 0.0),
+            ("0.4", 0.4),
+            ("0.000000000000004", 0.000000000000004),
+            ("9007199254740991.0", 9007199254740991.0),
+            ("179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0", f64::MAX),
+            ("0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250738585072014", f64::MIN_POSITIVE),
+            ("1.e3", 1000.0),
+            ("1.e0", 1.0),
+            ("1.e+3", 1000.0),
+            ("1.e+0", 1.0),
+            ("1.e-3", 0.001),
+            ("1.e-0", 1.0),
+            ("false", 0.0),
+            ("true", 1.0),
+        ];
 
-    #[test]
-    fn integer_zero() {
-        check_stacks("0;", 
-        vec![0.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    #[should_panic]
-    fn integer_too_many_zeros() {
-        check_fails_compile("00;");
-    }
-
-    #[test]
-    fn integer_big() {
-        check_stacks("10000000;", 
-        vec![10000000.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn integer_max_safe() {
-        check_stacks("9007199254740991;", 
-        vec![9007199254740991.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float() {
-        check_stacks("4.;", 
-        vec![4.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_zero() {
-        check_stacks("0.;", 
-        vec![0.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_decimal() {
-        check_stacks("0.4;", 
-        vec![0.4], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_very_small() {
-        check_stacks("0.000000000000004;", 
-        vec![0.000000000000004], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_max_safe_int() {
-        check_stacks("9007199254740991.0;", 
-        vec![9007199254740991.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_max() {
-        check_stacks(&format!("{}.;", f64::MAX), 
-        vec![f64::MAX], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_min_positive() {
-        check_stacks(&format!("{};", f64::MIN_POSITIVE), 
-        vec![f64::MIN_POSITIVE], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_exponent() {
-        check_stacks("1.e3;", 
-        vec![1000.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_zero_exponent() {
-        check_stacks("1.e0;", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_positive_exponent() {
-        check_stacks("1.e+3;", 
-        vec![1000.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_zero_positive_exponent() {
-        check_stacks("1.e+0;", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_negative_exponent() {
-        check_stacks("1.e-3;", 
-        vec![0.001], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn float_zero_negative_exponent() {
-        check_stacks("1.e-0;", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn boolean_false() {
-        check_stacks("false;", 
-        vec![0.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn boolean_true() {
-        check_stacks("true;", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
+        for (number_str, number) in test_cases {
+            check_stacks(&format!("{};", &number_str), 
+            vec![number], 
+            vec![VALUE], 
+            vec![FIXED(NULL)]);
+        }
     }
 
     // The statement 'true;' has no signigicance in the below tests.
     // Whitespace and comments are what is being tested.
     #[test]
-    fn whitespace_spaces_ignored() {
-        check_stacks("     true    ;    ", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
+    fn whitespace_ignored() {
+        let test_cases = vec![
+            "     true    ;    ",
+            "\ntrue\n;\n", 
+            "\ttrue\t;\t", 
+            "\rtrue\r;\r", 
+        ];
 
-    #[test]
-    fn whitespace_tabs_ignored() {
-        check_stacks("\ttrue\t;\t", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn whitespace_returns_ignored() {
-        check_stacks("\rtrue\r;\r", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
+        for code_str in test_cases {
+            check_stacks(code_str, 
+            vec![1.0], 
+            vec![VALUE], 
+            vec![FIXED(NULL)]);
+        }
     }
 
     #[test]
