@@ -37,7 +37,7 @@ func_call = {identifier ~ "(" ~ ")" |
 
 // Operator Definitions
 equality_operator = _{equal | not_equal}
-comparison_operator = _{greater_than | less_than | greater_equal | less_equal}
+comparison_operator = _{greater_equal | less_equal | greater_than | less_than} // Must put <= and >= before < and > so the parser matches them first.
 term_operator = _{add | sub}
 factor_operator = _{div | mul | modulus}
 exponent_operator = _{pow}

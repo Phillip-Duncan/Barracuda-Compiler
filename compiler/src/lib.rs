@@ -424,22 +424,6 @@ mod tests {
     }
 
     #[test]
-    fn mathematical_operations() {
-        check_stacks("4+3;", 
-        vec![4.0, 3.0, 0.0], 
-        vec![VALUE, VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NULL), FIXED(ADD)]);
-    }
-
-    #[test]
-    fn mathematics_subtract() {
-        check_stacks("4-3;", 
-        vec![4.0, 3.0, 0.0], 
-        vec![VALUE, VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NULL), FIXED(SUB)]);
-    }
-
-    #[test]
     fn binary_operations() {
         let test_cases = vec![
             ("+", FIXED(ADD)),
@@ -448,6 +432,12 @@ mod tests {
             ("%", FIXED(FMOD)),
             ("*", FIXED(MUL)),
             ("^", FIXED(POW)),
+            ("==", FIXED(EQ)),
+            ("!=", FIXED(NEQ)),
+            (">", FIXED(GT)),
+            ("<", FIXED(LT)),
+            (">=", FIXED(GTEQ)),
+            ("<=", FIXED(LTEQ)),
         ];
 
         for (op_string, operation) in test_cases {
