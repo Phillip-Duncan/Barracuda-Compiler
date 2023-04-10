@@ -144,6 +144,7 @@ fn generate_headers() -> std::io::Result<()> {
         .generate()
 }
 
+// A large number of unit tests for the compiler are below.
 #[cfg(test)]
 mod tests {
     use barracuda_common::{BarracudaInstructions, BarracudaOperators};
@@ -404,6 +405,57 @@ mod tests {
         vec![], 
         vec![], 
         vec![]);
+    }
+
+    #[test]
+    fn unary_not() {
+        check_stacks("!true;", 
+        vec![1.0, 0.0], 
+        vec![VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NOT)]);
+    }
+
+    #[test]
+    fn unary_negative() {
+        check_stacks("-4;", 
+        vec![4.0, 0.0], 
+        vec![VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NEGATE)]);
+    }
+
+    #[test]
+    fn mathematical_operations() {
+        check_stacks("4+3;", 
+        vec![4.0, 3.0, 0.0], 
+        vec![VALUE, VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NULL), FIXED(ADD)]);
+    }
+
+    #[test]
+    fn mathematics_subtract() {
+        check_stacks("4-3;", 
+        vec![4.0, 3.0, 0.0], 
+        vec![VALUE, VALUE, OP], 
+        vec![FIXED(NULL), FIXED(NULL), FIXED(SUB)]);
+    }
+
+    #[test]
+    fn binary_operations() {
+        let test_cases = vec![
+            ("+", FIXED(ADD)),
+            ("-", FIXED(SUB)),
+            ("/", FIXED(DIV)),
+            ("%", FIXED(FMOD)),
+            ("*", FIXED(MUL)),
+            ("^", FIXED(POW)),
+        ];
+
+        for (op_string, operation) in test_cases {
+            check_stacks(&format!("1{}1;", op_string), 
+            vec![1.0, 1.0, 0.0], 
+            vec![VALUE, VALUE, OP], 
+            vec![FIXED(NULL), FIXED(NULL), operation]);
+        }
     }
 
 }
