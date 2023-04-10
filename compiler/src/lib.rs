@@ -381,4 +381,22 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn parentheses_precedence() {
+        check_stacks("(1-2)+3;", 
+            vec![1.0, 2.0, 0.0, 3.0, 0.0], 
+            vec![VALUE, VALUE, OP, VALUE, OP], 
+            vec![FIXED(NULL), FIXED(NULL), FIXED(SUB), FIXED(NULL), FIXED(ADD)]);
+        check_stacks("(((1-2+3)));", 
+            vec![1.0, 2.0, 0.0, 3.0, 0.0], 
+            vec![VALUE, VALUE, OP, VALUE, OP], 
+            vec![FIXED(NULL), FIXED(NULL), FIXED(SUB), FIXED(NULL), FIXED(ADD)]);
+        check_stacks("1-(2+3);", 
+            vec![1.0, 2.0, 3.0, 0.0, 0.0], 
+            vec![VALUE, VALUE, VALUE, OP, OP], 
+            vec![FIXED(NULL), FIXED(NULL), FIXED(NULL), FIXED(ADD), FIXED(SUB)]);
+    }
+    
+    // TODO: func_statement, if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
 }
