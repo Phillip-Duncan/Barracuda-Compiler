@@ -537,7 +537,10 @@ impl BarracudaByteCodeGenerator {
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
         // Add function symbol
         let identifier_name = identifier.identifier_name().unwrap();
-        self.symbol_tracker.add_symbol(identifier_name.clone());
+        if self.symbol_tracker.find_symbol(&identifier_name).is_some() {
+            panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
+        }
+        self.add_symbol(identifier_name.clone());
 
         // Create labels and assign them
         let function_def_start = self.builder.create_label();
