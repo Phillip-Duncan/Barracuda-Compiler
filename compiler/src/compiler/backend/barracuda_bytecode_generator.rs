@@ -145,6 +145,22 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_op(OP::STK_READ);
     }
 
+    // Generate code to set stack pointer to the value on top of the stack.
+    // Must remove one as VM RCSTK_PTR is off by one.
+    fn generate_set_stack_ptr(&mut self) {
+        self.builder.emit_value(f64::from_ne_bytes(1_u64.to_ne_bytes()));
+        self.builder.emit_op(OP::ADD_PTR);
+        self.builder.emit_op(OP::RCSTK_PTR);
+    }
+
+    // Generate code to place stack pointer on top of the stack.
+    // Must add one as VM LDSTK_PTR is off by one.
+    fn generate_get_stack_ptr(&mut self) {
+        self.builder.emit_op(OP::LDSTK_PTR);
+        self.builder.emit_value(f64::from_ne_bytes(1_u64.to_ne_bytes()));
+        self.builder.emit_op(OP::SUB_PTR);
+    }
+
     /// Generate code to push return store on the top of the stack
     fn generate_get_return_store(&mut self) {
         self.builder.emit_value(f64::from_ne_bytes(Self::return_store_address().to_ne_bytes()));
@@ -412,7 +428,7 @@ impl BarracudaByteCodeGenerator {
 
         // Set stack pointer to frame ptr
         self.generate_get_frame_ptr();
-        self.builder.emit_op(OP::RCSTK_PTR);
+        self.generate_set_stack_ptr();
 
         // Set frame ptr to old frame ptr
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
@@ -590,7 +606,7 @@ impl BarracudaByteCodeGenerator {
 
         // Update frame pointer
         self.builder.comment(format!("UPDATE FRAME POINTER"));
-        self.builder.emit_op(OP::LDSTK_PTR);
+        self.generate_get_stack_ptr();
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);

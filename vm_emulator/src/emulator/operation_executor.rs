@@ -624,10 +624,12 @@ impl BarracudaOperationExecutor {
                 context.push(UINT(context.thread_id))
             },
             LDSTK_PTR => {
-                context.push(UINT(context.get_stack_pointer().unwrap() as u64))
+                println!("LDSTK_PTR {}", context.get_stack_pointer().unwrap() as u64 + 1);
+                context.push(UINT(context.get_stack_pointer().unwrap() as u64 + 1))
             },
             RCSTK_PTR => {
-                let a = context.pop()?.into_u64() as usize;
+                let a = context.pop()?.into_u64() as usize - 1;
+                println!("RCSTK_PTR {}", a);
                 context.set_stack_pointer(a);
                 Ok(())
             }
