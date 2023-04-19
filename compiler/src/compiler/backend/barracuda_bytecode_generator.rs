@@ -535,17 +535,12 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
-        // Add function symbol
+
         let identifier_name = identifier.identifier_name().unwrap();
-        if self.symbol_tracker.find_symbol(&identifier_name).is_some() {
-            panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
-        }
-        self.add_symbol(identifier_name.clone());
 
         // Create labels and assign them
         let function_def_start = self.builder.create_label();
         let function_def_end = self.builder.create_label();
-        self.function_labels.insert(identifier_name.clone(), function_def_start);
 
         // Jump over function definition approaching from the top
         self.builder.reference(function_def_end);
@@ -576,6 +571,14 @@ impl BarracudaByteCodeGenerator {
         self.generate_return_handler();
         self.builder.set_label(function_def_end);
         self.builder.comment(format!("FN {} END", &identifier_name));
+
+        // Add function symbol (Done after function to disallow recursion as it doesn't work at the moment)
+        if self.symbol_tracker.find_symbol(&identifier_name).is_some() {
+            panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
+        }
+        self.add_symbol(identifier_name.clone());
+        self.function_labels.insert(identifier_name.clone(), function_def_start);
+
     }
 
     fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
