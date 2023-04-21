@@ -83,7 +83,7 @@ scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
                        "let " ~ identifier ~ "=" ~ expression |
-                       "let " ~ identifier ~ ":" ~ datatype |
+                       // "let " ~ identifier ~ ":" ~ datatype |  Currently the 'expression' part of a construct statement is required.
                        "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression |
                        "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype}
 
