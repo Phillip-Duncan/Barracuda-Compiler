@@ -103,3 +103,93 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    
+    use barracuda_common:: {
+        ProgramCode,
+        BarracudaOperators::*,
+        BarracudaOperators,
+        FixedBarracudaOperators::*,
+        VariableBarracudaOperators::*,
+        BarracudaInstructions::*,
+    };
+    use super::Compiler;
+
+    type PARSER = super::PestBarracudaParser;
+    type GENERATOR = super::BarracudaByteCodeGenerator;
+    
+    // Type to represent values and instructions on one stack for easier testing.
+    #[derive(Debug, PartialEq, Clone)]
+    enum MergedInstructions {
+        Val(f64),
+        Op(BarracudaOperators),
+    }
+    use MergedInstructions::*;
+
+    fn ptr(int: u64) -> f64 {
+        f64::from_ne_bytes(int.to_ne_bytes())
+    }
+
+    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+        let code = compiler.compile_str(text);
+        // iterates through values, operations, and instructions at once
+        assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());
+        let mut out: Vec<MergedInstructions> = vec![];
+        for i in 0..code.values.len() {
+            let value = code.values[i];
+            let operation = code.operations[i];
+            let instruction = code.instructions[i];
+            match instruction {
+                VALUE => {
+                    assert_eq!(FIXED(NULL), operation);
+                    out.push(Val(value));
+                },
+                OP => {
+                    assert_eq!(0.0, value);
+                    out.push(Op(operation));
+                },
+                _ => assert!(false)
+            }
+        }
+        assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
+        out[2..].to_vec()
+    }
+
+    #[test]
+    fn test_binary_operators() {
+        let binary_operators = vec![
+            ("+", ADD),
+            ("-", SUB),
+            ("*", MUL),
+            ("/", DIV),
+            ("%", FMOD),
+            ("^", POW),
+            ("==", EQ),
+            ("!=", NEQ),
+            (">=", GTEQ),
+            ("<=", LTEQ),
+            (">", GT),
+            ("<", LT),       
+        ];
+        for (text, op) in &binary_operators {
+            let stack = compile_and_merge(&format!("4{}5;", text));
+            assert_eq!(vec![Val(4.0), Val(5.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+    #[test]
+    fn test_unary_operators() {
+        let binary_operators = vec![
+            ("!", NOT),
+            ("-", NEGATE),     
+        ];
+        for (text, op) in &binary_operators {
+            let stack = compile_and_merge(&format!("{}4;", text));
+            assert_eq!(vec![Val(4.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+
+}
