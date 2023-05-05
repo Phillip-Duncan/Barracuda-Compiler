@@ -158,6 +158,39 @@ mod tests {
     }
 
     #[test]
+    fn test_literals() {
+        let literals = vec![
+            // Integers
+            ("0", 0.0),
+            ("1", 1.0),
+            ("3545", 3545.0),
+            ("9007199254740991", 9007199254740991.0), // Maximum safe integer    
+            // Floats
+            ("0.0", 0.0),
+            ("1.0", 1.0),
+            ("3545.0", 3545.0),
+            ("1000000000000000000000000000000000000000000000000.0", 1000000000000000000000000000000000000000000000000.0),
+            ("1.0e1", 10.0),
+            ("1.0e+1", 10.0),
+            ("1.0e-1", 0.1),
+            ("1.0e3", 1000.0),
+            ("1.0e+3", 1000.0),
+            ("1.0e-3", 0.001),
+            ("1.0e0", 1.0),
+            ("1.0e+0", 1.0),
+            ("1.0e-0", 1.0),
+            ("1.7976931348623157e308", f64::MAX), // Maximum float
+            // Booleans
+            ("false", 0.0),
+            ("true", 1.0),
+        ];
+        for (text, value) in &literals {
+            let stack = compile_and_merge(&format!("{};", text));
+            assert_eq!(vec![Val(*value)], stack);
+        }
+    }
+
+    #[test]
     fn test_binary_operators() {
         let binary_operators = vec![
             ("+", ADD),
@@ -181,11 +214,11 @@ mod tests {
 
     #[test]
     fn test_unary_operators() {
-        let binary_operators = vec![
+        let unary_operators = vec![
             ("!", NOT),
             ("-", NEGATE),     
         ];
-        for (text, op) in &binary_operators {
+        for (text, op) in &unary_operators {
             let stack = compile_and_merge(&format!("{}4;", text));
             assert_eq!(vec![Val(4.0), Op(FIXED(*op))], stack);
         }
