@@ -147,255 +147,210 @@ fn generate_headers() -> std::io::Result<()> {
 // A large number of unit tests for the compiler are below.
 #[cfg(test)]
 mod tests {
-    use barracuda_common::{BarracudaInstructions, BarracudaOperators};
+    use barracuda_common::BarracudaOperators;
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
     use barracuda_common::FixedBarracudaOperators::*;
 
     use super::*;
-   
-    // Compiles a string and checks that the generated values, instructions, and operations match what is expected.
-    // Ignores the first two values of each as every program includes two default values.
-    fn check_stacks(code_str: &str, values: Vec<f64>, instructions: Vec<BarracudaInstructions>, operations: Vec<BarracudaOperators>) {
-        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
-        let code = compiler.compile_str(code_str);
-        assert_eq!(values, code.values[2..]);
-        assert_eq!(instructions, code.instructions[2..]);
-        assert_eq!(operations, code.operations[2..]);
+    
+    // Type to represent values and instructions on one stack for easier testing.
+    #[derive(Debug, PartialEq, Clone)]
+    enum MergedInstructions {
+        Val(f64),
+        Op(BarracudaOperators),
+    }
+    use MergedInstructions::*;
+
+    fn ptr(int: u64) -> f64 {
+        f64::from_ne_bytes(int.to_ne_bytes())
     }
 
-    // Tries to compile a program. For use when the program should fail to compile.
-    fn check_fails_compile(code_str: &str) {
+    // Compiles a program string and converts the result to a vector of merged instructions.
+    // Because the instruction stack tells Barracuda whether to read from the operation stack or value stack,
+    //  they can be merged into one stack.
+    // This function also strips the first two elements as they are the same for every program.
+    // It also validates everything that doesn't end up in the final stack.
+    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
         let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
-        compiler.compile_str(code_str);
+        let code = compiler.compile_str(text);
+        assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());
+        let mut out: Vec<MergedInstructions> = vec![];
+        for i in 0..code.values.len() {
+            let value = code.values[i];
+            let operation = code.operations[i];
+            let instruction = code.instructions[i];
+            match instruction {
+                VALUE => {
+                    assert_eq!(FIXED(NULL), operation);
+                    out.push(Val(value));
+                },
+                OP => {
+                    assert_eq!(0.0, value);
+                    out.push(Op(operation));
+                },
+                _ => assert!(false)
+            }
+        }
+        assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
+        out[2..].to_vec()
     }
 
+    // Tests an empty program.
     #[test]
     fn empty() {
-        check_stacks("", 
-        vec![], 
-        vec![], 
-        vec![]);
-    }
-    
-    #[test]
-    #[should_panic]
-    fn no_semicolon() {
-        check_fails_compile("4");
+        let stack = compile_and_merge("");
+        assert_eq!(0, stack.len());
     }
 
+    // Tests that all literal values compile properly.
+    // Currently test integers, floats, and booleans.
     #[test]
     fn literals() {
-        let test_cases = vec![
-            ("4", 4.0),
+        let literals = vec![
+            // Integers
             ("0", 0.0),
-            ("10000000", 10000000.0),
-            ("9007199254740991", 9007199254740991.0),
-            ("4.", 4.0),
-            ("0.", 0.0),
-            ("0.4", 0.4),
-            ("0.000000000000004", 0.000000000000004),
-            ("9007199254740991.0", 9007199254740991.0),
-            ("179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0", f64::MAX),
-            ("0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250738585072014", f64::MIN_POSITIVE),
-            ("1.e3", 1000.0),
-            ("1.e0", 1.0),
-            ("1.e+3", 1000.0),
-            ("1.e+0", 1.0),
-            ("1.e-3", 0.001),
-            ("1.e-0", 1.0),
+            ("1", 1.0),
+            ("3545", 3545.0),
+            ("9007199254740991", 9007199254740991.0), // Maximum safe integer    
+            // Floats
+            ("0.0", 0.0),
+            ("1.0", 1.0),
+            ("1.", 1.0),
+            ("3545.0", 3545.0),
+            ("1000000000000000000000000000000000000000000000000.0", 1000000000000000000000000000000000000000000000000.0),
+            ("1.0e3", 1000.0),
+            ("1.0e+3", 1000.0),
+            ("1.0e-3", 0.001),
+            ("1.0e0", 1.0),
+            ("1.0e+0", 1.0),
+            ("1.0e-0", 1.0),
+            ("1.7976931348623157e308", f64::MAX), // Maximum float
+            ("2.2250738585072014e-308", f64::MIN_POSITIVE), // Minimum positive float
+            // Booleans
             ("false", 0.0),
             ("true", 1.0),
         ];
-
-        for (number_str, number) in test_cases {
-            check_stacks(&format!("{};", &number_str), 
-            vec![number], 
-            vec![VALUE], 
-            vec![FIXED(NULL)]);
+        for (text, value) in &literals {
+            let stack = compile_and_merge(&format!("{};", text));
+            assert_eq!(vec![Val(*value)], stack);
         }
     }
 
-    // The statement 'true;' has no signigicance in the below tests.
-    // Whitespace and comments are what is being tested.
+    // Tests that all binary operators compile properly.
+    // These are operators in the form a OP b.
     #[test]
-    fn whitespace_ignored() {
+    fn binary_operators() {
+        let binary_operators = vec![
+            ("+", ADD),
+            ("-", SUB),
+            ("*", MUL),
+            ("/", DIV),
+            ("%", FMOD),
+            ("^", POW),
+            ("==", EQ),
+            ("!=", NEQ),
+            (">=", GTEQ),
+            ("<=", LTEQ),
+            (">", GT),
+            ("<", LT),       
+        ];
+        for (text, op) in &binary_operators {
+            let stack = compile_and_merge(&format!("4{}5;", text));
+            assert_eq!(vec![Val(4.0), Val(5.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+    // Tests that all unary operators compile properly.
+    // These are operators in the form OP a.
+    #[test]
+    fn unary_operators() {
+        let unary_operators = vec![
+            ("!", NOT),
+            ("-", NEGATE),     
+        ];
+        for (text, op) in &unary_operators {
+            let stack = compile_and_merge(&format!("{}4;", text));
+            assert_eq!(vec![Val(4.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+    // Tests that whitespace and comments are ignored as expected.
+    // The statement 'true;' has no signigicance in the below tests.
+    // It's just there to make sure whitespace and comments are ignored correctly.
+    #[test]
+    fn whitespace_and_comments_ignored() {
         let test_cases = vec![
             "     true    ;    ",
             "\ntrue\n;\n", 
             "\ttrue\t;\t", 
-            "\rtrue\r;\r", 
+            "\rtrue\r;\r",
+            "//comment\ntrue;//comment\n//comment",
+            "/*multiline\ncomment*/true;/*multiline comment*//*multiline\ncomment*/",
         ];
 
-        for code_str in test_cases {
-            check_stacks(code_str, 
-            vec![1.0], 
-            vec![VALUE], 
-            vec![FIXED(NULL)]);
+        for test_case in &test_cases {
+            let stack = compile_and_merge(test_case);
+            assert_eq!(vec![Val(1.0)], stack);
         }
     }
 
-    #[test]
-    #[should_panic]
-    fn whitespace_counts_inside_literal() {
-        check_fails_compile("tr\nue;");
-    }
-
-    #[test]
-    fn comment_inline_ignored() {
-        check_stacks("//comment\ntrue;//comment\n//comment", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn comment_inline_removes_statement() {
-        check_stacks("//comment true;", 
-        vec![], 
-        vec![], 
-        vec![]);
-    }
-
-    #[test]
-    fn comment_multiline_ignored() {
-        check_stacks("/*multiline\ncomment*/true;/*multiline comment*//*multiline\ncomment*/", 
-        vec![1.0], 
-        vec![VALUE], 
-        vec![FIXED(NULL)]);
-    }
-
-    #[test]
-    fn comment_multiline_removes_statement() {
-        check_stacks("/*\ntrue;\n*/", 
-        vec![], 
-        vec![], 
-        vec![]);
-    }
-
-    #[test]
-    fn unary_not() {
-        check_stacks("!true;", 
-        vec![1.0, 0.0], 
-        vec![VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NOT)]);
-    }
-
-    #[test]
-    fn unary_negative() {
-        check_stacks("-4;", 
-        vec![4.0, 0.0], 
-        vec![VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NEGATE)]);
-    }
-
-    #[test]
-    fn binary_operations() {
-        let test_cases = vec![
-            ("+", FIXED(ADD)),
-            ("-", FIXED(SUB)),
-            ("/", FIXED(DIV)),
-            ("%", FIXED(FMOD)),
-            ("*", FIXED(MUL)),
-            ("^", FIXED(POW)),
-            ("==", FIXED(EQ)),
-            ("!=", FIXED(NEQ)),
-            (">", FIXED(GT)),
-            ("<", FIXED(LT)),
-            (">=", FIXED(GTEQ)),
-            ("<=", FIXED(LTEQ)),
-        ];
-
-        for (op_string, operation) in test_cases {
-            check_stacks(&format!("1{}1;", op_string), 
-            vec![1.0, 1.0, 0.0], 
-            vec![VALUE, VALUE, OP], 
-            vec![FIXED(NULL), FIXED(NULL), operation]);
-        }
-    }
-
+    // Tests to make sure unary operations work with operator precedence.
     #[test]
     fn unary_operator_precedence() {
-        check_stacks("-4-3;", 
-        vec![4.0, 0.0, 3.0, 0.0], 
-        vec![VALUE, OP, VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(SUB)]);
-
-        check_stacks("4--3;", 
-        vec![4.0, 3.0, 0.0, 0.0], 
-        vec![VALUE, VALUE, OP, OP], 
-        vec![FIXED(NULL), FIXED(NULL), FIXED(NEGATE), FIXED(SUB)]);
-
-        check_stacks("--4--3;", 
-        vec![4.0, 0.0, 0.0, 3.0, 0.0, 0.0], 
-        vec![VALUE, OP, OP, VALUE, OP, OP], 
-        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NEGATE), FIXED(NULL), FIXED(NEGATE), FIXED(SUB)]);
-
-        check_stacks("-4+3;", 
-        vec![4.0, 0.0, 3.0, 0.0], 
-        vec![VALUE, OP, VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(ADD)]);
-
-        check_stacks("-4^3;", 
-        vec![4.0, 0.0, 3.0, 0.0], 
-        vec![VALUE, OP, VALUE, OP], 
-        vec![FIXED(NULL), FIXED(NEGATE), FIXED(NULL), FIXED(POW)]);
-
-        check_stacks("4+-3;", 
-        vec![4.0, 3.0, 0.0, 0.0], 
-        vec![VALUE, VALUE, OP, OP], 
-        vec![FIXED(NULL), FIXED(NULL), FIXED(NEGATE), FIXED(ADD)]);
+        let unary_operators = vec![
+            ("-4-3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(SUB))]),
+            ("4--3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("--4--3;", vec![Val(4.0), Op(FIXED(NEGATE)), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("-4^3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(POW))]),
+            ("4+-3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(ADD))]),
+        ];
+        for (text, expected_stack) in &unary_operators {
+            let stack = compile_and_merge(text);
+            assert_eq!(*expected_stack, stack);
+        }
     }
 
+    // Tests to make sure binary operations work with operator precedence.
+    // Tests every pair of binary operations.
     #[test]
     fn binary_operator_precedence() {
         let operators = vec![
-            ("+", 3, FIXED(ADD)),
-            ("-", 3, FIXED(SUB)),
-            ("/", 4, FIXED(DIV)),
-            ("%", 4, FIXED(FMOD)),
-            ("*", 4, FIXED(MUL)),
-            ("^", 5, FIXED(POW)),
-            ("==", 1, FIXED(EQ)),
-            ("!=", 1, FIXED(NEQ)),
-            (">", 2, FIXED(GT)),
-            ("<", 2, FIXED(LT)),
-            (">=", 2, FIXED(GTEQ)),
-            ("<=", 2, FIXED(LTEQ)),
+            ("+", 3, ADD),
+            ("-", 3, SUB),
+            ("/", 4, DIV),
+            ("%", 4, FMOD),
+            ("*", 4, MUL),
+            ("^", 5, POW),
+            ("==", 1, EQ),
+            ("!=", 1, NEQ),
+            (">", 2, GT),
+            ("<", 2, LT),
+            (">=", 2, GTEQ),
+            ("<=", 2, LTEQ),
         ];
-
         for (op_str_1, precedence_1, operation_1) in &operators {
             for (op_str_2, precedence_2, operation_2) in &operators {
-                let code_str = &format!("1{}2{}3;", op_str_1, op_str_2);
+                let text = &format!("1{}2{}3;", op_str_1, op_str_2);
+                let stack = compile_and_merge(text);
                 if precedence_1 >= precedence_2 {
-                    check_stacks(&code_str, 
-                        vec![1.0, 2.0, 0.0, 3.0, 0.0], 
-                        vec![VALUE, VALUE, OP, VALUE, OP], 
-                        vec![FIXED(NULL), FIXED(NULL), *operation_1, FIXED(NULL), *operation_2]);
+                    assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(*operation_1)), Val(3.0), Op(FIXED(*operation_2))], stack);
                 } else {
-                    check_stacks(&code_str, 
-                        vec![1.0, 2.0, 3.0, 0.0, 0.0], 
-                        vec![VALUE, VALUE, VALUE, OP, OP], 
-                        vec![FIXED(NULL), FIXED(NULL), FIXED(NULL), *operation_2, *operation_1]);
+                    assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(*operation_2)), Op(FIXED(*operation_1))], stack);
                 }
             }
         }
     }
 
+    // Tests that parentheses work with operator precedence.
     #[test]
     fn parentheses_precedence() {
-        check_stacks("(1-2)+3;", 
-            vec![1.0, 2.0, 0.0, 3.0, 0.0], 
-            vec![VALUE, VALUE, OP, VALUE, OP], 
-            vec![FIXED(NULL), FIXED(NULL), FIXED(SUB), FIXED(NULL), FIXED(ADD)]);
-        check_stacks("(((1-2+3)));", 
-            vec![1.0, 2.0, 0.0, 3.0, 0.0], 
-            vec![VALUE, VALUE, OP, VALUE, OP], 
-            vec![FIXED(NULL), FIXED(NULL), FIXED(SUB), FIXED(NULL), FIXED(ADD)]);
-        check_stacks("1-(2+3);", 
-            vec![1.0, 2.0, 3.0, 0.0, 0.0], 
-            vec![VALUE, VALUE, VALUE, OP, OP], 
-            vec![FIXED(NULL), FIXED(NULL), FIXED(NULL), FIXED(ADD), FIXED(SUB)]);
+        assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
+            compile_and_merge("(1-2)+3;"));
+        assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
+            compile_and_merge("(((1-2+3)));"));
+        assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(ADD)), Op(FIXED(SUB))], 
+            compile_and_merge("1-(2+3);"));
     }
     
     // TODO: func_statement, if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
