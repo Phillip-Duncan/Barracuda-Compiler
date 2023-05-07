@@ -140,13 +140,12 @@ impl BarracudaByteCodeGenerator {
     /// Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {
         // TODO: Change all emit_values to use f64 bit-wise representation
-        //self.builder.emit_value(f64::from_be_bytes(Self::frame_ptr_address().to_be_bytes()));
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::STK_READ);
     }
 
     // Generate code to set stack pointer to the value on top of the stack.
-    // Must remove one as VM RCSTK_PTR is off by one.
+    // Must add one as VM RCSTK_PTR is off by one.
     fn generate_set_stack_ptr(&mut self) {
         self.builder.emit_value(f64::from_ne_bytes(1_u64.to_ne_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
@@ -154,7 +153,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     // Generate code to place stack pointer on top of the stack.
-    // Must add one as VM LDSTK_PTR is off by one.
+    // Must remove one as VM LDSTK_PTR is off by one.
     fn generate_get_stack_ptr(&mut self) {
         self.builder.emit_op(OP::LDSTK_PTR);
         self.builder.emit_value(f64::from_ne_bytes(1_u64.to_ne_bytes()));

@@ -147,6 +147,7 @@ fn generate_headers() -> std::io::Result<()> {
 // A large number of unit tests for the compiler are below.
 #[cfg(test)]
 mod tests {
+    use barracuda_common::BarracudaInstructions;
     use barracuda_common::BarracudaOperators;
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
@@ -159,6 +160,7 @@ mod tests {
     enum MergedInstructions {
         Val(f64),
         Op(BarracudaOperators),
+        Instr(BarracudaInstructions),
     }
     use MergedInstructions::*;
 
@@ -189,7 +191,11 @@ mod tests {
                     assert_eq!(0.0, value);
                     out.push(Op(operation));
                 },
-                _ => assert!(false)
+                _ => {
+                    assert_eq!(0.0, value);
+                    assert_eq!(FIXED(NULL), operation);
+                    out.push(Instr(instruction));
+                }
             }
         }
         assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
@@ -351,6 +357,39 @@ mod tests {
             compile_and_merge("(((1-2+3)));"));
         assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(ADD)), Op(FIXED(SUB))], 
             compile_and_merge("1-(2+3);"));
+    }
+
+    // Tests to make sure functions work.
+    #[test]
+    fn empty_functions() {
+        let function_skip = vec![Val(ptr(13)), Instr(GOTO)];
+        let function_return = vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), 
+            Op(FIXED(ADD_PTR)), Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)];
+        let function_call = vec![Val(ptr(1)), Op(FIXED(STK_READ)), 
+            Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
+            Op(FIXED(STK_WRITE)), Val(ptr(4)), Instr(GOTO), Val(0.0), Op(FIXED(STK_READ))];
+        // Checks unused function still exists
+        let stack = compile_and_merge("fn test_func() {}");
+        assert_eq!(function_skip, stack[..2]);
+        assert_eq!(function_return, stack[2..]);
+        // Checks used function is called as expected
+        let stack = compile_and_merge("fn test_func() {} test_func();");
+        assert_eq!(function_skip, stack[..2]);
+        assert_eq!(function_return, stack[2..11]);
+        assert_eq!(Val(ptr(24)), stack[11]);
+        assert_eq!(function_call, stack[12..]);
+        // Checks calling a function 3 times results in the same outcome each time,
+        // except for the pointer to the end of the function call.
+        let stack = compile_and_merge(
+            "fn test_func() {} test_func(); test_func(); test_func();");
+        assert_eq!(function_skip, stack[..2]);
+        assert_eq!(function_return, stack[2..11]);
+        assert_eq!(Val(ptr(24)), stack[11]);
+        assert_eq!(function_call, stack[12..24]);
+        assert_eq!(Val(ptr(37)), stack[24]);
+        assert_eq!(function_call, stack[25..37]);
+        assert_eq!(Val(ptr(50)), stack[37]);
+        assert_eq!(function_call, stack[38..]);
     }
     
     // TODO: func_statement, if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
