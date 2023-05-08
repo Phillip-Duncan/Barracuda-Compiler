@@ -164,7 +164,7 @@ mod tests {
     }
     use MergedInstructions::*;
 
-    fn ptr(int: u64) -> f64 {
+    fn ptr(int: usize) -> f64 {
         f64::from_ne_bytes(int.to_ne_bytes())
     }
 
@@ -359,37 +359,55 @@ mod tests {
             compile_and_merge("1-(2+3);"));
     }
 
+    // Generates a function call given the current stack position and the location of the start of the function.
+    // Returns the generated function call and the new position of the stack.
+    fn generate_function_call(position: usize, func_location: usize) -> (Vec<MergedInstructions>, usize) {
+        return (vec![Val(ptr(position + 13)), Val(ptr(1)), Op(FIXED(STK_READ)), 
+        Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
+        Op(FIXED(STK_WRITE)), Val(ptr(func_location)), Instr(GOTO), Val(0.0), Op(FIXED(STK_READ))], position + 13);
+    }
+
+    // Generates a function definition for an empty function given the current stack position.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_empty_function_definition(position: usize) -> (Vec<MergedInstructions>, usize, usize) {
+        return (vec![Val(ptr(position + 13)), Instr(GOTO), Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), 
+            Op(FIXED(ADD_PTR)), Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]
+            , position + 4, position + 11);
+    }
+    
     // Tests to make sure functions work.
     #[test]
     fn empty_functions() {
-        let function_skip = vec![Val(ptr(13)), Instr(GOTO)];
-        let function_return = vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), 
-            Op(FIXED(ADD_PTR)), Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)];
-        let function_call = vec![Val(ptr(1)), Op(FIXED(STK_READ)), 
-            Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
-            Op(FIXED(STK_WRITE)), Val(ptr(4)), Instr(GOTO), Val(0.0), Op(FIXED(STK_READ))];
         // Checks unused function still exists
-        let stack = compile_and_merge("fn test_func() {}");
-        assert_eq!(function_skip, stack[..2]);
-        assert_eq!(function_return, stack[2..]);
-        // Checks used function is called as expected
-        let stack = compile_and_merge("fn test_func() {} test_func();");
-        assert_eq!(function_skip, stack[..2]);
-        assert_eq!(function_return, stack[2..11]);
-        assert_eq!(Val(ptr(24)), stack[11]);
-        assert_eq!(function_call, stack[12..]);
-        // Checks calling a function 3 times results in the same outcome each time,
-        // except for the pointer to the end of the function call.
+        let stack = compile_and_merge(
+            "fn test_func() {}");
+        let (function_def, _, _) = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack);
+        // Checks calling that function works
+        let stack = compile_and_merge(
+            "fn test_func() {} test_func();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..]);
+        // Checks calling a function 3 times
         let stack = compile_and_merge(
             "fn test_func() {} test_func(); test_func(); test_func();");
-        assert_eq!(function_skip, stack[..2]);
-        assert_eq!(function_return, stack[2..11]);
-        assert_eq!(Val(ptr(24)), stack[11]);
-        assert_eq!(function_call, stack[12..24]);
-        assert_eq!(Val(ptr(37)), stack[24]);
-        assert_eq!(function_call, stack[25..37]);
-        assert_eq!(Val(ptr(50)), stack[37]);
-        assert_eq!(function_call, stack[38..]);
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, position_2) 
+            = generate_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..position_2]);
+        let (function_call, position_3) 
+            = generate_function_call(position_2, test_func_location);
+        assert_eq!(function_call, stack[position_2..position_3]);
+        let (function_call, _) 
+            = generate_function_call(position_3, test_func_location);
+        assert_eq!(function_call, stack[position_3..]);
+
     }
     
     // TODO: func_statement, if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
