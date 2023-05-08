@@ -510,5 +510,23 @@ mod tests {
         assert_eq!(function_call, stack[position..]);
     }
 
+    // Tests that if and else work
+    #[test]
+    fn if_and_else() {
+        let stack = compile_and_merge("if false {3;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(6)), Instr(GOTO_IF), Val(3.0)], stack);
+
+        let stack = compile_and_merge("if false {3;} else {4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(9)), Instr(GOTO), Val(4.0)], stack);
+
+        let stack = compile_and_merge("if false {3;} else if false {4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(12)), Instr(GOTO), Val(0.0), 
+            Val(ptr(12)), Instr(GOTO_IF), Val(4.0)], stack);
+            
+        let stack = compile_and_merge("if false {3;} else if false {4;} else {5;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(15)), Instr(GOTO), Val(0.0), 
+            Val(ptr(14)), Instr(GOTO_IF), Val(4.0), Val(ptr(15)), Instr(GOTO), Val(5.0)], stack);
+    }
+
     // TODO: if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
 }
