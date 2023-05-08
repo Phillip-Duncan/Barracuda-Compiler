@@ -359,56 +359,156 @@ mod tests {
             compile_and_merge("1-(2+3);"));
     }
 
-    // Generates a function call given the current stack position and the location of the start of the function.
+    // Generates a function call given the current stack position, the location of the start of the function, 
+    // and how many parameters the function takes.
     // Returns the generated function call and the new position of the stack.
-    fn generate_function_call(position: usize, func_location: usize) -> (Vec<MergedInstructions>, usize) {
-        return (vec![Val(ptr(position + 13)), Val(ptr(1)), Op(FIXED(STK_READ)), 
-        Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
-        Op(FIXED(STK_WRITE)), Val(ptr(func_location)), Instr(GOTO), Val(0.0), Op(FIXED(STK_READ))], position + 13);
+    fn generate_function_call(position: usize, func_location: usize, parameters: usize) -> (Vec<MergedInstructions>, usize) {
+        let mut function_call = vec![Val(ptr(position + 13)), Val(ptr(1)), Op(FIXED(STK_READ)), 
+            Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
+            Op(FIXED(STK_WRITE)), Val(ptr(func_location)), Instr(GOTO)];
+        for _ in 0..parameters {
+            function_call.push(Op(FIXED(DROP)));
+        }
+        function_call.extend(vec![Val(0.0), Op(FIXED(STK_READ))]);
+
+        return (function_call, position + 13 + parameters);
     }
 
+    // Generates a function call given the current stack position and the location of the start of the function.
+    // Returns the generated function call and the new position of the stack.
+    fn generate_default_function_call(position: usize, func_location: usize) -> (Vec<MergedInstructions>, usize) {
+        return generate_function_call(position, func_location, 0);
+    }
+
+
+    // Generates a function definition for an function given the current stack position and the compiled body of the function.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_function_def_precompiled(position: usize, compiled_body: Vec<MergedInstructions>) 
+            -> (Vec<MergedInstructions>, usize, usize) {
+        let body_length = compiled_body.len();
+        let mut function_definition = vec![Val(ptr(position + 13 + body_length)), Instr(GOTO)];
+        function_definition.extend(compiled_body);
+        function_definition.extend(vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), Op(FIXED(ADD_PTR)), 
+            Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]);
+        return (function_definition, position + 4, position + 11 + body_length);
+    }
+
+    // Generates a function definition for an function given the current stack position and the body of the function.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_function_definition(position: usize, body: &str) -> (Vec<MergedInstructions>, usize, usize) {
+        let compiled_body = compile_and_merge(body);
+        return generate_function_def_precompiled(position, compiled_body)
+    }
+    
     // Generates a function definition for an empty function given the current stack position.
     // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
     fn generate_empty_function_definition(position: usize) -> (Vec<MergedInstructions>, usize, usize) {
-        return (vec![Val(ptr(position + 13)), Instr(GOTO), Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), 
-            Op(FIXED(ADD_PTR)), Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]
-            , position + 4, position + 11);
+        return generate_function_definition(position, "")
     }
-    
-    // Tests to make sure functions work.
+
+    // Tests that creating functions works
     #[test]
-    fn empty_functions() {
-        // Checks unused function still exists
+    fn empty_function() {
         let stack = compile_and_merge(
             "fn test_func() {}");
         let (function_def, _, _) = generate_empty_function_definition(0);
         assert_eq!(function_def, stack);
-        // Checks calling that function works
+    }
+
+    // Tests calling functions works
+    #[test]
+    fn function_call() {
         let stack = compile_and_merge(
             "fn test_func() {} test_func();");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
         let (function_call, _) 
-            = generate_function_call(position, test_func_location);
+            = generate_default_function_call(position, test_func_location);
         assert_eq!(function_call, stack[position..]);
-        // Checks calling a function 3 times
+    }
+
+    // Tests calling a function 3 times
+    #[test]
+    fn function_multiple_call() {
         let stack = compile_and_merge(
             "fn test_func() {} test_func(); test_func(); test_func();");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
         let (function_call, position_2) 
-            = generate_function_call(position, test_func_location);
+            = generate_default_function_call(position, test_func_location);
         assert_eq!(function_call, stack[position..position_2]);
         let (function_call, position_3) 
-            = generate_function_call(position_2, test_func_location);
+            = generate_default_function_call(position_2, test_func_location);
         assert_eq!(function_call, stack[position_2..position_3]);
         let (function_call, _) 
-            = generate_function_call(position_3, test_func_location);
+            = generate_default_function_call(position_3, test_func_location);
         assert_eq!(function_call, stack[position_3..]);
-
     }
-    
-    // TODO: func_statement, if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
+
+    // Tests defining and calling two functions
+    #[test]
+    fn double_function() {
+        let stack = compile_and_merge(
+            "fn test_func() {} fn test_func_2() {} test_func(); test_func_2();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_def, test_func_2_location, position_2) 
+            = generate_empty_function_definition(position);
+        assert_eq!(function_def, stack[position..position_2]);
+        let (function_call, position_3) 
+            = generate_default_function_call(position_2, test_func_location);
+        assert_eq!(function_call, stack[position_2..position_3]);
+        let (function_call, _) 
+            = generate_default_function_call(position_3, test_func_2_location);
+        assert_eq!(function_call, stack[position_3..]);
+    }
+
+    // Tests defining a function with content
+    #[test]
+    fn function_with_contents() {
+        let function_contents = "3+4;";
+        let stack = compile_and_merge(
+            &format!("fn test_func() {{{}}}", function_contents));
+        let (function_def, _, _) 
+            = generate_function_definition(0, function_contents);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks defining a function with a parameter is the same as defining an empty function
+    // (as parameters don't add anything to the function definition)
+    #[test]
+    fn function_with_parameter() {
+        let stack = compile_and_merge("fn test_func(a) {}");
+        let (function_def, _, _) = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks defining a function with a parameter and then using that parameter
+    #[test]
+    fn function_with_parameter_used() {
+        let stack = compile_and_merge("fn test_func(a) {a;}");
+        let (function_def, _, _) 
+            = generate_function_def_precompiled(0, 
+                vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ))]);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks calling a parameterized function
+    #[test]
+    fn function_with_parameter_call() {
+        let stack = compile_and_merge("fn test_func(a) {} test_func(4);");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        assert_eq!(Val(4.0), stack[position]);
+        let position = position + 1;
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location, 1);
+        assert_eq!(function_call, stack[position..]);
+    }
+
+    // TODO: if_statement, for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
 }
