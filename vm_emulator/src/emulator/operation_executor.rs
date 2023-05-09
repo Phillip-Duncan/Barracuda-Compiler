@@ -588,12 +588,12 @@ impl BarracudaOperationExecutor {
                 context.push(REAL(bessel::y(a, b).re))
             },
             PRINTC => {
-                let a = context.pop()?.into_u64() as u8 as char;
+                let a = context.pop()?.into_f64() as u8 as char;
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },
             PRINTCT => {
-                let b = context.pop()?.into_u64() as u8 as char;
+                let b = context.pop()?.into_f64() as u8 as char;
                 let a = context.pop()?.into_u64();
                 if a == context.thread_id {
                     let mut out = context.output_handle.borrow_mut();
@@ -602,7 +602,6 @@ impl BarracudaOperationExecutor {
                 Ok(())
             },
             PRINTFF => {
-                // NOTE(LUKE) : TODO WHY DO I NEED THIS! (check other prints too)
                 let a = context.pop()?.into_f64();
                 //let a = context.pop()?.into_u64();
                 let mut out = context.output_handle.borrow_mut();

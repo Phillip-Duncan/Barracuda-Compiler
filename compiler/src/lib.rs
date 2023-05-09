@@ -594,5 +594,12 @@ mod tests {
         assert_eq!(generate_variable_assign(2, "5;"), stack[2..]);
     }
 
-    // TODO: for_statement, while_statement, return_statement, assign_statement (parameters and environment variables), print_statement, external_statement 
+    // Tests print statement.
+    #[test]
+    fn print() {
+        let stack = compile_and_merge("print 3;");
+        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+    }
+
+    // TODO: for_statement, while_statement, return_statement, assign_statement (parameters and environment variables), external_statement 
 }
