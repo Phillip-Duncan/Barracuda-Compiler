@@ -528,5 +528,71 @@ mod tests {
             Val(ptr(14)), Instr(GOTO_IF), Val(4.0), Val(ptr(15)), Instr(GOTO), Val(5.0)], stack);
     }
 
-    // TODO: for_statement, while_statement, construct_statement, return_statement, assign_statement, print_statement, external_statement 
+    // Generates a variable call.
+    // Takes the position of the variable.
+    fn generate_variable_call(position: usize) -> Vec<MergedInstructions> {
+        return vec![Val(ptr(position)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ))]
+    }
+
+    // Generates a variable assignment.
+    // Takes the position of the variable, and the assignment expression.
+    fn generate_variable_assign(position: usize, expression: &str) -> Vec<MergedInstructions> {
+        let compiled_expression = compile_and_merge(expression);
+        let mut variable_assign = vec![Val(ptr(position)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))];
+        variable_assign.extend(compiled_expression);
+        variable_assign.push(Op(FIXED(STK_WRITE)));
+        return variable_assign
+    }
+
+    // Tests construct statements.
+    #[test]
+    fn construct() {
+        let stack = compile_and_merge("let a = 3;");
+        assert_eq!(vec![Val(3.0)], stack);
+    }
+
+    // Tests using a variable.
+    #[test]
+    fn use_variable() {
+        let stack = compile_and_merge("let a = 3; a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..]);
+    }
+
+    // Tests using a variable twice.
+    #[test]
+    fn use_variable_twice() {
+        let stack = compile_and_merge("let a = 3; a; a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(generate_variable_call(1), stack[6..]);
+    }
+
+    // Tests using a second variable.
+    #[test]
+    fn double_construct_with_use() {
+        let stack = compile_and_merge("let a = 3; let b = 4; b;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(Val(4.0), stack[1]);
+        assert_eq!(generate_variable_call(2), stack[2..]);
+    }
+
+    // Tests variable assignment
+    #[test]
+    fn variable_assignment() {
+        let stack = compile_and_merge("let a = 3; a = 4;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_assign(1, "4;"), stack[1..]);
+    }
+
+    // Tests variable assignment for a second variable
+    #[test]
+    fn second_variable_assignment() {
+        let stack = compile_and_merge("let a = 3; let b = 4; b = 5;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(Val(4.0), stack[1]);
+        assert_eq!(generate_variable_assign(2, "5;"), stack[2..]);
+    }
+
+    // TODO: for_statement, while_statement, return_statement, assign_statement (parameters and environment variables), print_statement, external_statement 
 }
