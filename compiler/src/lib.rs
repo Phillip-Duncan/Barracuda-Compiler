@@ -601,5 +601,29 @@ mod tests {
         assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
     }
 
-    // TODO: for_statement, while_statement, return_statement, assign_statement (parameters and environment variables), external_statement 
+    // Tests while loop.
+    #[test]
+    fn while_loop() {
+        let stack = compile_and_merge("while 3 {4;}");
+        assert_eq!(vec![
+            Val(3.0), Val(ptr(8)), Instr(GOTO_IF), // loop exit condition
+            Val(4.0), // loop body
+            Val(ptr(2)), Instr(GOTO) // restart loop
+        ], stack);
+    }
+
+    // Tests for loop.
+    #[test]
+    fn for_loop() {
+        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {7;}");
+        assert_eq!(vec![
+            Val(4.0), // construction 
+            Val(5.0), Val(ptr(15)), Instr(GOTO_IF), // loop exit condition 
+            Val(7.0), // body
+            Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
+            Val(ptr(3)), Instr(GOTO) // restart loop 
+        ], stack);
+    }
+
+    // TODO: return_statement, assign_statement (parameters and environment variables), external_statement 
 }
