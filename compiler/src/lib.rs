@@ -35,7 +35,7 @@ pub struct CompilerResponse {
     operations_list: repr_c::Vec<u64>,
 
     /// Value list describes the value to load during a VALUE instruction.
-    values_list: repr_c::Vec<f32>,
+    values_list: repr_c::Vec<f64>,
 
     /// Recommended stack size is an auto generated estimate for the stack size required
     /// to execute the program code. This will give the exact min required size if analysis
@@ -109,8 +109,8 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
                                     .map(|instr| instr.as_u32()).collect();
     let operations: Vec<u64> = program_code.operations.into_iter().rev()
                                     .map(|op| op.as_u32() as u64).collect();
-    let values: Vec<f32> = program_code.values.into_iter().rev()
-                                    .map(|value| value as f32).collect();
+    let values: Vec<f64> = program_code.values.into_iter().rev()
+                                    .map(|value| value as f64).collect();
 
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
@@ -142,4 +142,488 @@ fn generate_headers() -> std::io::Result<()> {
     safer_ffi::headers::builder()
         .to_file("include/barracuda_compiler.h")?
         .generate()
+}
+
+// A large number of unit tests for the compiler are below.
+#[cfg(test)]
+mod tests {
+    use barracuda_common::BarracudaInstructions;
+    use barracuda_common::BarracudaOperators;
+    use barracuda_common::BarracudaInstructions::*;
+    use barracuda_common::BarracudaOperators::*;
+    use barracuda_common::FixedBarracudaOperators::*;
+
+    use super::*;
+    
+    // Type to represent values and instructions on one stack for easier testing.
+    #[derive(Debug, PartialEq, Clone)]
+    enum MergedInstructions {
+        Val(f64),
+        Op(BarracudaOperators),
+        Instr(BarracudaInstructions),
+    }
+    use MergedInstructions::*;
+
+    fn ptr(int: usize) -> f64 {
+        f64::from_ne_bytes(int.to_ne_bytes())
+    }
+
+    // Compiles a program string and converts the result to a vector of merged instructions.
+    // Because the instruction stack tells Barracuda whether to read from the operation stack or value stack,
+    //  they can be merged into one stack.
+    // This function also strips the first two elements as they are the same for every program.
+    // It also validates everything that doesn't end up in the final stack.
+    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+        let code = compiler.compile_str(text);
+        assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());
+        let mut out: Vec<MergedInstructions> = vec![];
+        for i in 0..code.values.len() {
+            let value = code.values[i];
+            let operation = code.operations[i];
+            let instruction = code.instructions[i];
+            match instruction {
+                VALUE => {
+                    assert_eq!(FIXED(NULL), operation);
+                    out.push(Val(value));
+                },
+                OP => {
+                    assert_eq!(0.0, value);
+                    out.push(Op(operation));
+                },
+                _ => {
+                    assert_eq!(0.0, value);
+                    assert_eq!(FIXED(NULL), operation);
+                    out.push(Instr(instruction));
+                }
+            }
+        }
+        assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
+        out[2..].to_vec()
+    }
+
+    // Tests an empty program.
+    #[test]
+    fn empty() {
+        let stack = compile_and_merge("");
+        assert_eq!(0, stack.len());
+    }
+
+    // Tests that all literal values compile properly.
+    // Currently test integers, floats, and booleans.
+    #[test]
+    fn literals() {
+        let literals = vec![
+            // Integers
+            ("0", 0.0),
+            ("1", 1.0),
+            ("3545", 3545.0),
+            ("9007199254740991", 9007199254740991.0), // Maximum safe integer    
+            // Floats
+            ("0.0", 0.0),
+            ("1.0", 1.0),
+            ("1.", 1.0),
+            ("3545.0", 3545.0),
+            ("1000000000000000000000000000000000000000000000000.0", 1000000000000000000000000000000000000000000000000.0),
+            ("1.0e3", 1000.0),
+            ("1.0e+3", 1000.0),
+            ("1.0e-3", 0.001),
+            ("1.0e0", 1.0),
+            ("1.0e+0", 1.0),
+            ("1.0e-0", 1.0),
+            ("1.7976931348623157e308", f64::MAX), // Maximum float
+            ("2.2250738585072014e-308", f64::MIN_POSITIVE), // Minimum positive float
+            // Booleans
+            ("false", 0.0),
+            ("true", 1.0),
+        ];
+        for (text, value) in &literals {
+            let stack = compile_and_merge(&format!("{};", text));
+            assert_eq!(vec![Val(*value)], stack);
+        }
+    }
+
+    // Tests that all binary operators compile properly.
+    // These are operators in the form a OP b.
+    #[test]
+    fn binary_operators() {
+        let binary_operators = vec![
+            ("+", ADD),
+            ("-", SUB),
+            ("*", MUL),
+            ("/", DIV),
+            ("%", FMOD),
+            ("^", POW),
+            ("==", EQ),
+            ("!=", NEQ),
+            (">=", GTEQ),
+            ("<=", LTEQ),
+            (">", GT),
+            ("<", LT),       
+        ];
+        for (text, op) in &binary_operators {
+            let stack = compile_and_merge(&format!("4{}5;", text));
+            assert_eq!(vec![Val(4.0), Val(5.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+    // Tests that all unary operators compile properly.
+    // These are operators in the form OP a.
+    #[test]
+    fn unary_operators() {
+        let unary_operators = vec![
+            ("!", NOT),
+            ("-", NEGATE),     
+        ];
+        for (text, op) in &unary_operators {
+            let stack = compile_and_merge(&format!("{}4;", text));
+            assert_eq!(vec![Val(4.0), Op(FIXED(*op))], stack);
+        }
+    }
+
+    // Tests that whitespace and comments are ignored as expected.
+    // The statement 'true;' has no signigicance in the below tests.
+    // It's just there to make sure whitespace and comments are ignored correctly.
+    #[test]
+    fn whitespace_and_comments_ignored() {
+        let test_cases = vec![
+            "     true    ;    ",
+            "\ntrue\n;\n", 
+            "\ttrue\t;\t", 
+            "\rtrue\r;\r",
+            "//comment\ntrue;//comment\n//comment",
+            "/*multiline\ncomment*/true;/*multiline comment*//*multiline\ncomment*/",
+        ];
+
+        for test_case in &test_cases {
+            let stack = compile_and_merge(test_case);
+            assert_eq!(vec![Val(1.0)], stack);
+        }
+    }
+
+    // Tests to make sure unary operations work with operator precedence.
+    #[test]
+    fn unary_operator_precedence() {
+        let unary_operators = vec![
+            ("-4-3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(SUB))]),
+            ("4--3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("--4--3;", vec![Val(4.0), Op(FIXED(NEGATE)), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("-4^3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(POW))]),
+            ("4+-3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(ADD))]),
+        ];
+        for (text, expected_stack) in &unary_operators {
+            let stack = compile_and_merge(text);
+            assert_eq!(*expected_stack, stack);
+        }
+    }
+
+    // Tests to make sure binary operations work with operator precedence.
+    // Tests every pair of binary operations.
+    #[test]
+    fn binary_operator_precedence() {
+        let operators = vec![
+            ("+", 3, ADD),
+            ("-", 3, SUB),
+            ("/", 4, DIV),
+            ("%", 4, FMOD),
+            ("*", 4, MUL),
+            ("^", 5, POW),
+            ("==", 1, EQ),
+            ("!=", 1, NEQ),
+            (">", 2, GT),
+            ("<", 2, LT),
+            (">=", 2, GTEQ),
+            ("<=", 2, LTEQ),
+        ];
+        for (op_str_1, precedence_1, operation_1) in &operators {
+            for (op_str_2, precedence_2, operation_2) in &operators {
+                let text = &format!("1{}2{}3;", op_str_1, op_str_2);
+                let stack = compile_and_merge(text);
+                if precedence_1 >= precedence_2 {
+                    assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(*operation_1)), Val(3.0), Op(FIXED(*operation_2))], stack);
+                } else {
+                    assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(*operation_2)), Op(FIXED(*operation_1))], stack);
+                }
+            }
+        }
+    }
+
+    // Tests that parentheses work with operator precedence.
+    #[test]
+    fn parentheses_precedence() {
+        assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
+            compile_and_merge("(1-2)+3;"));
+        assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
+            compile_and_merge("(((1-2+3)));"));
+        assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(ADD)), Op(FIXED(SUB))], 
+            compile_and_merge("1-(2+3);"));
+    }
+
+    // Generates a function call given the current stack position, the location of the start of the function, 
+    // and how many parameters the function takes.
+    // Returns the generated function call and the new position of the stack.
+    fn generate_function_call(position: usize, func_location: usize, parameters: usize) -> (Vec<MergedInstructions>, usize) {
+        let mut function_call = vec![Val(ptr(position + 13)), Val(ptr(1)), Op(FIXED(STK_READ)), 
+            Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
+            Op(FIXED(STK_WRITE)), Val(ptr(func_location)), Instr(GOTO)];
+        for _ in 0..parameters {
+            function_call.push(Op(FIXED(DROP)));
+        }
+        function_call.extend(vec![Val(0.0), Op(FIXED(STK_READ))]);
+
+        return (function_call, position + 13 + parameters);
+    }
+
+    // Generates a function call given the current stack position and the location of the start of the function.
+    // Returns the generated function call and the new position of the stack.
+    fn generate_default_function_call(position: usize, func_location: usize) -> (Vec<MergedInstructions>, usize) {
+        return generate_function_call(position, func_location, 0);
+    }
+
+
+    // Generates a function definition for an function given the current stack position and the compiled body of the function.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_function_def_precompiled(position: usize, compiled_body: Vec<MergedInstructions>) 
+            -> (Vec<MergedInstructions>, usize, usize) {
+        let body_length = compiled_body.len();
+        let mut function_definition = vec![Val(ptr(position + 13 + body_length)), Instr(GOTO)];
+        function_definition.extend(compiled_body);
+        function_definition.extend(vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), Op(FIXED(ADD_PTR)), 
+            Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]);
+        return (function_definition, position + 4, position + 11 + body_length);
+    }
+
+    // Generates a function definition for an function given the current stack position and the body of the function.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_function_definition(position: usize, body: &str) -> (Vec<MergedInstructions>, usize, usize) {
+        let compiled_body = compile_and_merge(body);
+        return generate_function_def_precompiled(position, compiled_body)
+    }
+    
+    // Generates a function definition for an empty function given the current stack position.
+    // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
+    fn generate_empty_function_definition(position: usize) -> (Vec<MergedInstructions>, usize, usize) {
+        return generate_function_definition(position, "")
+    }
+
+    // Tests that creating functions works
+    #[test]
+    fn empty_function() {
+        let stack = compile_and_merge(
+            "fn test_func() {}");
+        let (function_def, _, _) = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack);
+    }
+
+    // Tests calling functions works
+    #[test]
+    fn function_call() {
+        let stack = compile_and_merge(
+            "fn test_func() {} test_func();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, _) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..]);
+    }
+
+    // Tests calling a function 3 times
+    #[test]
+    fn function_multiple_call() {
+        let stack = compile_and_merge(
+            "fn test_func() {} test_func(); test_func(); test_func();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, position_2) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..position_2]);
+        let (function_call, position_3) 
+            = generate_default_function_call(position_2, test_func_location);
+        assert_eq!(function_call, stack[position_2..position_3]);
+        let (function_call, _) 
+            = generate_default_function_call(position_3, test_func_location);
+        assert_eq!(function_call, stack[position_3..]);
+    }
+
+    // Tests defining and calling two functions
+    #[test]
+    fn double_function() {
+        let stack = compile_and_merge(
+            "fn test_func() {} fn test_func_2() {} test_func(); test_func_2();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_def, test_func_2_location, position_2) 
+            = generate_empty_function_definition(position);
+        assert_eq!(function_def, stack[position..position_2]);
+        let (function_call, position_3) 
+            = generate_default_function_call(position_2, test_func_location);
+        assert_eq!(function_call, stack[position_2..position_3]);
+        let (function_call, _) 
+            = generate_default_function_call(position_3, test_func_2_location);
+        assert_eq!(function_call, stack[position_3..]);
+    }
+
+    // Tests defining a function with content
+    #[test]
+    fn function_with_contents() {
+        let function_contents = "3+4;";
+        let stack = compile_and_merge(
+            &format!("fn test_func() {{{}}}", function_contents));
+        let (function_def, _, _) 
+            = generate_function_definition(0, function_contents);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks defining a function with a parameter is the same as defining an empty function
+    // (as parameters don't add anything to the function definition)
+    #[test]
+    fn function_with_parameter() {
+        let stack = compile_and_merge("fn test_func(a) {}");
+        let (function_def, _, _) = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks defining a function with a parameter and then using that parameter
+    #[test]
+    fn function_with_parameter_used() {
+        let stack = compile_and_merge("fn test_func(a) {a;}");
+        let (function_def, _, _) 
+            = generate_function_def_precompiled(0, 
+                vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ))]);
+        assert_eq!(function_def, stack);
+    }
+
+    // Checks calling a parameterized function
+    #[test]
+    fn function_with_parameter_call() {
+        let stack = compile_and_merge("fn test_func(a) {} test_func(4);");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        assert_eq!(Val(4.0), stack[position]);
+        let position = position + 1;
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location, 1);
+        assert_eq!(function_call, stack[position..]);
+    }
+
+    // Tests that if and else work
+    #[test]
+    fn if_and_else() {
+        let stack = compile_and_merge("if false {3;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(6)), Instr(GOTO_IF), Val(3.0)], stack);
+
+        let stack = compile_and_merge("if false {3;} else {4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(9)), Instr(GOTO), Val(4.0)], stack);
+
+        let stack = compile_and_merge("if false {3;} else if false {4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(12)), Instr(GOTO), Val(0.0), 
+            Val(ptr(12)), Instr(GOTO_IF), Val(4.0)], stack);
+
+        let stack = compile_and_merge("if false {3;} else if false {4;} else {5;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(15)), Instr(GOTO), Val(0.0), 
+            Val(ptr(14)), Instr(GOTO_IF), Val(4.0), Val(ptr(15)), Instr(GOTO), Val(5.0)], stack);
+    }
+
+    // Generates a variable call.
+    // Takes the position of the variable.
+    fn generate_variable_call(position: usize) -> Vec<MergedInstructions> {
+        return vec![Val(ptr(position)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ))]
+    }
+
+    // Generates a variable assignment.
+    // Takes the position of the variable, and the assignment expression.
+    fn generate_variable_assign(position: usize, expression: &str) -> Vec<MergedInstructions> {
+        let compiled_expression = compile_and_merge(expression);
+        let mut variable_assign = vec![Val(ptr(position)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))];
+        variable_assign.extend(compiled_expression);
+        variable_assign.push(Op(FIXED(STK_WRITE)));
+        return variable_assign
+    }
+
+    // Tests construct statements.
+    #[test]
+    fn construct() {
+        let stack = compile_and_merge("let a = 3;");
+        assert_eq!(vec![Val(3.0)], stack);
+    }
+
+    // Tests using a variable.
+    #[test]
+    fn use_variable() {
+        let stack = compile_and_merge("let a = 3; a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..]);
+    }
+
+    // Tests using a variable twice.
+    #[test]
+    fn use_variable_twice() {
+        let stack = compile_and_merge("let a = 3; a; a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(generate_variable_call(1), stack[6..]);
+    }
+
+    // Tests using a second variable.
+    #[test]
+    fn double_construct_with_use() {
+        let stack = compile_and_merge("let a = 3; let b = 4; b;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(Val(4.0), stack[1]);
+        assert_eq!(generate_variable_call(2), stack[2..]);
+    }
+
+    // Tests variable assignment
+    #[test]
+    fn variable_assignment() {
+        let stack = compile_and_merge("let a = 3; a = 4;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_assign(1, "4;"), stack[1..]);
+    }
+
+    // Tests variable assignment for a second variable
+    #[test]
+    fn second_variable_assignment() {
+        let stack = compile_and_merge("let a = 3; let b = 4; b = 5;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(Val(4.0), stack[1]);
+        assert_eq!(generate_variable_assign(2, "5;"), stack[2..]);
+    }
+
+    // Tests print statement.
+    #[test]
+    fn print() {
+        let stack = compile_and_merge("print 3;");
+        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+    }
+
+    // Tests while loop.
+    #[test]
+    fn while_loop() {
+        let stack = compile_and_merge("while 3 {4;}");
+        assert_eq!(vec![
+            Val(3.0), Val(ptr(8)), Instr(GOTO_IF), // loop exit condition
+            Val(4.0), // loop body
+            Val(ptr(2)), Instr(GOTO) // restart loop
+        ], stack);
+    }
+
+    // Tests for loop.
+    #[test]
+    fn for_loop() {
+        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {7;}");
+        assert_eq!(vec![
+            Val(4.0), // construction 
+            Val(5.0), Val(ptr(15)), Instr(GOTO_IF), // loop exit condition 
+            Val(7.0), // body
+            Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
+            Val(ptr(3)), Instr(GOTO) // restart loop 
+        ], stack);
+    }
+
+    // TODO: return_statement, assign_statement (parameters and environment variables), external_statement 
 }

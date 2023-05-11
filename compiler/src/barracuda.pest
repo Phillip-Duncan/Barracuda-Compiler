@@ -37,7 +37,7 @@ func_call = {identifier ~ "(" ~ ")" |
 
 // Operator Definitions
 equality_operator = _{equal | not_equal}
-comparison_operator = _{greater_than | less_than | greater_equal | less_equal}
+comparison_operator = _{greater_equal | less_equal | greater_than | less_than} // Must put <= and >= before < and > so the parser matches them first.
 term_operator = _{add | sub}
 factor_operator = _{div | mul | modulus}
 exponent_operator = _{pow}
@@ -83,9 +83,9 @@ scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
                        "let " ~ identifier ~ "=" ~ expression |
-                       "let " ~ identifier ~ ":" ~ datatype |
-                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression |
-                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype}
+                       // "let " ~ identifier ~ ":" ~ datatype |  Currently the 'expression' part of a construct statement is required.
+                       //"let " ~ identifier ~ datatype_qual ~ ":" ~ datatype |
+                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression}
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}

@@ -140,6 +140,10 @@ impl BarracudaOperationExecutor {
                 let a = context.pop()?.into_u64();
                 Ok(context.push(UINT(a >> b))?)
             },
+            NEGATE => {
+                let a = context.pop()?.into_f64();
+                Ok(context.push(REAL(-a))?)
+            },
             MALLOC => {
                 let a = context.pop()?.into_u64() as usize;
                 let region_address = context.heap.malloc(a)?;
@@ -216,6 +220,11 @@ impl BarracudaOperationExecutor {
                 let b = context.pop()?.into_u64();
                 let a = context.pop()?.into_u64();
                 context.push(UINT((a <= b) as u64))
+            },
+            NEQ => {
+                let b = context.pop()?.into_u64();
+                let a = context.pop()?.into_u64();
+                context.push(UINT((a != b) as u64))
             },
             STK_READ => {
                 let a = context.pop()?.into_u64() as usize;
@@ -579,12 +588,12 @@ impl BarracudaOperationExecutor {
                 context.push(REAL(bessel::y(a, b).re))
             },
             PRINTC => {
-                let a = context.pop()?.into_u64() as u8 as char;
+                let a = context.pop()?.into_f64() as u8 as char;
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },
             PRINTCT => {
-                let b = context.pop()?.into_u64() as u8 as char;
+                let b = context.pop()?.into_f64() as u8 as char;
                 let a = context.pop()?.into_u64();
                 if a == context.thread_id {
                     let mut out = context.output_handle.borrow_mut();
@@ -594,6 +603,7 @@ impl BarracudaOperationExecutor {
             },
             PRINTFF => {
                 let a = context.pop()?.into_f64();
+                //let a = context.pop()?.into_u64();
                 let mut out = context.output_handle.borrow_mut();
                 write!(out, "{}", a)
             },
@@ -613,10 +623,12 @@ impl BarracudaOperationExecutor {
                 context.push(UINT(context.thread_id))
             },
             LDSTK_PTR => {
-                context.push(UINT(context.get_stack_pointer().unwrap() as u64))
+                println!("LDSTK_PTR {}", context.get_stack_pointer().unwrap() as u64 + 1);
+                context.push(UINT(context.get_stack_pointer().unwrap() as u64 + 1))
             },
             RCSTK_PTR => {
-                let a = context.pop()?.into_u64() as usize;
+                let a = context.pop()?.into_u64() as usize - 1;
+                println!("RCSTK_PTR {}", a);
                 context.set_stack_pointer(a);
                 Ok(())
             }

@@ -92,52 +92,58 @@ pub enum FixedBarracudaOperators {
     RSHIFT     = 0x03DD ,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    MALLOC     = 0x03DE ,
-    #[assoc(consume=1)]
-    #[assoc(produce=0)]
-    FREE       = 0x03DF ,
-    #[assoc(consume=3)]
-    #[assoc(produce=0)]
-    MEMCPY     = 0x03E0 ,
-    #[assoc(consume=3)]
-    #[assoc(produce=0)]
-    MEMSET     = 0x03E1 ,
+    NEGATE     = 0x03DE ,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ       = 0x03E2 ,
+    MALLOC     = 0x03DF ,
+    #[assoc(consume=1)]
+    #[assoc(produce=0)]
+    FREE       = 0x03E0 ,
+    #[assoc(consume=3)]
+    #[assoc(produce=0)]
+    MEMCPY     = 0x03E1 ,
+    #[assoc(consume=3)]
+    #[assoc(produce=0)]
+    MEMSET     = 0x03E2 ,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ       = 0x03E3 ,
     #[assoc(consume=2)]
     #[assoc(produce=0)]
-    WRITE      = 0x03E3 ,
+    WRITE      = 0x03E4 ,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    ADD_PTR    = 0x03E4 ,
+    ADD_PTR    = 0x03E5 ,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    SUB_PTR    = 0x03E5 ,
+    SUB_PTR    = 0x03E6 ,
     #[assoc(consume=3)]
     #[assoc(produce=1)]
-    TERNARY    = 0x03E6 ,
+    TERNARY    = 0x03E7 ,
 
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    EQ         = 0x03E7,
+    EQ         = 0x03E8,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    GT         = 0x03E8,
+    GT         = 0x03E9,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    GTEQ       = 0x03E9,
+    GTEQ       = 0x03EA,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    LT         = 0x03EA,
+    LT         = 0x03EB,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    LTEQ       = 0x03EB,
+    LTEQ       = 0x03EC,
+    #[assoc(consume=2)]
+    #[assoc(produce=1)]
+    NEQ        = 0x03ED,
 
     // READ / WRITE OP CODES
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    PTR_DEREF  = 0x03EC,
+    PTR_DEREF  = 0x03EE,
 
 
     #[assoc(consume=1)]
@@ -427,10 +433,10 @@ pub enum FixedBarracudaOperators {
 
     #[assoc(consume=0)]
     #[assoc(produce=1)]
-    LDSTK_PTR  = 0x1336 ,
+    LDSTK_PTR  = 0x12FF ,
     #[assoc(consume=1)]
     #[assoc(produce=0)]
-    RCSTK_PTR  = 0x1337 ,
+    RCSTK_PTR  = 0x1300 ,
 
     // Lower (0) and upper (1) ranges for Load and Store into Nth variate userspace.
     #[assoc(consume=0)]

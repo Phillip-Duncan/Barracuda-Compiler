@@ -102,4 +102,3 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
         Ok(())
     }
 }
-

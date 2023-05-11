@@ -64,7 +64,7 @@ impl StackValue {
     pub(crate) fn into_u64(self) -> u64 {
         match self {
             StackValue::REAL(value) => {
-                value as u64
+                u64::from_ne_bytes(value.to_ne_bytes())
             },
             StackValue::UINT(value) => {
                 value as u64
@@ -92,7 +92,7 @@ impl StackValue {
     pub(crate) fn into_i64(self) -> i64 {
         match self {
             StackValue::REAL(value) => {
-                value as i64
+                i64::from_ne_bytes(value.to_ne_bytes())
             },
             StackValue::UINT(value) => {
                 value as i64
