@@ -147,11 +147,14 @@ fn generate_headers() -> std::io::Result<()> {
 // A large number of unit tests for the compiler are below.
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use barracuda_common::BarracudaInstructions;
     use barracuda_common::BarracudaOperators;
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
     use barracuda_common::FixedBarracudaOperators::*;
+    use barracuda_common::VariableBarracudaOperators::*;
 
     use super::*;
     
@@ -173,8 +176,9 @@ mod tests {
     //  they can be merged into one stack.
     // This function also strips the first two elements as they are the same for every program.
     // It also validates everything that doesn't end up in the final stack.
-    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
-        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+    fn compile_and_merge_with_env_vars(text: &str, env_vars: EnvironmentSymbolContext) -> Vec<MergedInstructions> {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+            .set_environment_variables(env_vars);
         let code = compiler.compile_str(text);
         assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());
         let mut out: Vec<MergedInstructions> = vec![];
@@ -200,6 +204,11 @@ mod tests {
         }
         assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
         out[2..].to_vec()
+    }
+
+    // Compiles a program string without providing environemnt variables.
+    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
+        compile_and_merge_with_env_vars(text, EnvironmentSymbolContext::new())
     }
 
     // Tests an empty program.
@@ -650,5 +659,58 @@ mod tests {
         ], stack);
     }
 
-    // TODO: assign_statement (environment variables), external_statement 
+    // Tests reading an external variable
+    #[test]
+    fn external_variable() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7)))], stack);
+    }
+
+    // Tests reading an external variable with a single pointer (*) qualifier
+    #[test]
+    fn external_variable_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(READ))], stack);
+    }
+
+    // Tests reading an external variable with a double pointer (**) qualifier
+    #[test]
+    fn external_variable_with_double_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
+    }
+
+    // Tests writing to an external variable
+    #[test]
+    fn external_variable_write() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(RCNX(7)))], stack);
+    }
+
+    // Tests writing to an external variable with a single pointer (*) qualifier
+    #[test]
+    fn external_variable_write_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+    }
+
+    // Tests reading an external variable with a double pointer (**) qualifier
+    #[test]
+    fn external_variable_write_with_double_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+    }
+
 }
