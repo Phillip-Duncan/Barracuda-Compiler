@@ -512,7 +512,7 @@ mod tests {
 
     // Checks return works
     #[test]
-    fn function_with_return_and_call() {
+    fn function_with_return() {
         let stack = compile_and_merge("fn test_func() {return 3;} test_func();");
         let (function_def, test_func_location, position) = generate_function_def_precompiled(0, 
             vec![Val(0.0), Val(3.0), Op(FIXED(STK_WRITE)), // write variable to stack
@@ -522,6 +522,17 @@ mod tests {
         let (function_call, _) 
             = generate_default_function_call(position, test_func_location);
         assert_eq!(function_call, stack[position..]);
+    }
+
+    // Checks that function parameters can be assigned to
+    #[test]
+    fn function_with_parameter_assigned() {
+        let stack = compile_and_merge("fn test_func(a) {a = 3;}");
+        let (function_def, _, _) 
+            = generate_function_def_precompiled(0, 
+            vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), // get pointer to parameter
+                    Val(3.0), Op(FIXED(STK_WRITE))]); // read parameter
+        assert_eq!(function_def, stack);
     }
 
     // Tests that if and else work
@@ -639,5 +650,5 @@ mod tests {
         ], stack);
     }
 
-    // TODO: assign_statement (parameters and environment variables), external_statement 
+    // TODO: assign_statement (environment variables), external_statement 
 }
