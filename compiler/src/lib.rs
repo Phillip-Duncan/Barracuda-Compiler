@@ -202,8 +202,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
-        out[2..].to_vec()
+        assert_eq!([Val(0.0), Val(ptr(2)), Val(0.0)], out[..3]);
+        out[3..].to_vec()
     }
 
     // Compiles a program string without providing environemnt variables.
@@ -372,7 +372,7 @@ mod tests {
     // and how many parameters the function takes.
     // Returns the generated function call and the new position of the stack.
     fn generate_function_call(position: usize, func_location: usize, parameters: usize) -> (Vec<MergedInstructions>, usize) {
-        let mut function_call = vec![Val(ptr(position + 13)), Val(ptr(1)), Op(FIXED(STK_READ)), 
+        let mut function_call = vec![Val(ptr(position + 14)), Val(ptr(1)), Op(FIXED(STK_READ)), 
             Op(FIXED(LDSTK_PTR)), Val(ptr(1)), Op(FIXED(SUB_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), 
             Op(FIXED(STK_WRITE)), Val(ptr(func_location)), Instr(GOTO)];
         for _ in 0..parameters {
@@ -392,14 +392,14 @@ mod tests {
 
     // Generates a function definition for an function given the current stack position and the compiled body of the function.
     // Returns the generated function definition, the location of the start of the function, and the new position of the stack.
-    fn generate_function_def_precompiled(position: usize, compiled_body: Vec<MergedInstructions>) 
+    fn generate_function_def_precompiled(mut position: usize, compiled_body: Vec<MergedInstructions>) 
             -> (Vec<MergedInstructions>, usize, usize) {
         let body_length = compiled_body.len();
-        let mut function_definition = vec![Val(ptr(position + 13 + body_length)), Instr(GOTO)];
+        let mut function_definition = vec![Val(ptr(position + 14 + body_length)), Instr(GOTO)];
         function_definition.extend(compiled_body);
         function_definition.extend(vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), Op(FIXED(ADD_PTR)), 
             Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]);
-        return (function_definition, position + 4, position + 11 + body_length);
+        return (function_definition, position + 5, position + 11 + body_length);
     }
 
     // Generates a function definition for an function given the current stack position and the body of the function.
@@ -548,18 +548,18 @@ mod tests {
     #[test]
     fn if_and_else() {
         let stack = compile_and_merge("if false {3;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(6)), Instr(GOTO_IF), Val(3.0)], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(7)), Instr(GOTO_IF), Val(3.0)], stack);
 
         let stack = compile_and_merge("if false {3;} else {4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(9)), Instr(GOTO), Val(4.0)], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Val(ptr(10)), Instr(GOTO), Val(4.0)], stack);
 
         let stack = compile_and_merge("if false {3;} else if false {4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(12)), Instr(GOTO), Val(0.0), 
-            Val(ptr(12)), Instr(GOTO_IF), Val(4.0)], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Val(ptr(13)), Instr(GOTO), Val(0.0), 
+            Val(ptr(13)), Instr(GOTO_IF), Val(4.0)], stack);
 
         let stack = compile_and_merge("if false {3;} else if false {4;} else {5;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(15)), Instr(GOTO), Val(0.0), 
-            Val(ptr(14)), Instr(GOTO_IF), Val(4.0), Val(ptr(15)), Instr(GOTO), Val(5.0)], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Val(ptr(16)), Instr(GOTO), Val(0.0), 
+            Val(ptr(15)), Instr(GOTO_IF), Val(4.0), Val(ptr(16)), Instr(GOTO), Val(5.0)], stack);
     }
 
     // Generates a variable call.
@@ -635,15 +635,86 @@ mod tests {
         assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
     }
 
+    fn generate_loop_entry(position: usize) -> (Vec<MergedInstructions>, usize) {
+        (vec![Val(1e-323), Op(FIXED(STK_READ)), Val(1e-323), Op(FIXED(LDSTK_PTR)), 
+            Val(1e-323), Op(FIXED(SUB_PTR)), Op(FIXED(STK_WRITE))], 
+        position + 7)
+    }
+
+    fn generate_loop_exit(position: usize, loop_start: usize) -> (Vec<MergedInstructions>, usize) {
+        (vec![Val(1e-323), Op(FIXED(STK_READ)), Val(5e-324), Op(FIXED(ADD_PTR)), Op(FIXED(RCSTK_PTR)), Val(ptr(loop_start + 3)), Instr(GOTO), Val(1e-323), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE))], 
+            position + 10)
+    }
+
     // Tests while loop.
     #[test]
     fn while_loop() {
-        let stack = compile_and_merge("while 3 {4;}");
+        let stack = compile_and_merge(
+            "while 3 {4;}");
+        let (loop_entry, loop_start) 
+            = generate_loop_entry(0);
+        let (loop_exit, loop_end) 
+            = generate_loop_exit(loop_start + 4, loop_start);
+        assert_eq!(loop_entry, stack[..loop_start]);
         assert_eq!(vec![
-            Val(3.0), Val(ptr(8)), Instr(GOTO_IF), // loop exit condition
+            Val(3.0), Val(ptr(loop_end)), Instr(GOTO_IF), // loop exit condition
             Val(4.0), // loop body
-            Val(ptr(2)), Instr(GOTO) // restart loop
-        ], stack);
+        ], stack[loop_start..loop_start + 4]);
+        assert_eq!(loop_exit, stack[loop_start + 4..]);
+    }
+
+    // Tests nested while loop.
+    #[test]
+    fn nested_while_loop() {
+        let stack = compile_and_merge(
+            "while 3 {while 4 {5;}}");
+        let (outer_loop_entry, outer_loop_start) 
+            = generate_loop_entry(0);
+        let (inner_loop_entry, inner_loop_start) 
+            = generate_loop_entry(outer_loop_start + 3);
+        let (inner_loop_exit, inner_loop_end) 
+            = generate_loop_exit(inner_loop_start + 4, inner_loop_start);
+        let (outer_loop_exit, outer_loop_end) 
+            = generate_loop_exit(inner_loop_end, outer_loop_start);
+        assert_eq!(outer_loop_entry, stack[..outer_loop_start]);
+        assert_eq!(vec![
+            Val(3.0), Val(ptr(outer_loop_end)), Instr(GOTO_IF), // loop exit condition
+        ], stack[outer_loop_start..outer_loop_start + 3]);
+        assert_eq!(inner_loop_entry, stack[outer_loop_start + 3..inner_loop_start]);
+        assert_eq!(vec![
+            Val(4.0), Val(ptr(inner_loop_end)), Instr(GOTO_IF), // loop exit condition
+            Val(5.0), // loop body
+        ], stack[inner_loop_start..inner_loop_start + 4]);
+        assert_eq!(inner_loop_exit, stack[inner_loop_start + 4..inner_loop_end]);
+        assert_eq!(outer_loop_exit, stack[inner_loop_end..]);
+    }
+
+    // Tests two while loops.
+    #[test]
+    fn double_while_loop() {
+        let stack = compile_and_merge(
+            "while 3 {4;} while 5 {6;}");
+        let (first_loop_entry, first_loop_start) 
+            = generate_loop_entry(0);
+        let (first_loop_exit, first_loop_end) 
+            = generate_loop_exit(first_loop_start + 4, first_loop_start);
+        let (second_loop_entry, second_loop_start) 
+            = generate_loop_entry(first_loop_end);
+        let (second_loop_exit, second_loop_end) 
+            = generate_loop_exit(second_loop_start + 4, second_loop_start);
+            assert_eq!(first_loop_entry, stack[..first_loop_start]);
+            assert_eq!(vec![
+                Val(3.0), Val(ptr(first_loop_end)), Instr(GOTO_IF), // loop exit condition
+                Val(4.0), // loop body
+            ], stack[first_loop_start..first_loop_start + 4]);
+            assert_eq!(first_loop_exit, stack[first_loop_start + 4..first_loop_end]);
+
+            assert_eq!(second_loop_entry, stack[first_loop_end..second_loop_start]);
+            assert_eq!(vec![
+                Val(5.0), Val(ptr(second_loop_end)), Instr(GOTO_IF), // loop exit condition
+                Val(6.0), // loop body
+            ], stack[second_loop_start..second_loop_start + 4]);
+            assert_eq!(second_loop_exit, stack[second_loop_start + 4..]);
     }
 
     // Tests for loop.
@@ -652,10 +723,10 @@ mod tests {
         let stack = compile_and_merge("for (let i = 4; 5; i = 6) {7;}");
         assert_eq!(vec![
             Val(4.0), // construction 
-            Val(5.0), Val(ptr(15)), Instr(GOTO_IF), // loop exit condition 
+            Val(5.0), Val(ptr(16)), Instr(GOTO_IF), // loop exit condition 
             Val(7.0), // body
             Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
-            Val(ptr(3)), Instr(GOTO) // restart loop 
+            Val(ptr(4)), Instr(GOTO) // restart loop 
         ], stack);
     }
 
