@@ -78,9 +78,6 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
             // Frame pointer
             // must point to local_var:0 - 1
             f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes()),
-
-            // Loop return, default value is never used
-            0.0
         ];
 
         // Generate code
@@ -135,10 +132,9 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 impl BarracudaByteCodeGenerator {
 
     /// CONST FUNCTIONS
-    const fn loop_return_address() -> usize { 2 }
     const fn frame_ptr_address() -> usize { 1 }
     const fn return_store_address() -> usize { 0 }
-    const fn static_register_count() -> usize { 3 }
+    const fn static_register_count() -> usize { 2 }
     const fn default_max_stacksize() -> usize { 128 }
 
     // Generate code to push frame pointer on the top of the stack
@@ -176,21 +172,6 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_op(OP::STK_WRITE);
     }
 
-    // Generate code to push the loop return location on the top of the stack
-    fn generate_get_loop_return(&mut self) {
-        self.builder.emit_value(f64::from_ne_bytes(Self::loop_return_address().to_ne_bytes()));
-        self.builder.emit_op(OP::STK_READ);
-    }
-
-    // Generate code to set the loop return location to the current stack location
-    fn generate_set_loop_return(&mut self) {
-        self.builder.emit_value(f64::from_ne_bytes(Self::loop_return_address().to_ne_bytes()));
-        self.builder.emit_op(OP::LDSTK_PTR);
-        self.builder.emit_value(f64::from_ne_bytes(2_u64.to_ne_bytes()));
-        self.builder.emit_op(OP::SUB_PTR);
-        self.builder.emit_op(OP::STK_WRITE);
-    }
-    
     /// Generate code to push local variable stack address onto the top of the stack
     fn generate_local_var_address(&mut self, localvar_index: usize) {
         self.builder.emit_value(f64::from_ne_bytes((localvar_index + 1).to_ne_bytes())); // id
@@ -498,11 +479,6 @@ impl BarracudaByteCodeGenerator {
         let while_start = self.builder.create_label();
         let while_exit = self.builder.create_label();
 
-        // Push previous loop return
-        self.generate_get_loop_return();
-        // Update loop return
-        self.generate_set_loop_return();
-
         // Start
         self.builder.set_label(while_start);
 
@@ -516,10 +492,6 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(String::from("WHILE BODY"));
         self.generate_node(body);
 
-        // Set stack pointer to frame ptr
-        self.generate_get_loop_return();
-        self.generate_set_stack_ptr();
-
         // Loop back to condition after body
         self.builder.reference(while_start);
         self.builder.emit_instruction(INSTRUCTION::GOTO);
@@ -528,10 +500,6 @@ impl BarracudaByteCodeGenerator {
         self.builder.set_label(while_exit);
         self.builder.comment(String::from("WHILE END"));
 
-        // Cleanup by setting loop return to old loop return
-        self.builder.emit_value(f64::from_ne_bytes(Self::loop_return_address().to_ne_bytes()));
-        self.builder.emit_op(OP::SWAP);
-        self.builder.emit_op(OP::STK_WRITE);
     }
 
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
