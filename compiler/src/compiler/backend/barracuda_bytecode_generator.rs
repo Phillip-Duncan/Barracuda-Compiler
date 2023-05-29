@@ -263,7 +263,6 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_identifier(&mut self, name: &String) {
-        println!("{}", name);
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
@@ -540,6 +539,8 @@ impl BarracudaByteCodeGenerator {
 
 
                 self.symbol_tracker.exit_scope();
+
+                self.builder.emit_op(OP::DROP);
             }
             _ => panic!("Malformed for loop node!")
         };

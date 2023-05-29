@@ -659,7 +659,8 @@ mod tests {
             Val(5.0), Val(ptr(18)), Instr(GOTO_IF), // loop exit condition 
             Val(7.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // body
             Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
-            Val(ptr(3)), Instr(GOTO) // restart loop 
+            Val(ptr(3)), Instr(GOTO), // restart loop 
+            Op(FIXED(DROP)) // drop loop variable
         ], stack);
     }
 
