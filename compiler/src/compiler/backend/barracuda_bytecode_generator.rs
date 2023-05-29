@@ -263,6 +263,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_identifier(&mut self, name: &String) {
+        println!("{}", name);
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
@@ -503,34 +504,45 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
-        let for_start = self.builder.create_label();
-        let for_exit = self.builder.create_label();
+        // Generate body
+        match body.as_ref() {
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.symbol_tracker.enter_scope(scope.clone());
 
-        // Start
-        self.builder.comment(String::from("FOR INIT"));
-        self.generate_node(initialization);
-        self.builder.set_label(for_start);
+                let for_start = self.builder.create_label();
+                let for_exit = self.builder.create_label();
 
-        // Condition
-        self.builder.comment(String::from("FOR CONDITION"));
-        self.generate_node(condition);
-        self.builder.reference(for_exit);
-        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+                // Start
+                self.builder.comment(String::from("FOR INIT"));
+                self.generate_node(initialization);
+                self.builder.set_label(for_start);
 
-        // Generate Body
-        self.builder.comment(String::from("FOR BODY"));
-        self.generate_node(body);
+                // Condition
+                self.builder.comment(String::from("FOR CONDITION"));
+                self.generate_node(condition);
+                self.builder.reference(for_exit);
+                self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
 
-        self.builder.comment(String::from("FOR ADVANCE"));
-        self.generate_node(advancement);
+                // Generate Body
+                self.builder.comment(String::from("FOR BODY"));
+                self.generate_node(inner);
 
-        // Loop back to condition after body
-        self.builder.reference(for_start);
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
+                self.builder.comment(String::from("FOR ADVANCE"));
+                self.generate_node(advancement);
 
-        // Exit
-        self.builder.set_label(for_exit);
-        self.builder.comment(String::from("FOR END"));
+                // Loop back to condition after body
+                self.builder.reference(for_start);
+                self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+                // Exit
+                self.builder.set_label(for_exit);
+                self.builder.comment(String::from("FOR END"));
+
+
+                self.symbol_tracker.exit_scope();
+            }
+            _ => panic!("Malformed for loop node!")
+        };
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
@@ -636,12 +648,14 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) {
+        println!("SCOPE ME");
         self.symbol_tracker.enter_scope(scope.clone());
         self.generate_node(inner);
 
         // Drop all local vars
         let symbols_dropped = self.symbol_tracker.exit_scope();
         for _ in 0..symbols_dropped {
+            println!("drop scope!");
             self.builder.emit_op(OP::DROP);
         }
     }
