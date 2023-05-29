@@ -649,14 +649,12 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) {
-        println!("SCOPE ME");
         self.symbol_tracker.enter_scope(scope.clone());
         self.generate_node(inner);
 
         // Drop all local vars
         let symbols_dropped = self.symbol_tracker.exit_scope();
         for _ in 0..symbols_dropped {
-            println!("drop scope!");
             self.builder.emit_op(OP::DROP);
         }
     }
