@@ -350,6 +350,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::unary_not => Some(UnaryOperation::NOT),
             Rule::unary_neg => Some(UnaryOperation::NEGATE),
+            Rule::dereference => Some(UnaryOperation::DEREFERENCE),
             _ => None
         }
     }

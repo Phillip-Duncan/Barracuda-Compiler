@@ -313,6 +313,7 @@ impl BarracudaByteCodeGenerator {
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
             UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
+            UnaryOperation::DEREFERENCE => { self.builder.emit_op(OP::PTR_DEREF) }
         };
     }
 

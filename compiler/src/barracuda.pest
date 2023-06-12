@@ -41,10 +41,11 @@ comparison_operator = _{greater_equal | less_equal | greater_than | less_than} /
 term_operator = _{add | sub}
 factor_operator = _{div | mul | modulus}
 exponent_operator = _{pow}
-unary_operator = _{unary_not | unary_neg}
+unary_operator = _{unary_not | unary_neg | dereference}
 
 unary_not = {"!"}
 unary_neg = {"-"}
+dereference = {"*"}
 
 add = {"+"}
 sub = {"-"}
@@ -67,7 +68,7 @@ equality   = { comparison ~ ( equality_operator ~ comparison )* }
 comparison = { term ~ ( comparison_operator ~ term )* }
 term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
-exponent   = {unary ~ (exponent_operator ~ unary)* }
+exponent   = { unary ~ (exponent_operator ~ unary)* }
 unary      = { unary_operator ~ unary | primary }
 primary    = _{ literal | func_call | identifier | "("~expression~")" }
 
@@ -84,7 +85,7 @@ scope_block = {"{" ~  statement_list ~ "}"}
 construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
                        "let " ~ identifier ~ "=" ~ expression |
                        // "let " ~ identifier ~ ":" ~ datatype |  Currently the 'expression' part of a construct statement is required.
-                       //"let " ~ identifier ~ datatype_qual ~ ":" ~ datatype |
+                       // "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype |
                        "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression}
 
 // Define environment variable

@@ -1,8 +1,9 @@
 /// Unary Operations are mathematical symbolic functions with one argument.
 #[derive(Debug, Clone)]
 pub enum UnaryOperation {
-    NOT,    // ! <rhs>
-    NEGATE  // - <rhs>
+    NOT,        // ! <rhs>
+    NEGATE,     // - <rhs>
+    DEREFERENCE // & <rhs>
 }
 
 /// Binary Operations are mathematical symbolic functions with two arguments.
