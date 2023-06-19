@@ -212,6 +212,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.generate_identifier(identifier_name)
             }
+            ASTNode::REFERENECE(identifier_name) => {
+                self.generate_reference(identifier_name)
+            }
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
@@ -291,6 +294,22 @@ impl BarracudaByteCodeGenerator {
                 self.builder.emit_op(OP::STK_READ);
             }
             _ => {panic!("Symbol type does not contain meaning in expressions")}
+        }
+    }
+
+    fn generate_reference(&mut self, name: &String) {
+        let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
+
+        match symbol_result.symbol_type() {
+            SymbolType::Variable(_datatype, _) => {
+                let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
+                self.generate_local_var_address(localvar_id);
+            }
+            SymbolType::Parameter(_datatype) => {
+                let param_id = self.symbol_tracker.get_param_id(name).unwrap();
+                self.generate_parameter_address(param_id);
+            }
+            _ => {panic!("Symbol type does not contain meaning when referenced")}
         }
     }
 

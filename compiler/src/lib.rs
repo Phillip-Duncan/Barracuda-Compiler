@@ -282,6 +282,13 @@ mod tests {
         }
     }
 
+    // Tests construct statements.
+    #[test]
+    fn reference() {
+        let stack = compile_and_merge("let a = 3; let b = &a;");
+        assert_eq!(vec![Val(3.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack);
+    }
+
     // Tests that whitespace and comments are ignored as expected.
     // The statement 'true;' has no signigicance in the below tests.
     // It's just there to make sure whitespace and comments are ignored correctly.

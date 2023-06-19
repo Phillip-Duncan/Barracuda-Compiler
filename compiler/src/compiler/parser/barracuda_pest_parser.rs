@@ -51,6 +51,7 @@ impl PestBarracudaParser {
     fn parse_pair_node(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
+            Rule::reference =>         { Self::parse_pair_reference(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -98,6 +99,11 @@ impl PestBarracudaParser {
     /// Parses a pest token pair into an AST identifier
     fn parse_pair_identifier(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::IDENTIFIER(String::from(pair.as_str()))
+    }
+
+    /// Parses a pest token pair into an AST identifier
+    fn parse_pair_reference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
     }
 
     /// Parses a pest token pair into an AST binary expression

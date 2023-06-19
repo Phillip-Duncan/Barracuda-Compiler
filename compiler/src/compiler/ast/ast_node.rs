@@ -14,6 +14,15 @@ pub enum ASTNode {
     ///         ^^^^^ -> Identifier
     IDENTIFIER(String),
 
+    /// Reference represents a reference to an identifier. 
+    /// In the example below, hello_ref points to the memory address of hello.
+    /// 
+    /// # Example:
+    ///     let hello = 4;
+    ///     let hello_ref = &hello;
+    ///                     ^^^^^^ -> Reference
+    REFERENECE(String),
+
     /// Literal is a constant value used within an expression.
     /// # Example:
     ///     let hello = 4;
@@ -257,6 +266,7 @@ impl ASTNode {
 
         match self {
             ASTNode::IDENTIFIER(_) => {}
+            ASTNode::REFERENECE(_) => {}
             ASTNode::LITERAL(_) => {}
             ASTNode::UNARY_OP { op: _, expression } => {
                 output.push(expression.as_mut());
