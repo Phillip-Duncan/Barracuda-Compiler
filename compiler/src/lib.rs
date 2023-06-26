@@ -274,7 +274,7 @@ mod tests {
         let unary_operators = vec![
             ("!", NOT),
             ("-", NEGATE),     
-            ("*", PTR_DEREF),     
+            ("*", STK_READ),     
         ];
         for (text, op) in &unary_operators {
             let stack = compile_and_merge(&format!("{}4;", text));
