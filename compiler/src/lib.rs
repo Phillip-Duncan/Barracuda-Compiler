@@ -153,7 +153,6 @@ mod tests {
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
     use barracuda_common::FixedBarracudaOperators::*;
-    use barracuda_common::VariableBarracudaOperators::*;
 
     use super::*;
     
@@ -678,7 +677,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Op(VARIABLE(LDNX(7)))], stack);
+        assert_eq!(vec![Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(LDNX))], stack);
     }
 
     // Tests reading an external variable with a single pointer (*) qualifier
@@ -687,7 +686,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(LDNX)), Op(FIXED(READ))], stack);
     }
 
     // Tests reading an external variable with a double pointer (**) qualifier
@@ -696,7 +695,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
     }
 
     // Tests writing to an external variable
@@ -705,7 +704,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
-        assert_eq!(vec![Val(4.0), Op(VARIABLE(RCNX(7)))], stack);
+        assert_eq!(vec![Val(4.0), Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(RCNX))], stack);
     }
 
     // Tests writing to an external variable with a single pointer (*) qualifier
@@ -714,7 +713,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
-        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+        assert_eq!(vec![Val(4.0), Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(LDNX)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
     }
 
     // Tests reading an external variable with a double pointer (**) qualifier
@@ -723,7 +722,7 @@ mod tests {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
-        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+        assert_eq!(vec![Val(4.0), Val(f64::from_be_bytes(7_i64.to_be_bytes())), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
     }
 
 }

@@ -12,7 +12,6 @@ use barracuda_common::{
     ProgramCode,
     BarracudaInstructions as INSTRUCTION,
     FixedBarracudaOperators as OP,
-    VariableBarracudaOperators as VAR_OP
 };
 
 use std::collections::HashMap;
@@ -277,7 +276,8 @@ impl BarracudaByteCodeGenerator {
             }
             SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
                 let ptr_depth = qualifier.matches("*").count();
-                self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                self.builder.emit_op(OP::LDNX);
                 for _n in 0..ptr_depth {
                     if (_n == ptr_depth - 1) {
                         self.builder.emit_op(OP::READ);
@@ -389,7 +389,8 @@ impl BarracudaByteCodeGenerator {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
                     self.generate_node(expression);
                     if qualifier.contains("*") {
-                        self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::LDNX);
                         let ptr_depth = qualifier.matches("*").count();
                         for _n in 0..ptr_depth {
                             if (_n == ptr_depth - 1) {
@@ -404,7 +405,8 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_op(OP::WRITE);
                     }
                     else {
-                        self.builder.emit_var_op(VAR_OP::RCNX(global_id));
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::RCNX);
                     }
                 }
                 SymbolType::Parameter(_) => {

@@ -2,7 +2,6 @@ use barracuda_common::{
     ProgramCode,
     BarracudaOperators,
     FixedBarracudaOperators,
-    VariableBarracudaOperators,
     BarracudaInstructions
 };
 

@@ -3,7 +3,6 @@ use barracuda_common::{
     BarracudaInstructions as INSTRUCTION,
     BarracudaOperators as OP,
     FixedBarracudaOperators as FIXED_OP,
-    VariableBarracudaOperators as VAR_OP
 };
 
 /// BarracudaIR is linear item format for describing ProgramCode.
@@ -60,11 +59,6 @@ impl BarracudaProgramCodeBuilder {
     /// Emit operation pushes an op to be loaded as the next instruction
     pub fn emit_op(&mut self, operation: FIXED_OP) {
         self.program_out.push(BarracudaIR::Operation(OP::FIXED(operation)));
-    }
-
-    /// Emit operation pushes an op to be loaded as the next instruction
-    pub fn emit_var_op(&mut self, operation: VAR_OP) {
-        self.program_out.push(BarracudaIR::Operation(OP::VARIABLE(operation)));
     }
 
     /// Comment decorates the next instruction with a string

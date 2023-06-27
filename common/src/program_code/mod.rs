@@ -4,7 +4,6 @@ pub mod ops;
 use std::collections::HashMap;
 pub use self::ops::{
     FixedBarracudaOperators,
-    VariableBarracudaOperators,
     BarracudaOperators
 };
 pub use self::instructions::BarracudaInstructions;
