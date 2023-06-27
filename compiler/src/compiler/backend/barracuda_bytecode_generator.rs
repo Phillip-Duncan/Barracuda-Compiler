@@ -269,7 +269,7 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, qualifier) => {
+            SymbolType::Variable(_datatype, _) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
 
                 self.generate_local_var_address(localvar_id);
@@ -279,7 +279,7 @@ impl BarracudaByteCodeGenerator {
                 let ptr_depth = qualifier.matches("*").count();
                 self.builder.emit_var_op(VAR_OP::LDNX(global_id));
                 for _n in 0..ptr_depth {
-                    if (_n == ptr_depth - 1) {
+                    if _n == ptr_depth - 1 {
                         self.builder.emit_op(OP::READ);
                     }
                     else {
@@ -316,10 +316,10 @@ impl BarracudaByteCodeGenerator {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
             Literal::INTEGER(value) => { value as f64 }
-            Literal::STRING(_) => {
-                unimplemented!()
-                // This would likely involve allocation on the heap
-            }
+            //Literal::STRING(_) => {
+            //    unimplemented!()
+            //    This would likely involve allocation on the heap
+            //}
             Literal::BOOL(value) => { value as i64 as f64 }
         };
 
@@ -377,7 +377,7 @@ impl BarracudaByteCodeGenerator {
 
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_, qualifier) => {
+                SymbolType::Variable(_, _) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
@@ -392,7 +392,7 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_var_op(VAR_OP::LDNX(global_id));
                         let ptr_depth = qualifier.matches("*").count();
                         for _n in 0..ptr_depth {
-                            if (_n == ptr_depth - 1) {
+                            if _n == ptr_depth - 1 {
                                 //self.builder.emit_op(OP::READ);
                                 continue;
                             }

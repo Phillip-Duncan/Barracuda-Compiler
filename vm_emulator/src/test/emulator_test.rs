@@ -1,4 +1,4 @@
-use crate::emulator::{self};
+use crate::emulator;
 use barracuda_common::{
     BarracudaInstructions::*,
     FixedBarracudaOperators::*,
@@ -10,7 +10,6 @@ use std::io;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::io::{Cursor, Read};
 use crate::EnvironmentVariable;
 
 /*
