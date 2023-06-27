@@ -77,7 +77,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
             // Frame pointer
             // must point to local_var:0 - 1
-            f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes())
+            f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes()),
         ];
 
         // Generate code
@@ -137,9 +137,8 @@ impl BarracudaByteCodeGenerator {
     const fn static_register_count() -> usize { 2 }
     const fn default_max_stacksize() -> usize { 128 }
 
-    /// Generate code to push frame pointer on the top of the stack
+    // Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {
-        // TODO: Change all emit_values to use f64 bit-wise representation
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::STK_READ);
     }
@@ -520,37 +519,51 @@ impl BarracudaByteCodeGenerator {
         // Exit
         self.builder.set_label(while_exit);
         self.builder.comment(String::from("WHILE END"));
+
     }
 
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
-        let for_start = self.builder.create_label();
-        let for_exit = self.builder.create_label();
+        // Generate body
+        match body.as_ref() {
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.symbol_tracker.enter_scope(scope.clone());
 
-        // Start
-        self.builder.comment(String::from("FOR INIT"));
-        self.generate_node(initialization);
-        self.builder.set_label(for_start);
+                let for_start = self.builder.create_label();
+                let for_exit = self.builder.create_label();
 
-        // Condition
-        self.builder.comment(String::from("FOR CONDITION"));
-        self.generate_node(condition);
-        self.builder.reference(for_exit);
-        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+                // Start
+                self.builder.comment(String::from("FOR INIT"));
+                self.generate_node(initialization);
+                self.builder.set_label(for_start);
 
-        // Generate Body
-        self.builder.comment(String::from("FOR BODY"));
-        self.generate_node(body);
+                // Condition
+                self.builder.comment(String::from("FOR CONDITION"));
+                self.generate_node(condition);
+                self.builder.reference(for_exit);
+                self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
 
-        self.builder.comment(String::from("FOR ADVANCE"));
-        self.generate_node(advancement);
+                // Generate Body
+                self.builder.comment(String::from("FOR BODY"));
+                self.generate_node(inner);
 
-        // Loop back to condition after body
-        self.builder.reference(for_start);
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
+                self.builder.comment(String::from("FOR ADVANCE"));
+                self.generate_node(advancement);
 
-        // Exit
-        self.builder.set_label(for_exit);
-        self.builder.comment(String::from("FOR END"));
+                // Loop back to condition after body
+                self.builder.reference(for_start);
+                self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+                // Exit
+                self.builder.set_label(for_exit);
+                self.builder.comment(String::from("FOR END"));
+
+
+                self.symbol_tracker.exit_scope();
+
+                self.builder.emit_op(OP::DROP);
+            }
+            _ => panic!("Malformed for loop node!")
+        };
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
@@ -612,30 +625,23 @@ impl BarracudaByteCodeGenerator {
 
         // Generate Call Stack
         self.builder.comment(format!("FN CALL {} START", &identifier_name));
-        {
-            // Push arguments onto the stack in reverse order
-            for (i, arg) in arguments.iter().enumerate().rev() {
-                self.builder.comment(format!("FN ARG {}", i));
-                self.generate_node(arg)
-            }
-
-            // Push return address
-            self.builder.comment(format!("RETURN ADDRESS"));
-            self.builder.reference(function_call_end);
-
-
-            // Push previous frame pointer
-            self.builder.comment(format!("PREV FRAME POINTER"));
-            self.generate_get_frame_ptr();
+        // Push arguments onto the stack in reverse order
+        for (i, arg) in arguments.iter().enumerate().rev() {
+            self.builder.comment(format!("FN ARG {}", i));
+            self.generate_node(arg)
         }
 
+        // Push return address
+        self.builder.reference(function_call_end);
+
+        // Push previous frame pointer
+        self.generate_get_frame_ptr();
+
         // Update frame pointer
-        self.builder.comment(format!("UPDATE FRAME POINTER"));
         self.generate_get_stack_ptr();
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
-
 
         // Jump into function definition
         self.builder.comment(format!("GOTO FN DEF"));

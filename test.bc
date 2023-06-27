@@ -1,0 +1,16 @@
+let prime = true;
+let j = 0;
+for (let count = 2; count < 10; count = count + 1) {
+    print 1000;
+    prime = true;
+    for (let i = 2; i < count; i = i + 1) {
+        print i;
+        if count % i == 0 {
+            prime = false;
+        }
+    }
+    if prime {
+        j = j + 1;
+    }
+}
+print j;

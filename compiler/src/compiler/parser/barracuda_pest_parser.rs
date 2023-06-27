@@ -33,7 +33,7 @@ impl PestBarracudaParser {
             Ok(pairs) => {
                 for pair in pairs {
                     match pair.as_rule() {
-                        Rule::statement_list => {
+                        Rule::global_statement_list => {
                             return Self::parse_pair_node(pair)
                         },
                         _ => {panic!("Program should start with statement list.")}
@@ -61,6 +61,7 @@ impl PestBarracudaParser {
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
             Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
             Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
             Rule::external_statement => { Self::parse_pair_external_statement(pair) },
@@ -74,6 +75,7 @@ impl PestBarracudaParser {
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
+            Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
             Rule::qualifier => { Self::parse_pair_identifier(pair) }
             _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }

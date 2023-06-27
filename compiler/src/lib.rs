@@ -147,11 +147,13 @@ fn generate_headers() -> std::io::Result<()> {
 // A large number of unit tests for the compiler are below.
 #[cfg(test)]
 mod tests {
+
     use barracuda_common::BarracudaInstructions;
     use barracuda_common::BarracudaOperators;
     use barracuda_common::BarracudaInstructions::*;
     use barracuda_common::BarracudaOperators::*;
     use barracuda_common::FixedBarracudaOperators::*;
+    use barracuda_common::VariableBarracudaOperators::*;
 
     use super::*;
     
@@ -173,8 +175,9 @@ mod tests {
     //  they can be merged into one stack.
     // This function also strips the first two elements as they are the same for every program.
     // It also validates everything that doesn't end up in the final stack.
-    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
-        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default();
+    fn compile_and_merge_with_env_vars(text: &str, env_vars: EnvironmentSymbolContext) -> Vec<MergedInstructions> {
+        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+            .set_environment_variables(env_vars);
         let code = compiler.compile_str(text);
         assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());
         let mut out: Vec<MergedInstructions> = vec![];
@@ -200,6 +203,11 @@ mod tests {
         }
         assert_eq!([Val(0.0), Val(ptr(1))], out[..2]);
         out[2..].to_vec()
+    }
+
+    // Compiles a program string without providing environemnt variables.
+    fn compile_and_merge(text: &str) -> Vec<MergedInstructions> {
+        compile_and_merge_with_env_vars(text, EnvironmentSymbolContext::new())
     }
 
     // Tests an empty program.
@@ -238,7 +246,7 @@ mod tests {
             ("true", 1.0),
         ];
         for (text, value) in &literals {
-            let stack = compile_and_merge(&format!("{};", text));
+            let stack = compile_and_merge(&format!("let a = {};", text));
             assert_eq!(vec![Val(*value)], stack);
         }
     }
@@ -262,7 +270,7 @@ mod tests {
             ("<", LT),       
         ];
         for (text, op) in &binary_operators {
-            let stack = compile_and_merge(&format!("4{}5;", text));
+            let stack = compile_and_merge(&format!("let a = 4{}5;", text));
             assert_eq!(vec![Val(4.0), Val(5.0), Op(FIXED(*op))], stack);
         }
     }
@@ -277,7 +285,7 @@ mod tests {
             ("*", STK_READ),     
         ];
         for (text, op) in &unary_operators {
-            let stack = compile_and_merge(&format!("{}4;", text));
+            let stack = compile_and_merge(&format!("let a = {}4;", text));
             assert_eq!(vec![Val(4.0), Op(FIXED(*op))], stack);
         }
     }
@@ -290,17 +298,17 @@ mod tests {
     }
 
     // Tests that whitespace and comments are ignored as expected.
-    // The statement 'true;' has no signigicance in the below tests.
+    // The statement 'let a = true;' has no signigicance in the below tests.
     // It's just there to make sure whitespace and comments are ignored correctly.
     #[test]
     fn whitespace_and_comments_ignored() {
         let test_cases = vec![
-            "     true    ;    ",
-            "\ntrue\n;\n", 
-            "\ttrue\t;\t", 
-            "\rtrue\r;\r",
-            "//comment\ntrue;//comment\n//comment",
-            "/*multiline\ncomment*/true;/*multiline comment*//*multiline\ncomment*/",
+            "     let a = true    ;    ",
+            "\nlet a = true\n;\n", 
+            "\tlet a = true\t;\t", 
+            "\rlet a = true\r;\r",
+            "//comment\nlet a = true;//comment\n//comment",
+            "/*multiline\ncomment*/let a = true;/*multiline comment*//*multiline\ncomment*/",
         ];
 
         for test_case in &test_cases {
@@ -313,14 +321,14 @@ mod tests {
     #[test]
     fn unary_operator_precedence() {
         let unary_operators = vec![
-            ("-4-3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(SUB))]),
-            ("4--3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
-            ("--4--3;", vec![Val(4.0), Op(FIXED(NEGATE)), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
-            ("-4^3;", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(POW))]),
-            ("4+-3;", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(ADD))]),
+            ("-4-3", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(SUB))]),
+            ("4--3", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("--4--3", vec![Val(4.0), Op(FIXED(NEGATE)), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(SUB))]),
+            ("-4^3", vec![Val(4.0), Op(FIXED(NEGATE)), Val(3.0), Op(FIXED(POW))]),
+            ("4+-3", vec![Val(4.0), Val(3.0), Op(FIXED(NEGATE)), Op(FIXED(ADD))]),
         ];
         for (text, expected_stack) in &unary_operators {
-            let stack = compile_and_merge(text);
+            let stack = compile_and_merge(&format!("let a = {};", text));
             assert_eq!(*expected_stack, stack);
         }
     }
@@ -345,7 +353,7 @@ mod tests {
         ];
         for (op_str_1, precedence_1, operation_1) in &operators {
             for (op_str_2, precedence_2, operation_2) in &operators {
-                let text = &format!("1{}2{}3;", op_str_1, op_str_2);
+                let text = &format!("let a = 1{}2{}3;", op_str_1, op_str_2);
                 let stack = compile_and_merge(text);
                 if precedence_1 >= precedence_2 {
                     assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(*operation_1)), Val(3.0), Op(FIXED(*operation_2))], stack);
@@ -360,11 +368,11 @@ mod tests {
     #[test]
     fn parentheses_precedence() {
         assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
-            compile_and_merge("(1-2)+3;"));
+            compile_and_merge("let a = (1-2)+3;"));
         assert_eq!(vec![Val(1.0), Val(2.0), Op(FIXED(SUB)), Val(3.0), Op(FIXED(ADD))], 
-            compile_and_merge("(((1-2+3)));"));
+            compile_and_merge("let a = (((1-2+3)));"));
         assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(ADD)), Op(FIXED(SUB))], 
-            compile_and_merge("1-(2+3);"));
+            compile_and_merge("let a = 1-(2+3);"));
     }
 
     // Generates a function call given the current stack position, the location of the start of the function, 
@@ -427,7 +435,7 @@ mod tests {
     #[test]
     fn function_call() {
         let stack = compile_and_merge(
-            "fn test_func() {} test_func();");
+            "fn test_func() {} let a = test_func();");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
@@ -440,7 +448,7 @@ mod tests {
     #[test]
     fn function_multiple_call() {
         let stack = compile_and_merge(
-            "fn test_func() {} test_func(); test_func(); test_func();");
+            "fn test_func() {} let a = test_func(); let b = test_func(); let c = test_func();");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
@@ -459,7 +467,7 @@ mod tests {
     #[test]
     fn double_function() {
         let stack = compile_and_merge(
-            "fn test_func() {} fn test_func_2() {} test_func(); test_func_2();");
+            "fn test_func() {} fn test_func_2() {} let a = test_func(); let b = test_func_2();");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
@@ -477,7 +485,7 @@ mod tests {
     // Tests defining a function with content
     #[test]
     fn function_with_contents() {
-        let function_contents = "3+4;";
+        let function_contents = "let a = 3+4;";
         let stack = compile_and_merge(
             &format!("fn test_func() {{{}}}", function_contents));
         let (function_def, _, _) 
@@ -497,7 +505,7 @@ mod tests {
     // Checks defining a function with a parameter and then using that parameter
     #[test]
     fn function_with_parameter_used() {
-        let stack = compile_and_merge("fn test_func(a) {a;}");
+        let stack = compile_and_merge("fn test_func(a) {let b = a;}");
         let (function_def, _, _) 
             = generate_function_def_precompiled(0, 
                 vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ))]);
@@ -507,7 +515,7 @@ mod tests {
     // Checks calling a parameterized function
     #[test]
     fn function_with_parameter_call() {
-        let stack = compile_and_merge("fn test_func(a) {} test_func(4);");
+        let stack = compile_and_merge("fn test_func(a) {} let a = test_func(4);");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
         assert_eq!(function_def, stack[..position]);
@@ -518,22 +526,51 @@ mod tests {
         assert_eq!(function_call, stack[position..]);
     }
 
+    // Checks return works
+    #[test]
+    fn function_with_return() {
+        let stack = compile_and_merge("fn test_func() {return 3;} let a = test_func();");
+        let (function_def, test_func_location, position) = generate_function_def_precompiled(0, 
+            vec![Val(0.0), Val(3.0), Op(FIXED(STK_WRITE)), // write variable to stack
+            Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), Op(FIXED(ADD_PTR)), // return from function
+            Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, _) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..]);
+    }
+
+    // Checks that function parameters can be assigned to
+    #[test]
+    fn function_with_parameter_assigned() {
+        let stack = compile_and_merge("fn test_func(a) {a = 3;}");
+        let (function_def, _, _) 
+            = generate_function_def_precompiled(0, 
+            vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), // get pointer to parameter
+                    Val(3.0), Op(FIXED(STK_WRITE))]); // read parameter
+        assert_eq!(function_def, stack);
+    }
+
     // Tests that if and else work
     #[test]
     fn if_and_else() {
-        let stack = compile_and_merge("if false {3;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(6)), Instr(GOTO_IF), Val(3.0)], stack);
+        let stack = compile_and_merge("if false {print 3;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), 
+            Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
 
-        let stack = compile_and_merge("if false {3;} else {4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(9)), Instr(GOTO), Val(4.0)], stack);
+        let stack = compile_and_merge("if false {print 3;} else {print 4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
+        Val(ptr(15)), Instr(GOTO), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
 
-        let stack = compile_and_merge("if false {3;} else if false {4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(12)), Instr(GOTO), Val(0.0), 
-            Val(ptr(12)), Instr(GOTO_IF), Val(4.0)], stack);
+        let stack = compile_and_merge("if false {print 3;} else if false {print 4;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
+            Val(ptr(18)), Instr(GOTO), Val(0.0), Val(ptr(18)), Instr(GOTO_IF), 
+            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
 
-        let stack = compile_and_merge("if false {3;} else if false {4;} else {5;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(8)), Instr(GOTO_IF), Val(3.0), Val(ptr(15)), Instr(GOTO), Val(0.0), 
-            Val(ptr(14)), Instr(GOTO_IF), Val(4.0), Val(ptr(15)), Instr(GOTO), Val(5.0)], stack);
+        let stack = compile_and_merge("if false {print 3;} else if false {print 4;} else {print 5;}");
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
+            Val(ptr(24)), Instr(GOTO), Val(0.0), Val(ptr(20)), Instr(GOTO_IF), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
+            Val(ptr(24)), Instr(GOTO), Val(5.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
     }
 
     // Generates a variable call.
@@ -562,7 +599,7 @@ mod tests {
     // Tests using a variable.
     #[test]
     fn use_variable() {
-        let stack = compile_and_merge("let a = 3; a;");
+        let stack = compile_and_merge("let a = 3; let b = a;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(generate_variable_call(1), stack[1..]);
     }
@@ -570,7 +607,7 @@ mod tests {
     // Tests using a variable twice.
     #[test]
     fn use_variable_twice() {
-        let stack = compile_and_merge("let a = 3; a; a;");
+        let stack = compile_and_merge("let a = 3; let b = a; let c = a;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(generate_variable_call(1), stack[1..6]);
         assert_eq!(generate_variable_call(1), stack[6..]);
@@ -579,7 +616,7 @@ mod tests {
     // Tests using a second variable.
     #[test]
     fn double_construct_with_use() {
-        let stack = compile_and_merge("let a = 3; let b = 4; b;");
+        let stack = compile_and_merge("let a = 3; let b = 4; let c = b;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(Val(4.0), stack[1]);
         assert_eq!(generate_variable_call(2), stack[2..]);
@@ -590,7 +627,7 @@ mod tests {
     fn variable_assignment() {
         let stack = compile_and_merge("let a = 3; a = 4;");
         assert_eq!(Val(3.0), stack[0]);
-        assert_eq!(generate_variable_assign(1, "4;"), stack[1..]);
+        assert_eq!(generate_variable_assign(1, "let a = 4;"), stack[1..]);
     }
 
     // Tests variable assignment for a second variable
@@ -599,7 +636,7 @@ mod tests {
         let stack = compile_and_merge("let a = 3; let b = 4; b = 5;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(Val(4.0), stack[1]);
-        assert_eq!(generate_variable_assign(2, "5;"), stack[2..]);
+        assert_eq!(generate_variable_assign(2, "let a = 5;"), stack[2..]);
     }
 
     // Tests print statement.
@@ -612,26 +649,81 @@ mod tests {
     // Tests while loop.
     #[test]
     fn while_loop() {
-        let stack = compile_and_merge("while 3 {4;}");
+        let stack = compile_and_merge(
+            "while 3 {print 4;}");
         assert_eq!(vec![
-            Val(3.0), Val(ptr(8)), Instr(GOTO_IF), // loop exit condition
-            Val(4.0), // loop body
-            Val(ptr(2)), Instr(GOTO) // restart loop
+            Val(3.0), Val(ptr(11)), Instr(GOTO_IF), // loop exit condition
+            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // loop body
+            Val(ptr(2)), Instr(GOTO) // loop restart
         ], stack);
     }
 
     // Tests for loop.
     #[test]
     fn for_loop() {
-        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {7;}");
+        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print 7;}");
         assert_eq!(vec![
             Val(4.0), // construction 
-            Val(5.0), Val(ptr(15)), Instr(GOTO_IF), // loop exit condition 
-            Val(7.0), // body
+            Val(5.0), Val(ptr(18)), Instr(GOTO_IF), // loop exit condition 
+            Val(7.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // body
             Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
-            Val(ptr(3)), Instr(GOTO) // restart loop 
+            Val(ptr(3)), Instr(GOTO), // restart loop 
+            Op(FIXED(DROP)) // drop loop variable
         ], stack);
     }
 
-    // TODO: return_statement, assign_statement (parameters and environment variables), external_statement 
+    // Tests reading an external variable
+    #[test]
+    fn external_variable() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7)))], stack);
+    }
+
+    // Tests reading an external variable with a single pointer (*) qualifier
+    #[test]
+    fn external_variable_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(READ))], stack);
+    }
+
+    // Tests reading an external variable with a double pointer (**) qualifier
+    #[test]
+    fn external_variable_with_double_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
+    }
+
+    // Tests writing to an external variable
+    #[test]
+    fn external_variable_write() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(RCNX(7)))], stack);
+    }
+
+    // Tests writing to an external variable with a single pointer (*) qualifier
+    #[test]
+    fn external_variable_write_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+    }
+
+    // Tests reading an external variable with a double pointer (**) qualifier
+    #[test]
+    fn external_variable_write_with_double_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
+        assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+    }
+
 }

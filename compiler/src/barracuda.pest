@@ -73,11 +73,17 @@ exponent   = { unary ~ (exponent_operator ~ unary)* }
 unary      = { unary_operator ~ unary | primary }
 primary    = _{ literal | func_call | identifier | reference | "("~expression~")" }
 
-// Statements
-statement = _{func_statement | if_statement | for_statement | while_statement
-              | construct_statement ~ ";" | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"
-              | external_statement ~ ";" 
-              | expression ~ ";"}
+// Statements that can be in global scope (or function scope)
+global_statement = _{func_statement | if_statement | for_statement | while_statement
+    | construct_statement ~ ";" | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"
+    | external_statement ~ ";"}
+
+global_statement_list = {global_statement*}
+global_scope_block = {"{" ~  global_statement_list ~ "}"}
+
+// Statements that can be in any scope
+statement = _{if_statement | for_statement | while_statement
+    | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"}
 
 statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
@@ -104,9 +110,9 @@ for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ as
 while_statement = {"while" ~ expression ~ scope_block}
 
 func_param = {identifier ~ ":" ~ datatype | identifier}
-func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ scope_block }
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ global_scope_block }
 return_statement = {"return" ~ expression}
 
 
 // Program
-program = _{ SOI ~ statement_list ~ EOI }
+program = _{ SOI ~ global_statement_list ~ EOI }
