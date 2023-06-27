@@ -281,8 +281,7 @@ mod tests {
     fn unary_operators() {
         let unary_operators = vec![
             ("!", NOT),
-            ("-", NEGATE),     
-            ("*", STK_READ),     
+            ("-", NEGATE),        
         ];
         for (text, op) in &unary_operators {
             let stack = compile_and_merge(&format!("let a = {}4;", text));
@@ -290,11 +289,27 @@ mod tests {
         }
     }
 
-    // Tests construct statements.
+    // Tests for references
     #[test]
     fn reference() {
         let stack = compile_and_merge("let a = 3; let b = &a;");
         assert_eq!(vec![Val(3.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack);
+    }
+
+    #[test]
+    fn dereference() {
+        let stack = compile_and_merge("let a = 3; let b = *a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ))], stack[6..]);
+    }
+
+    #[test]
+    fn double_dereference() {
+        let stack = compile_and_merge("let a = 3; let b = **a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[6..]);
     }
 
     // Tests that whitespace and comments are ignored as expected.

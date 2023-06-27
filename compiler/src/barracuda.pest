@@ -29,6 +29,7 @@ identifier_char = _{
 
 identifier = @{ASCII_ALPHA ~ identifier_char*}
 reference = @{ "&" ~ identifier }
+dereference = @{ "*"* ~ identifier }
 literal = _{decimal | integer | boolean | string}
 qualifier = @{ "*"* ~ "&"* }
 
@@ -42,11 +43,10 @@ comparison_operator = _{greater_equal | less_equal | greater_than | less_than} /
 term_operator = _{add | sub}
 factor_operator = _{div | mul | modulus}
 exponent_operator = _{pow}
-unary_operator = _{unary_not | unary_neg | dereference}
+unary_operator = _{unary_not | unary_neg}
 
 unary_not = {"!"}
 unary_neg = {"-"}
-dereference = {"*"}
 
 add = {"+"}
 sub = {"-"}
@@ -71,7 +71,7 @@ term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
 unary      = { unary_operator ~ unary | primary }
-primary    = _{ literal | func_call | identifier | reference | "("~expression~")" }
+primary    = _{ literal | func_call | identifier | reference | dereference | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement
@@ -98,7 +98,7 @@ construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression 
 external_statement = {"extern " ~ identifier}
 
 
-assign_statement = {identifier ~ "=" ~ expression}
+assign_statement = {( identifier | dereference ) ~ "=" ~ expression}
 datatype = _{identifier}
 datatype_qual = _{qualifier}
 

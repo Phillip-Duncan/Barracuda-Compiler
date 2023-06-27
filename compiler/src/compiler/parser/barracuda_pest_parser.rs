@@ -52,6 +52,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
             Rule::reference =>         { Self::parse_pair_reference(pair) },
+            Rule::dereference =>         { Self::parse_pair_dereference(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -103,9 +104,23 @@ impl PestBarracudaParser {
         ASTNode::IDENTIFIER(String::from(pair.as_str()))
     }
 
-    /// Parses a pest token pair into an AST identifier
+    /// Parses a pest token pair into an AST reference
     fn parse_pair_reference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
+    }
+
+    /// Parses a pest token pair into a series of unary dereference operations
+    fn parse_pair_dereference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let input = pair.as_str();
+        let stars_count = input.chars().take_while(|&c| c == '*').count();
+        let mut ast_node = ASTNode::IDENTIFIER(input[stars_count..].to_string());
+        for _ in 0..stars_count {
+            ast_node = ASTNode::UNARY_OP {
+                op: UnaryOperation::DEREFERENCE,
+                expression: Box::new(ast_node)
+            }
+        }
+        ast_node
     }
 
     /// Parses a pest token pair into an AST binary expression
@@ -358,7 +373,6 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::unary_not => Some(UnaryOperation::NOT),
             Rule::unary_neg => Some(UnaryOperation::NEGATE),
-            Rule::dereference => Some(UnaryOperation::DEREFERENCE),
             _ => None
         }
     }
