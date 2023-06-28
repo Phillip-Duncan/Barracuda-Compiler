@@ -78,7 +78,6 @@ impl PestBarracudaParser {
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
             Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
-            Rule::qualifier => { Self::parse_pair_identifier(pair) }
             _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }
         }
     }

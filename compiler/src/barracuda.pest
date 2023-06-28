@@ -30,8 +30,8 @@ identifier_char = _{
 identifier = @{ASCII_ALPHA ~ identifier_char*}
 reference = @{ "&" ~ identifier }
 dereference = @{ "*"* ~ identifier }
+pointer = {"*"}
 literal = _{decimal | integer | boolean | string}
-qualifier = @{ "*"* ~ "&"* }
 
 func_arg = {expression}
 func_call = {identifier ~ "(" ~ ")" |
@@ -88,11 +88,10 @@ statement = _{if_statement | for_statement | while_statement
 statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
-construct_statement = {"let " ~ identifier ~ ":" ~ datatype  ~ "=" ~ expression |
-                       "let " ~ identifier ~ "=" ~ expression |
-                       // "let " ~ identifier ~ ":" ~ datatype |  Currently the 'expression' part of a construct statement is required.
-                       // "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype |
-                       "let " ~ identifier ~ datatype_qual ~ ":" ~ datatype ~ "=" ~ expression}
+construct_statement = {"let " ~ pointer* ~ identifier ~ "=" ~ expression
+                       // | "let " ~ pointer* ~ identifier ~ ":" ~ datatype ~ "=" ~ expression //Currently datatypes are not functional.
+                       // | "let " ~ pointer* ~ identifier ~ ":" ~ datatype  //Currently the 'expression' part of a construct statement is required.
+                    }
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
@@ -100,7 +99,6 @@ external_statement = {"extern " ~ identifier}
 
 assign_statement = {( identifier | dereference ) ~ "=" ~ expression}
 datatype = _{identifier}
-datatype_qual = _{qualifier}
 
 print_statement = {"print" ~ expression}
 
