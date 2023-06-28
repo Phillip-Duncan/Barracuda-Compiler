@@ -289,29 +289,6 @@ mod tests {
         }
     }
 
-    // Tests for references
-    #[test]
-    fn reference() {
-        let stack = compile_and_merge("let a = 3; let b = &a;");
-        assert_eq!(vec![Val(3.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack);
-    }
-
-    #[test]
-    fn dereference() {
-        let stack = compile_and_merge("let a = 3; let b = *a;");
-        assert_eq!(Val(3.0), stack[0]);
-        assert_eq!(generate_variable_call(1), stack[1..6]);
-        assert_eq!(vec![Op(FIXED(STK_READ))], stack[6..]);
-    }
-
-    #[test]
-    fn double_dereference() {
-        let stack = compile_and_merge("let a = 3; let b = **a;");
-        assert_eq!(Val(3.0), stack[0]);
-        assert_eq!(generate_variable_call(1), stack[1..6]);
-        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[6..]);
-    }
-
     // Tests that whitespace and comments are ignored as expected.
     // The statement 'let a = true;' has no signigicance in the below tests.
     // It's just there to make sure whitespace and comments are ignored correctly.
@@ -739,6 +716,37 @@ mod tests {
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
         assert_eq!(vec![Val(4.0), Op(VARIABLE(LDNX(7))), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
+    }
+
+    // Tests for pointers
+    #[test]
+    fn reference() {
+        let stack = compile_and_merge("let a = 3; let b = &a;");
+        assert_eq!(vec![Val(3.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack);
+    }
+
+    #[test]
+    fn dereference() {
+        let stack = compile_and_merge("let a = 3; let b = *a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ))], stack[6..]);
+    }
+
+    #[test]
+    fn double_dereference() {
+        let stack = compile_and_merge("let a = 3; let b = **a;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[6..]);
+    }
+
+    #[test]
+    fn pointer_assign() {
+        let stack = compile_and_merge("let *a = 3; *a = 4;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[6..]);
     }
 
 }
