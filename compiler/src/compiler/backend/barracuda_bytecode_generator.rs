@@ -426,6 +426,9 @@ impl BarracudaByteCodeGenerator {
 
                     self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
                     self.generate_parameter_address(local_param_id);
+                    for _ in 0..references {
+                        self.builder.emit_op(OP::STK_READ);
+                    }
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }

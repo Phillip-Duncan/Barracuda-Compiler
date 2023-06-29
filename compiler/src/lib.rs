@@ -756,4 +756,15 @@ mod tests {
         assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ)), Val(4.0), Op(FIXED(STK_WRITE))], stack[6..]);
     }
 
+    // Checks that parameters can also use pointer assign syntax
+    #[test]
+    fn parameter_pointer_assign() {
+        let stack = compile_and_merge("fn test_func(a) {*a = 3;}");
+        let (function_def, _, _) 
+            = generate_function_def_precompiled(0, 
+            vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ)), // get pointer
+                    Val(3.0), Op(FIXED(STK_WRITE))]); // write to pointer
+        assert_eq!(function_def, stack);
+    }
+
 }
