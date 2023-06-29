@@ -746,7 +746,15 @@ mod tests {
         let stack = compile_and_merge("let *a = 3; *a = 4;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(generate_variable_call(1), stack[1..6]);
-        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[6..]);
+        assert_eq!(vec![Val(4.0), Op(FIXED(STK_WRITE))], stack[6..]);
+    }
+
+    #[test]
+    fn triple_pointer_assign() {
+        let stack = compile_and_merge("let *a = 3; ***a = 4;");
+        assert_eq!(Val(3.0), stack[0]);
+        assert_eq!(generate_variable_call(1), stack[1..6]);
+        assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ)), Val(4.0), Op(FIXED(STK_WRITE))], stack[6..]);
     }
 
 }

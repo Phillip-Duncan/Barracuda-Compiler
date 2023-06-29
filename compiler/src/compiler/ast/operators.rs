@@ -3,7 +3,6 @@
 pub enum UnaryOperation {
     NOT,        // ! <rhs>
     NEGATE,     // - <rhs>
-    DEREFERENCE // & <rhs>
 }
 
 /// Binary Operations are mathematical symbolic functions with two arguments.

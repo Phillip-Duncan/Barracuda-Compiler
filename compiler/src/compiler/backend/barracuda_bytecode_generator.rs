@@ -214,6 +214,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::REFERENECE(identifier_name) => {
                 self.generate_reference(identifier_name)
             }
+            ASTNode::VARIABLE { references, identifier } => {
+                self.generate_variable(references, identifier)
+            }
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
@@ -223,8 +226,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.generate_binary_op(op, lhs, rhs)
             }
-            ASTNode::CONSTRUCT { identifier, qualifier, datatype, expression } => {
-                self.generate_construct_statement(identifier, qualifier, datatype, expression);
+            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
+                self.generate_construct_statement(identifier, datatype, expression);
             }
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
@@ -312,6 +315,13 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
+    fn generate_variable(&mut self, references: &usize, identifier: &String) {
+        self.generate_identifier(identifier);
+        for _ in 0..*references {
+            self.builder.emit_op(OP::STK_READ);
+        }
+    }
+
     fn generate_literal(&mut self, literal: &Literal) {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
@@ -331,7 +341,6 @@ impl BarracudaByteCodeGenerator {
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
             UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
-            UnaryOperation::DEREFERENCE => { self.builder.emit_op(OP::STK_READ) }
         };
     }
 
@@ -354,8 +363,8 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _qualifier: &Box<Option<ASTNode>>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+        let (_, identifier_name) = identifier.get_variable().unwrap();
         
         // Leave result of expression at top of stack as this is the allocated
         // region for the local variable
@@ -373,7 +382,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
+        let (references, identifier_name) = identifier.get_variable().unwrap();
 
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
@@ -382,6 +391,9 @@ impl BarracudaByteCodeGenerator {
 
                     self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
                     self.generate_local_var_address(local_var_id);
+                    for _ in 0..references {
+                        self.builder.emit_op(OP::STK_READ);
+                    }
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }

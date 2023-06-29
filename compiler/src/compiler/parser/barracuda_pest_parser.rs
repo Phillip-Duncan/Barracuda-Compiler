@@ -52,7 +52,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
             Rule::reference =>         { Self::parse_pair_reference(pair) },
-            Rule::dereference =>         { Self::parse_pair_dereference(pair) },
+            Rule::variable =>         { Self::parse_pair_variable(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -108,18 +108,14 @@ impl PestBarracudaParser {
         ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
     }
 
-    /// Parses a pest token pair into a series of unary dereference operations
-    fn parse_pair_dereference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+    /// Parses a pest token pair into an AST variable
+    fn parse_pair_variable(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let input = pair.as_str();
-        let stars_count = input.chars().take_while(|&c| c == '*').count();
-        let mut ast_node = ASTNode::IDENTIFIER(input[stars_count..].to_string());
-        for _ in 0..stars_count {
-            ast_node = ASTNode::UNARY_OP {
-                op: UnaryOperation::DEREFERENCE,
-                expression: Box::new(ast_node)
-            }
+        let references = input.chars().take_while(|&c| c == '*').count();
+        ASTNode::VARIABLE {
+            references,
+            identifier: input[references..].to_string()
         }
-        ast_node
     }
 
     /// Parses a pest token pair into an AST binary expression
@@ -175,19 +171,9 @@ impl PestBarracudaParser {
         let identifier = Self::parse_pair_node(pair.next().unwrap());
 
         let mut datatype = None;
-        let mut qualifier = None;
 
         // qualifier, datatype or expression
-        let qd_or_expression = Self::parse_pair_node(pair.next().unwrap());
-
-        // Qualifier match
-        let datatype_or_expression = match pair.next() {
-            Some(expression_pair) => {
-                qualifier = Some(qd_or_expression);
-                Self::parse_pair_node(expression_pair)
-            }
-            None => qd_or_expression
-        };
+        let datatype_or_expression = Self::parse_pair_node(pair.next().unwrap());
         
         // Datatype match
         let expression = match pair.next() {
@@ -201,7 +187,6 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
-            qualifier: Box::new(qualifier),
             expression: Box::new(expression)
         }
     }
