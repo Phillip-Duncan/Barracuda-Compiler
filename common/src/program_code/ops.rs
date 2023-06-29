@@ -438,22 +438,17 @@ pub enum FixedBarracudaOperators {
     #[assoc(produce=0)]
     RCSTK_PTR  = 0x1300 ,
 
-    // Lower (0) and upper (1) ranges for Load and Store into Nth variate userspace.
     #[assoc(consume=0)]
     #[assoc(produce=1)]
-    LDNX0 = 0xF4240,
+    LDNT    = 0x1301 ,
 
     #[assoc(consume=0)]
     #[assoc(produce=1)]
-    LDNX1 = 0x4C4B40,
+    LDNX    = 0x1302 ,
 
     #[assoc(consume=1)]
     #[assoc(produce=0)]
-    RCNX0 = 0x4C4B41,
-
-    #[assoc(consume=1)]
-    #[assoc(produce=0)]
-    RCNX1 = 0x895441
+    RCNX    = 0x1303 ,
 }
 
 #[allow(dead_code)] // Used in library but not the binary
@@ -475,67 +470,11 @@ impl FixedBarracudaOperators {
     }
 }
 
-
-#[derive(Debug,
-Eq, PartialEq,
-Copy, Clone, Assoc)]
-#[func(pub const fn consume(&self) -> i8)] // How many arguments does the operation consume
-#[func(pub const fn produce(&self) -> i8)] // How many values does the operation generate
-pub enum VariableBarracudaOperators {
-    // Load Nth Environment Variable
-    #[assoc(consume=0)]
-    #[assoc(produce=1)]
-    LDNX(usize),
-
-    // Write Nth Environment Variable
-    #[assoc(consume=1)]
-    #[assoc(produce=0)]
-    RCNX(usize)
-}
-
-#[allow(dead_code)] // Used in library but not the binary
-impl VariableBarracudaOperators {
-
-    /// Converts opcode value into Operation enums.
-    /// @opcode: Barracuda op code value.
-    /// @returns Some(BarracudaOperator) representing opcode value, None otherwise
-    pub fn from(opcode: u32) -> Option<Self> {
-        if  opcode >= FixedBarracudaOperators::LDNX0.as_u32() &&
-             opcode < FixedBarracudaOperators::LDNX1.as_u32() {
-            let index = (opcode - FixedBarracudaOperators::LDNX0.as_u32()) as usize;
-            return Some(Self::LDNX(index));
-        }
-
-        if  opcode >= FixedBarracudaOperators::RCNX0.as_u32() &&
-             opcode < FixedBarracudaOperators::RCNX1.as_u32() {
-            let index = (opcode - FixedBarracudaOperators::RCNX0.as_u32()) as usize;
-            return Some(Self::RCNX(index));
-        }
-
-        return None;
-    }
-
-    /// Converts operator into value representing the opcode
-    /// @returns: &self's representation as u32. This is not an option as all operators
-    ///           have a valid u32 code.
-    pub fn as_u32(&self) -> u32 {
-         match self {
-            VariableBarracudaOperators::LDNX(index) => {
-                FixedBarracudaOperators::LDNX0.as_u32() + *index as u32
-            }
-            VariableBarracudaOperators::RCNX(index) => {
-                FixedBarracudaOperators::RCNX0.as_u32() + *index as u32
-            }
-        }
-    }
-}
-
 #[derive(Debug,
 Eq, PartialEq,
 Copy, Clone)]
 pub enum BarracudaOperators {
     FIXED(FixedBarracudaOperators),
-    VARIABLE(VariableBarracudaOperators)
 }
 
 impl BarracudaOperators {
@@ -545,10 +484,6 @@ impl BarracudaOperators {
     pub fn from(opcode: u32) -> Option<Self> {
         if let Some(op) = FixedBarracudaOperators::from(opcode) {
             return Some(Self::FIXED(op));
-        }
-
-        if let Some(op) = VariableBarracudaOperators::from(opcode) {
-            return Some(Self::VARIABLE(op));
         }
 
         return None
@@ -562,9 +497,6 @@ impl BarracudaOperators {
             BarracudaOperators::FIXED(op) => {
                 op.as_u32()
             }
-            BarracudaOperators::VARIABLE(op) => {
-                op.as_u32()
-            }
         }
     }
 
@@ -573,9 +505,6 @@ impl BarracudaOperators {
     pub const fn consume(&self) -> i8 {
         match self {
             BarracudaOperators::FIXED(op) => {
-                op.consume()
-            }
-            BarracudaOperators::VARIABLE(op) => {
                 op.consume()
             }
         }
@@ -588,36 +517,6 @@ impl BarracudaOperators {
             BarracudaOperators::FIXED(op) => {
                 op.produce()
             }
-            BarracudaOperators::VARIABLE(op) => {
-                op.produce()
-            }
-        }
-    }
-}
-
-impl FromStr for VariableBarracudaOperators {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let re = Regex::new(r"(?P<name>[A-Za-z]+)\((?P<args>\d+)\)").unwrap();
-        let caps = re.captures(s).ok_or(())?;
-        let name = &caps["name"];
-        let args = &caps["args"];
-
-        // NOTE: Matching using const strs right now however a more fleshed out solution relying on
-        // the enum names would be perfered.
-        match name {
-            "LDNX" => {
-                let arg_value = usize::from_str(args).map_err(|_| ())?;
-                Ok(VariableBarracudaOperators::LDNX(arg_value))
-            },
-            "RCNX" => {
-                let arg_value = usize::from_str(args).map_err(|_| ())?;
-                Ok(VariableBarracudaOperators::RCNX(arg_value))
-            }
-            _ => {
-                Err(())
-            }
         }
     }
 }
@@ -627,27 +526,11 @@ impl FromStr for BarracudaOperators {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let fixed_result = FixedBarracudaOperators::from_str(s);
-        let variable_result = VariableBarracudaOperators::from_str(s);
 
         return if let Ok(op) = fixed_result {
             Ok(BarracudaOperators::FIXED(op))
-        } else if let Ok(op) = variable_result {
-            Ok(BarracudaOperators::VARIABLE(op))
         } else {
             Err(())
-        }
-    }
-}
-
-impl fmt::Display for VariableBarracudaOperators {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::LDNX(index) => {
-                write!(f, "LDNX({})", index)
-            }
-            Self::RCNX(index) => {
-                write!(f, "RCNX({})", index)
-            }
         }
     }
 }
@@ -658,17 +541,12 @@ impl fmt::Display for BarracudaOperators {
             Self::FIXED(op) => {
                 write!(f, "{:?}", op)
             }
-            Self::VARIABLE(op) => {
-                write!(f, "{}", op)
-            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::BarracudaOperators::VARIABLE;
-    use crate::VariableBarracudaOperators;
     use super::{BarracudaOperators, FixedBarracudaOperators};
     use super::BarracudaOperators::FIXED;
     use std::str::FromStr;
@@ -681,11 +559,4 @@ mod tests {
         assert_eq!(op, FIXED(FixedBarracudaOperators::SUB_PTR));
     }
 
-    #[test]
-    fn test_from_str_variable_op_ldnx() {
-        let test_str = "LDNX(25)";
-        let op = BarracudaOperators::from_str(test_str)
-            .expect("Could not parse string into variable operator");
-        assert_eq!(op, VARIABLE(VariableBarracudaOperators::LDNX(25)));
-    }
 }

@@ -7,7 +7,6 @@ pub use program_code::{
     ProgramCode,
     BarracudaOperators,
     FixedBarracudaOperators,
-    VariableBarracudaOperators,
     BarracudaInstructions
 };
 

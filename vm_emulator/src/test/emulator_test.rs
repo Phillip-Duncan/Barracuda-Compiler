@@ -2,7 +2,6 @@ use crate::emulator;
 use barracuda_common::{
     BarracudaInstructions::*,
     FixedBarracudaOperators::*,
-    VariableBarracudaOperators::*,
     BarracudaOperators::*
 };
 
@@ -32,9 +31,9 @@ fn assert_stack_equal(context: emulator::ThreadContext, other: Vec<f64>, delta: 
 #[test]
 fn vm_example_1() {
     let mut context = emulator::ThreadContext::new(5,
-                                         vec![5.0, 6.0, 10.0],
-                                         vec![FIXED(DIV), FIXED(MUL), VARIABLE(LDNX(1)), FIXED(MUL), VARIABLE(LDNX(1)), FIXED(SIN), FIXED(ADD)],
-                                         vec![OP, OP, OP, OP, OP, OP, OP, VALUE, VALUE, VALUE],
+                                         vec![f64::from_be_bytes(1_i64.to_be_bytes()), f64::from_be_bytes(1_i64.to_be_bytes()), 5.0, 6.0, 10.0],
+                                         vec![FIXED(DIV), FIXED(MUL), FIXED(LDNX), FIXED(MUL), FIXED(LDNX), FIXED(SIN), FIXED(ADD)],
+                                         vec![OP, OP, OP, VALUE, OP, OP, VALUE, OP, OP, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
     context = context.with_env_vars(HashMap::from([
         (1, EnvironmentVariable::new(String::from("b"), 1, 1.5))
@@ -60,9 +59,9 @@ fn vm_example_2() {
 #[test]
 fn vm_example_3() {
     let mut context = emulator::ThreadContext::new(6,
-                                                   vec![f64::from_be_bytes((12 as u64).to_be_bytes()), 5.0, 6.0, 10.0],
-                                                   vec![FIXED(DIV),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(SIN),FIXED(ADD)],
-                                                   vec![OP, GOTO, VALUE, OP, OP, OP, OP, OP, OP, VALUE, VALUE, VALUE],
+                                                   vec![f64::from_be_bytes((14 as u64).to_be_bytes()), f64::from_be_bytes((1_i64).to_be_bytes()), f64::from_be_bytes((1_i64).to_be_bytes()), 5.0, 6.0, 10.0],
+                                                   vec![FIXED(DIV),FIXED(MUL),FIXED(LDNX),FIXED(MUL),FIXED(LDNX),FIXED(SIN),FIXED(ADD)],
+                                                   vec![OP, GOTO, VALUE, OP, OP, VALUE, OP, OP, VALUE, OP, OP, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
     context = context.with_env_vars(HashMap::from([
         (1, EnvironmentVariable::new(String::from("b"), 1, 1.5))

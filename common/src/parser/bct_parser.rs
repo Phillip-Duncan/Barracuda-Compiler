@@ -112,10 +112,8 @@ mod tests {
         ProgramCode,
         BarracudaOperators::{
             FIXED,
-            VARIABLE
         },
         FixedBarracudaOperators::*,
-        VariableBarracudaOperators::*,
         BarracudaInstructions::*,
         ProgramCodeParser,
         BarracudaCodeTextParser
@@ -137,12 +135,12 @@ mod tests {
     #[test]
     fn test_text_parser_basic_with_variable_ops() {
         let expected_program_code = ProgramCode::new(
-            vec![0.0, 8.0, 4.5],
-            vec![VARIABLE(RCNX(32)), FIXED(ADD)],
-            vec![GOTO, VALUE, OP, OP, VALUE, VALUE]
+            vec![0.0, f64::from_be_bytes((32_i64).to_be_bytes()), 8.0, 4.5],
+            vec![FIXED(RCNX), FIXED(ADD)],
+            vec![GOTO, VALUE, OP, VALUE, OP, VALUE, VALUE]
         );
 
-        let text = "4.5\n8\nADD\nRCNX(32)\n0\nGOTO\n";
+        let text = "4.5\n8\nADD\n1.6e-322\nRCNX\n0\nGOTO\n";
         let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
