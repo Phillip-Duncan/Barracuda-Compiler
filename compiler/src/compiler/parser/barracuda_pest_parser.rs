@@ -1,3 +1,4 @@
+use crate::compiler::ast::ast_node;
 use crate::pest::Parser;
 use super::AstParser;
 use super::super::ast::{
@@ -125,9 +126,15 @@ impl PestBarracudaParser {
         // Convert linear list of binary operations of equal precedence
         // Into AST tree of binary operations
         let mut lhs = Self::parse_pair_node(pair.next().unwrap());
+        let pointer_level = Self::get_pointer_level(&lhs);
         while pair.peek().is_some() {
             let op = Self::parse_pair_binary_op(pair.next().unwrap()).unwrap();
             let rhs = Self::parse_pair_node(pair.next().unwrap());
+            let rhs_pointer_level = Self::get_pointer_level(&rhs);
+            if pointer_level != rhs_pointer_level {
+                panic!("Pointers of different levels cannot be in the same operation! (at {:?})", lhs);
+            }
+            println!("ptrs {} {}", pointer_level, rhs_pointer_level);
             lhs = ASTNode::BINARY_OP {
                 op,
                 lhs: Box::new(lhs),
@@ -377,6 +384,16 @@ impl PestBarracudaParser {
             Rule::greater_equal => Some(BinaryOperation::GREATER_EQUAL),
             Rule::less_equal => Some(BinaryOperation::LESS_EQUAL),
             _ => None
+        }
+    }
+
+    // Gets the pointer level of an ASTNode, for example:
+    // let **example = &test; 
+    // 'example' has a pointer level of 2
+    fn get_pointer_level(ast_node: &ASTNode) -> usize {
+        match &ast_node {
+            ASTNode::VARIABLE { references, .. } => references.clone(),
+            _ => 0
         }
     }
 
