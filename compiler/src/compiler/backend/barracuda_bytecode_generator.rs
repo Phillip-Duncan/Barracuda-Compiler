@@ -364,8 +364,12 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let (_, identifier_name) = identifier.get_variable().unwrap();
+        let (identifier_pointer_level, identifier_name) = identifier.get_variable().unwrap();
         
+        let expression_pointer_level = self.get_pointer_level(&expression);
+        if identifier_pointer_level != expression_pointer_level {
+            panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
+        }
         // Leave result of expression at top of stack as this is the allocated
         // region for the local variable
         self.generate_node(expression);
@@ -695,4 +699,23 @@ impl BarracudaByteCodeGenerator {
             self.builder.emit_op(OP::DROP);
         }
     }
+
+    fn get_pointer_level(&mut self, node: &Box<ASTNode>) -> usize {
+        match node.as_ref() {
+            ASTNode::VARIABLE{references, identifier} => {
+                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
+                    SymbolType::Variable(_, pointer_level) => pointer_level - (references.clone()),
+                    _ => 0
+                }
+            },
+            ASTNode::REFERENECE(identifier) => {
+                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
+                    SymbolType::Variable(_, pointer_level) => pointer_level + 1,
+                    _ => 0
+                }
+            },
+            _ => 0
+        }
+    }
+
 }
