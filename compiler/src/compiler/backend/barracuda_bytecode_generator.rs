@@ -15,6 +15,7 @@ use barracuda_common::{
 };
 
 use std::collections::HashMap;
+use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
@@ -337,6 +338,10 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
+        let pointer_level = self.get_pointer_level(&expression);
+        if pointer_level != 0 {
+            panic!("Pointers cannot be used with the operation '{:?}' !", op);
+        }
         self.generate_node(expression);
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
@@ -345,6 +350,16 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
+        let lhs_pointer_level = self.get_pointer_level(&lhs);
+        let rhs_pointer_level = self.get_pointer_level(&rhs);
+        if lhs_pointer_level != 0 || rhs_pointer_level != 0 {
+            if !LEGAL_POINTER_OPERATIONS.contains(&op) {
+                panic!("Operation {:?} cannot be used with pointers!", op);
+            }
+        }
+        if lhs_pointer_level != rhs_pointer_level {
+            panic!("Pointer levels cannot be different in a binary operation! ({} vs {})", lhs_pointer_level, rhs_pointer_level);
+        }
         self.generate_node(lhs);
         self.generate_node(rhs);
         match op {
