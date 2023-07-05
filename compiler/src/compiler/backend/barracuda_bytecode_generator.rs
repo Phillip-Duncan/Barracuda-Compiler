@@ -402,7 +402,11 @@ impl BarracudaByteCodeGenerator {
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
         let (references, identifier_name) = identifier.get_variable().unwrap();
-
+        let lhs_pointer_level = self.get_pointer_level(&identifier);
+        let rhs_pointer_level = self.get_pointer_level(&expression);
+        if lhs_pointer_level != rhs_pointer_level {
+            panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
+        }
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_, _) => {
