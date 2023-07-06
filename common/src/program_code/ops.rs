@@ -639,6 +639,12 @@ impl FromStr for BarracudaOperators {
     }
 }
 
+impl fmt::Display for FixedBarracudaOperators {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 impl fmt::Display for VariableBarracudaOperators {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

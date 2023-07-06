@@ -42,7 +42,7 @@ pub struct BarracudaByteCodeGenerator {
     builder: BarracudaProgramCodeBuilder,
     symbol_tracker: ScopeTracker,
 
-    function_labels: HashMap<String, u64>,
+    function_labels: HashMap<String, Vec<u64>>,
 
     // Max analysis branching depth
     // used for estimating the stack depth of a program
@@ -64,6 +64,9 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
     fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
         // Create symbol tracker
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
+
+        // Generate built-in functions
+        self.generate_builtin_functions();
 
         // Generate program
         let tree_root_node = tree.into_root();
@@ -576,7 +579,7 @@ impl BarracudaByteCodeGenerator {
             panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
         }
         self.add_symbol(identifier_name.clone());
-        self.function_labels.insert(identifier_name.clone(), function_def_start);
+        self.function_labels.insert(identifier_name.clone(), vec![function_def_start, 0]);
 
     }
 
@@ -585,10 +588,37 @@ impl BarracudaByteCodeGenerator {
         self.add_symbol(identifier_name);
     }
 
+    fn generate_builtin_functions(&mut self)
+    {
+        for func in BARRACUDA_BUILT_IN_FUNCTIONS {
+            self.function_labels.insert(String::from(format!("__{}", func.to_string().to_lowercase())), vec![func.as_u32() as u64, 1]);
+        }
+    }
+
     fn generate_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
-        let function_def_label = self.function_labels.get(&identifier_name).unwrap().clone();
+        let function_def_label = self.function_labels.get(&identifier_name).unwrap().clone()[0];
+        let function_builtin_label = self.function_labels.get(&identifier_name).unwrap().clone()[1];
         let function_call_end = self.builder.create_label();
+
+        if (function_builtin_label == 1) {
+            self.builder.comment(format!("BUILT-IN FN CALL {} START", &identifier_name));
+            
+            let op = OP::from(function_def_label as u32).unwrap();
+
+            // Make sure number of arguments consumed is equal to the number of args supplied.
+            if (op.consume() != (arguments.len() as i8)) {
+                panic!("Invalid number of arguments ({}) supplied to builtin function __{} that requires {} arguments", arguments.len().to_string(), op.to_string().to_lowercase(), op.consume().to_string());
+            }
+            // Push arguments onto the stack in reverse order
+            for (i, arg) in arguments.iter().enumerate().rev() {
+                self.builder.comment(format!("FN ARG {}", i));
+                self.generate_node(arg);
+            }
+            self.builder.emit_op(op);
+
+            return;
+        }
 
         // Generate Call Stack
         self.builder.comment(format!("FN CALL {} START", &identifier_name));
@@ -596,7 +626,7 @@ impl BarracudaByteCodeGenerator {
             // Push arguments onto the stack in reverse order
             for (i, arg) in arguments.iter().enumerate().rev() {
                 self.builder.comment(format!("FN ARG {}", i));
-                self.generate_node(arg)
+                self.generate_node(arg);
             }
 
             // Push return address
@@ -653,3 +683,93 @@ impl BarracudaByteCodeGenerator {
         }
     }
 }
+
+static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
+    OP::ACOS,
+    OP::ACOSH,
+    OP::ASIN,
+    OP::ASINH,
+    OP::ATAN,
+    OP::ATAN2,
+    OP::ATANH,
+    OP::CBRT,
+    OP::CEIL,
+    OP::CPYSGN,
+    OP::COS,
+    OP::COSH,
+    OP::COSPI,
+    OP::BESI0,
+    OP::BESI1,
+    OP::ERF,
+    OP::ERFC,
+    OP::ERFCI,
+    OP::ERFCX,
+    OP::ERFI,
+    OP::EXP,
+    OP::EXP10,
+    OP::EXP2,
+    OP::EXPM1,
+    OP::FABS,
+    OP::FDIM,
+    OP::FLOOR,
+    OP::FMA,
+    OP::FMAX,
+    OP::FMIN,
+    OP::FMOD,
+    OP::FREXP,
+    OP::HYPOT,
+    OP::ILOGB,
+    OP::ISFIN,
+    OP::ISINF,
+    OP::ISNAN,
+    OP::BESJ0,
+    OP::BESJ1,
+    OP::BESJN,
+    OP::LDEXP,
+    OP::LGAMMA,
+    OP::LLRINT,
+    OP::LLROUND,
+    OP::LOG,
+    OP::LOG10,
+    OP::LOG1P,
+    OP::LOG2,
+    OP::LOGB,
+    OP::LRINT,
+    OP::LROUND,
+    OP::MAX,
+    OP::MIN,
+    OP::MODF,
+    OP::NAN,
+    OP::NEARINT,
+    OP::NXTAFT,
+    OP::NORM,
+    OP::NORM3D,
+    OP::NORM4D,
+    OP::NORMCDF,
+    OP::NORMCDFINV,
+    OP::POW,
+    OP::RCBRT,
+    OP::REM,
+    OP::REMQUO,
+    OP::RHYPOT,
+    OP::RINT,
+    OP::RNORM,
+    OP::RNORM3D,
+    OP::RNORM4D,
+    OP::ROUND,
+    OP::RSQRT,
+    OP::SCALBLN,
+    OP::SCALBN,
+    OP::SGNBIT,
+    OP::SIN,
+    OP::SINH,
+    OP::SINPI,
+    OP::SQRT,
+    OP::TAN,
+    OP::TANH,
+    OP::TGAMMA,
+    OP::TRUNC,
+    OP::BESY0,
+    OP::BESY1,
+    OP::BESYN,
+];
