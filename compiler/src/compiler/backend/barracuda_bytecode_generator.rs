@@ -291,7 +291,7 @@ impl BarracudaByteCodeGenerator {
                     }
                 }
             }
-            SymbolType::Parameter(_datatype) => {
+            SymbolType::Parameter(_datatype, _) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -308,7 +308,7 @@ impl BarracudaByteCodeGenerator {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
                 self.generate_local_var_address(localvar_id);
             }
-            SymbolType::Parameter(_datatype) => {
+            SymbolType::Parameter(_datatype, _) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
             }
@@ -444,7 +444,7 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_op(OP::RCNX);
                     }
                 }
-                SymbolType::Parameter(_) => {
+                SymbolType::Parameter(_, _) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
@@ -654,7 +654,8 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let identifier_name = identifier.identifier_name().unwrap();
+        println!("happy param! {:?}", identifier);
+        let (_references, identifier_name) = identifier.get_variable().unwrap();
         self.add_symbol(identifier_name);
     }
 

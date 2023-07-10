@@ -10,7 +10,7 @@ use std::fmt;
 pub enum SymbolType {
     Variable(DataType, usize),
     EnvironmentVariable(usize, DataType, String),
-    Parameter(DataType),
+    Parameter(DataType, usize),
     Function {
         func_params: Vec<DataType>,
         func_return: Box<PrimitiveDataType> // Cannot be mutable, const or unknown as defaults to void
@@ -273,8 +273,8 @@ impl SymbolTable {
     /// ASTNodes.
     fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
-        let identifier = match identifier {
-            ASTNode::IDENTIFIER(name) => name.clone(),
+        let (references, identifier) = match identifier {
+            ASTNode::VARIABLE{references, identifier} => (references.clone(), identifier.clone()),
             _ => panic!("")    // AST Malformed
         };
 
@@ -284,7 +284,7 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
+        Some(Symbol::new(identifier, SymbolType::Parameter(datatype, references)))
     }
 
     /// Helper function to simplify processing functions where data is stored within deeper
@@ -490,11 +490,11 @@ mod tests {
                 identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
                 parameters: vec![
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("x")}),
                         datatype: f64_datatype.clone()
                     },
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("y"))),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("y")}),
                         datatype: f64_datatype.clone()
                     }
                 ],

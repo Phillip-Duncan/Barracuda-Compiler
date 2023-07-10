@@ -106,7 +106,7 @@ if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("e
 for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ scope_block}
 while_statement = {"while" ~ expression ~ scope_block}
 
-func_param = {identifier ~ ":" ~ datatype | identifier}
+func_param = {variable} //{variable ~ ":" ~ datatype | variable} (datatype not yet functional)
 func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ global_scope_block }
 return_statement = {"return" ~ expression}
 

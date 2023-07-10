@@ -125,7 +125,7 @@ impl ScopeTracker {
                 }
             }
             SymbolType::EnvironmentVariable(_, _, _) => {}
-            SymbolType::Parameter(_) => {
+            SymbolType::Parameter(_, _) => {
                 let unique_id = symbol.unique_id();
                 self.parameter_ids.insert(unique_id, self.active_parameter_count);
                 self.active_parameter_count += 1;
