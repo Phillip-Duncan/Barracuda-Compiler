@@ -435,6 +435,20 @@ mod tests {
         assert_eq!(function_call, stack[position..]);
     }
 
+    // Tests calling a function without assigning it to a variable works
+    #[test]
+    fn naked_function_call() {
+        let stack = compile_and_merge(
+            "fn test_func() {} test_func();");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, position_2) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..position_2]);
+        assert_eq!(vec!(Op(FIXED(DROP))), stack[position_2..]); // Must drop as we don't need to keep the return value
+    }
+
     // Tests calling a function 3 times
     #[test]
     fn function_multiple_call() {

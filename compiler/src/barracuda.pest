@@ -35,6 +35,7 @@ literal = _{decimal | integer | boolean | string}
 func_arg = {expression}
 func_call = {identifier ~ "(" ~ ")" |
              identifier ~ "(" ~ (func_arg ~ ("," ~ func_arg)*) ~ ")"}
+naked_func_call = { func_call }
 
 // Operator Definitions
 equality_operator = _{equal | not_equal}
@@ -75,7 +76,7 @@ primary    = _{ literal | func_call | reference | variable | "("~expression~")" 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement
     | construct_statement ~ ";" | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"
-    | external_statement ~ ";"}
+    | external_statement ~ ";" | naked_func_call}
 
 global_statement_list = {global_statement*}
 global_scope_block = {"{" ~  global_statement_list ~ "}"}
