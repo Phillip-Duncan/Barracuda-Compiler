@@ -724,13 +724,18 @@ impl BarracudaByteCodeGenerator {
         match node.as_ref() {
             ASTNode::VARIABLE{references, identifier} => {
                 match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable(_, pointer_level) => pointer_level - (references.clone()),
+                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => {
+                        if references.clone() > ptr_level {
+                            panic!("Can't dereference a non-pointer!")
+                        }
+                        ptr_level - (references.clone())
+                    },
                     _ => 0
                 }
             },
             ASTNode::REFERENECE(identifier) => {
                 match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable(_, pointer_level) => pointer_level + 1,
+                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
                     _ => 0
                 }
             },
