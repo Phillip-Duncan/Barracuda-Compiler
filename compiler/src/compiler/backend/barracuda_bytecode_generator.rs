@@ -259,6 +259,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::FUNC_CALL { identifier, arguments } => {
                 self.generate_function_call(identifier, arguments)
             }
+            ASTNode::NAKED_FUNC_CALL { func_call } => {
+                self.generate_naked_function_call(func_call)
+            }
             ASTNode::STATEMENT_LIST(statement_list) => {
                 self.generate_statement_list(statement_list)
             }
@@ -701,6 +704,11 @@ impl BarracudaByteCodeGenerator {
 
         // Push return onto stack
         self.generate_get_return_store();
+    }
+
+    fn generate_naked_function_call(&mut self, func_call: &Box<ASTNode>) {
+        self.generate_node(func_call);
+        self.builder.emit_op(OP::DROP);
     }
 
     fn generate_statement_list(&mut self, statements: &Vec<ASTNode>) {

@@ -75,6 +75,7 @@ impl PestBarracudaParser {
             Rule::func_param =>         { Self::parse_pair_function_parameter(pair) },
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
+            Rule::naked_func_call =>          { Self::parse_pair_naked_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
             Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
@@ -331,6 +332,16 @@ impl PestBarracudaParser {
         ASTNode::FUNC_CALL {
             identifier: Box::new(identifier),
             arguments
+        }
+    }
+
+    /// Parses a pest token pair into an AST function call statement
+    fn parse_pair_naked_function_call(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let func_call = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::NAKED_FUNC_CALL {
+            func_call: Box::new(func_call)
         }
     }
 

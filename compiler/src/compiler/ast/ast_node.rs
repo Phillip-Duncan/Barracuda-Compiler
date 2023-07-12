@@ -245,6 +245,10 @@ pub enum ASTNode {
         arguments: Vec<ASTNode>
     },
 
+    NAKED_FUNC_CALL {
+        func_call: Box<ASTNode>
+    },
+
     /// Statement list is a collection of statements that should
     /// be run linearly.
     ///
@@ -345,6 +349,9 @@ impl ASTNode {
                 for arg in arguments {
                     output.push(arg.borrow_mut());
                 }
+            }
+            ASTNode::NAKED_FUNC_CALL { func_call } => {
+                output.push(func_call.as_mut());
             }
             ASTNode::STATEMENT_LIST(statements) => {
                 for statement in statements {

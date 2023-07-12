@@ -76,7 +76,7 @@ primary    = _{ literal | func_call | reference | variable | "("~expression~")" 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement
     | construct_statement ~ ";" | return_statement ~ ";" | assign_statement ~ ";" | print_statement  ~ ";"
-    | external_statement ~ ";" | naked_func_call}
+    | external_statement ~ ";" | naked_func_call ~ ";"}
 
 global_statement_list = {global_statement*}
 global_scope_block = {"{" ~  global_statement_list ~ "}"}
