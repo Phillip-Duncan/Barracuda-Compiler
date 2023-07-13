@@ -657,7 +657,6 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        println!("happy param! {:?}", identifier);
         let (_references, identifier_name) = identifier.get_variable().unwrap();
         self.add_symbol(identifier_name);
     }
