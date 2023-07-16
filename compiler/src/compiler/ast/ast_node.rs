@@ -68,6 +68,11 @@ pub enum ASTNode {
         rhs: Box<ASTNode>
     },
 
+    ARRAY_INDEX {
+        index: Box<ASTNode>,
+        expression: Box<ASTNode>
+    },
+
     /// Construction statement defines a variable for use in future statements in scope.
     ///
     /// # Syntax:
@@ -291,6 +296,9 @@ impl ASTNode {
             ASTNode::BINARY_OP { op: _, lhs, rhs } => {
                 output.push(lhs.as_mut());
                 output.push(rhs.as_mut());
+            }
+            ASTNode::ARRAY_INDEX { index: _, expression } => {
+                output.push(expression.as_mut());
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 output.push(identifier.as_mut());

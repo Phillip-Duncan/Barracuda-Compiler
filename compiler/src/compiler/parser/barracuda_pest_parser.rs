@@ -62,6 +62,7 @@ impl PestBarracudaParser {
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
             Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::index =>              { Self::parse_pair_array_index(pair) },
             Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
             Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
@@ -156,6 +157,23 @@ impl PestBarracudaParser {
         } else {
             Self::parse_pair_node(primary_or_operator)
         }
+    }
+
+    fn parse_pair_array_index(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        println!("pairy mclaery {:?}", pair);
+        let primary = pair.next().unwrap();
+        let mut expression = Self::parse_pair_node(primary);
+        // Unary
+        while pair.peek().is_some() {
+            let index = Self::parse_pair_literal(pair.next().unwrap());
+
+            expression = ASTNode::ARRAY_INDEX {
+                index: Box::new(index),
+                expression: Box::new(expression)
+            };
+        }
+        expression
     }
 
     /// Parses a pest token pair into an AST statement list

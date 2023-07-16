@@ -226,6 +226,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.generate_binary_op(op, lhs, rhs)
             }
+            ASTNode::ARRAY_INDEX { index, expression } => {
+                self.generate_array_index(index, expression)
+            }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 self.generate_construct_statement(identifier, datatype, expression);
             }
@@ -379,6 +382,11 @@ impl BarracudaByteCodeGenerator {
             BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
             BinaryOperation::LESS_EQUAL    => { self.builder.emit_op(OP::LTEQ); }
         };
+    }
+
+    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
+        println!("ooo, gen array index");
+        self.generate_node(expression);
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
