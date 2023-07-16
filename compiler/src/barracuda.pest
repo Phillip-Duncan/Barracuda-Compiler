@@ -70,7 +70,8 @@ comparison = { term ~ ( comparison_operator ~ term )* }
 term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
-unary      = { unary_operator ~ unary | primary }
+unary      = { unary_operator ~ unary | index }
+index      = { primary ~ ( "[" ~ integer ~ "]" )* }
 primary    = _{ literal | func_call | reference | variable | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
