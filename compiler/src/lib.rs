@@ -355,6 +355,24 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn builtin_functions() {
+        let functions = vec![ACOS,ACOSH,ASIN,ASINH,ATAN,ATAN2,ATANH,CBRT,CEIL,CPYSGN,COS,COSH,
+        COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
+        ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
+        NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        for function in &functions {
+            let input = vec!["3"; function.consume() as usize].join(",");
+            let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);
+            let stack = compile_and_merge(text);
+            let mut output = vec![Val(3.0); function.consume() as usize];
+            output.push(Op(FIXED(*function)));
+            assert_eq!(output, stack); 
+        }
+    }
+
     // Tests that parentheses work with operator precedence.
     #[test]
     fn parentheses_precedence() {
