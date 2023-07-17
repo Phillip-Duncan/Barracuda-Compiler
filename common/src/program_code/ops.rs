@@ -5,7 +5,6 @@ use num_traits::ToPrimitive;
 use strum_macros::EnumString;
 use enum_assoc::Assoc;
 use std::fmt;
-use regex::Regex;
 use std::str::FromStr;
 
 
@@ -542,6 +541,12 @@ impl fmt::Display for BarracudaOperators {
                 write!(f, "{:?}", op)
             }
         }
+    }
+}
+
+impl fmt::Display for FixedBarracudaOperators {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

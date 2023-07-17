@@ -19,9 +19,7 @@ use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
-    symbol_table::{
-        SymbolType
-    }
+    symbol_table::SymbolType
 };
 use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
@@ -677,13 +675,13 @@ impl BarracudaByteCodeGenerator {
         let function_builtin_label = self.function_labels.get(&identifier_name).unwrap().clone()[1];
         let function_call_end = self.builder.create_label();
 
-        if (function_builtin_label == 1) {
+        if function_builtin_label == 1 {
             self.builder.comment(format!("BUILT-IN FN CALL {} START", &identifier_name));
             
             let op = OP::from(function_def_label as u32).unwrap();
 
             // Make sure number of arguments consumed is equal to the number of args supplied.
-            if (op.consume() != (arguments.len() as i8)) {
+            if op.consume() != (arguments.len() as i8) {
                 panic!("Invalid number of arguments ({}) supplied to builtin function __{} that requires {} arguments", arguments.len().to_string(), op.to_string().to_lowercase(), op.consume().to_string());
             }
             // Push arguments onto the stack in reverse order
