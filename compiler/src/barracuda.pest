@@ -2,9 +2,12 @@ WHITESPACE = _{ " " | "\n" | "\t" | "\r" }
 COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)*}
 
 // Literal Definitions
-decimal = @{ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+decimal = @{ (("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
     ~ "." ~ ASCII_DIGIT*
-    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?) 
+    |
+    (("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?)
 }
 
 integer = @{
@@ -27,7 +30,7 @@ identifier_char = _{
     ASCII_ALPHANUMERIC | "_"
 }
 
-identifier = @{ASCII_ALPHA ~ identifier_char*}
+identifier = @{ (ASCII_ALPHA | "_") ~ identifier_char*}
 reference = @{ "&" ~ identifier }
 variable = @{ "*"* ~ identifier }
 literal = _{decimal | integer | boolean | string}
@@ -70,8 +73,7 @@ comparison = { term ~ ( comparison_operator ~ term )* }
 term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
-unary      = { unary_operator ~ unary | index }
-index      = { primary ~ ( "[" ~ integer ~ "]" )* }
+unary      = { unary_operator ~ unary | primary }
 primary    = _{ literal | func_call | reference | variable | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
