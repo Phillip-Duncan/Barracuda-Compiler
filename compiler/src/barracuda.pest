@@ -2,9 +2,12 @@ WHITESPACE = _{ " " | "\n" | "\t" | "\r" }
 COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" | "//" ~ (!"\n" ~ ANY)*}
 
 // Literal Definitions
-decimal = @{ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+decimal = @{ (("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
     ~ "." ~ ASCII_DIGIT*
-    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?) 
+    |
+    (("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?)
 }
 
 integer = @{
@@ -27,7 +30,7 @@ identifier_char = _{
     ASCII_ALPHANUMERIC | "_"
 }
 
-identifier = @{ASCII_ALPHA ~ identifier_char*}
+identifier = @{ (ASCII_ALPHA | "_") ~ identifier_char*}
 reference = @{ "&" ~ identifier }
 variable = @{ "*"* ~ identifier }
 literal = _{decimal | integer | boolean | string}
