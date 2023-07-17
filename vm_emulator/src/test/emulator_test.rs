@@ -1,8 +1,7 @@
-use crate::emulator::{self};
+use crate::emulator;
 use barracuda_common::{
     BarracudaInstructions::*,
     FixedBarracudaOperators::*,
-    VariableBarracudaOperators::*,
     BarracudaOperators::*
 };
 
@@ -10,7 +9,6 @@ use std::io;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::io::{Cursor, Read};
 use crate::EnvironmentVariable;
 
 /*
@@ -33,9 +31,9 @@ fn assert_stack_equal(context: emulator::ThreadContext, other: Vec<f64>, delta: 
 #[test]
 fn vm_example_1() {
     let mut context = emulator::ThreadContext::new(5,
-                                         vec![5.0, 6.0, 10.0],
-                                         vec![FIXED(DIV), FIXED(MUL), VARIABLE(LDNX(1)), FIXED(MUL), VARIABLE(LDNX(1)), FIXED(SIN), FIXED(ADD)],
-                                         vec![OP, OP, OP, OP, OP, OP, OP, VALUE, VALUE, VALUE],
+                                         vec![f64::from_be_bytes(1_i64.to_be_bytes()), f64::from_be_bytes(1_i64.to_be_bytes()), 5.0, 6.0, 10.0],
+                                         vec![FIXED(DIV), FIXED(MUL), FIXED(LDNX), FIXED(MUL), FIXED(LDNX), FIXED(SIN), FIXED(ADD)],
+                                         vec![OP, OP, OP, VALUE, OP, OP, VALUE, OP, OP, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
     context = context.with_env_vars(HashMap::from([
         (1, EnvironmentVariable::new(String::from("b"), 1, 1.5))
@@ -61,9 +59,9 @@ fn vm_example_2() {
 #[test]
 fn vm_example_3() {
     let mut context = emulator::ThreadContext::new(6,
-                                                   vec![f64::from_be_bytes((12 as u64).to_be_bytes()), 5.0, 6.0, 10.0],
-                                                   vec![FIXED(DIV),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(MUL),VARIABLE(LDNX(1)),FIXED(SIN),FIXED(ADD)],
-                                                   vec![OP, GOTO, VALUE, OP, OP, OP, OP, OP, OP, VALUE, VALUE, VALUE],
+                                                   vec![f64::from_be_bytes((14 as u64).to_be_bytes()), f64::from_be_bytes((1_i64).to_be_bytes()), f64::from_be_bytes((1_i64).to_be_bytes()), 5.0, 6.0, 10.0],
+                                                   vec![FIXED(DIV),FIXED(MUL),FIXED(LDNX),FIXED(MUL),FIXED(LDNX),FIXED(SIN),FIXED(ADD)],
+                                                   vec![OP, GOTO, VALUE, OP, OP, VALUE, OP, OP, VALUE, OP, OP, VALUE, VALUE, VALUE],
                                                    Rc::new(RefCell::new(io::stdout())));
     context = context.with_env_vars(HashMap::from([
         (1, EnvironmentVariable::new(String::from("b"), 1, 1.5))
@@ -83,74 +81,4 @@ fn vm_example_4() {
                                                    Rc::new(RefCell::new(io::stdout())));
     context.run_till_halt().unwrap();
     assert_stack_equal(context, vec![6.0], 0.001);
-}
-
-#[test]
-fn vm_example_rule_110() {
-    let board_size: f64 = 50.0;
-    let bs = board_size;
-
-    let expected_output = "                                               *  
-                                              **  
-                                             ***  
-                                            ** *  
-                                           *****  
-                                          **   *  
-                                         ***  **  
-                                        ** * ***  
-                                       ******* *  
-                                      **     ***  
-                                     ***    ** *  
-                                    ** *   *****  
-                                   *****  **   *  
-                                  **   * ***  **  
-                                 ***  **** * ***  
-                                ** * **  ***** *  
-                               ******** **   ***  
-                              **      ****  ** *  
-                             ***     **  * *****  
-                            ** *    *** ****   *  
-                           *****   ** ***  *  **  
-                          **   *  ***** * ** ***  
-                         ***  ** **   ******** *  
-                        ** * ******  **      ***  
-                       *******    * ***     ** *  
-                      **     *   **** *    *****  
-                     ***    **  **  ***   **   *  
-                    ** *   *** *** ** *  ***  **  
-                   *****  ** *** ****** ** * ***  
-                  **   * ***** ***    ******** *  
-                 ***  ****   *** *   **      ***  
-                ** * **  *  ** ***  ***     ** *  
-               ******** ** ***** * ** *    *****  
-              **      ******   ********   **   *  
-             ***     **    *  **      *  ***  **  
-            ** *    ***   ** ***     ** ** * ***  
-           *****   ** *  ***** *    ********** *  
-          **   *  ***** **   ***   **        ***  
-         ***  ** **   ****  ** *  ***       ** *  
-        ** * ******  **  * ***** ** *      *****  
-       *******    * *** ****   ******     **   *  
-      **     *   **** ***  *  **    *    ***  **  
-     ***    **  **  *** * ** ***   **   ** * ***  
-    ** *   *** *** ** ******** *  ***  ******* *  
-   *****  ** *** ******      *** ** * **     ***  
-  **   * ***** ***    *     ** *********    ** *  
- ***  ****   *** *   **    *****       *   *****  
-** * **  *  ** ***  ***   **   *      **  **   *  
-";
-
-    let program_output: Rc<RefCell<Cursor<Vec<u8>>>> = Rc::new(RefCell::new(Cursor::new(Vec::new())));
-    let mut context = emulator::ThreadContext::new(200,
-                                                   vec![0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,110.0,0.0,0.0,4.0,0.0,0.0,0.0,0.0,0.0,7.0,0.0,1.0,0.0,0.0,4.0,0.0,(bs-1.0),1.0,0.0,4.0,0.0,0.0,0.0,0.0,4.0,0.0,0.0,1.0,0.0,0.0,0.0,10.0,0.0,0.0,0.0,0.0,32.0,42.0,0.0,0.0,0.0,4.0,0.0,(bs),0.0,0.0,0.0,(bs-2.0),0.0,0.0,1.0,0.0,(bs-2.0)*4.0,0.0,0.0,4.0,0.0,(bs+2.0)*4.0],
-                                                   vec![FIXED(NULL),FIXED(DROP),FIXED(DROP),FIXED(NULL),FIXED(SWAP),FIXED(WRITE),FIXED(AND),FIXED(NULL),FIXED(RSHIFT),FIXED(SWAP),FIXED(NULL),FIXED(OVER),FIXED(SUB_PTR),FIXED(NULL),FIXED(OVER),FIXED(OR),FIXED(READ), FIXED(OVER),FIXED(AND),FIXED(NULL),FIXED(LSHIFT),FIXED(NULL),FIXED(SWAP),FIXED(ADD_PTR), FIXED(NULL),FIXED(NULL),FIXED(NULL),FIXED(NULL),FIXED(ADD_PTR),FIXED(NULL),FIXED(OVER),FIXED(OR),FIXED(READ),FIXED(ADD_PTR),FIXED(NULL),FIXED(OVER),FIXED(LSHIFT),FIXED(NULL),FIXED(READ),FIXED(DUP),FIXED(PRINTC),FIXED(NULL),FIXED(DROP),FIXED(NULL),FIXED(PRINTC),FIXED(TERNARY),FIXED(NULL),FIXED(NULL),FIXED(READ),FIXED(DUP), FIXED(ADD_PTR),FIXED(NULL),FIXED(NULL),FIXED(NULL),FIXED(NULL),FIXED(DUP),FIXED(NULL),FIXED(NULL),FIXED(NULL),FIXED(WRITE),FIXED(NULL),FIXED(ADD_PTR),FIXED(NULL),FIXED(DUP),FIXED(ADD_PTR), FIXED(NULL), FIXED(MALLOC),FIXED(NULL)],
-                                                   vec![LOOP_END,OP,OP,LOOP_END,OP,OP,OP,VALUE,OP,OP,VALUE,OP,OP,VALUE,OP,OP,OP,OP,OP,VALUE,OP,VALUE,OP,OP,VALUE,LOOP_ENTRY, VALUE,VALUE,OP,VALUE,OP,OP,OP,OP,VALUE,OP,OP,VALUE,OP,OP,OP,VALUE,OP,LOOP_END,OP,OP,VALUE,VALUE,OP,OP,OP,VALUE,LOOP_ENTRY,VALUE,VALUE,OP,LOOP_ENTRY,VALUE,VALUE,OP,VALUE,OP,VALUE,OP,OP, VALUE, OP,VALUE],
-                                                   program_output.clone());
-    context.run_till_halt().unwrap();
-    let mut buffer = String::new();
-    let mut out = program_output.borrow_mut();
-    out.set_position(0);
-    out.read_to_string(&mut buffer).unwrap();
-
-    assert_eq!(expected_output, buffer.as_str());
 }

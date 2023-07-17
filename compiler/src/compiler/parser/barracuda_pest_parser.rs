@@ -33,7 +33,7 @@ impl PestBarracudaParser {
             Ok(pairs) => {
                 for pair in pairs {
                     match pair.as_rule() {
-                        Rule::statement_list => {
+                        Rule::global_statement_list => {
                             return Self::parse_pair_node(pair)
                         },
                         _ => {panic!("Program should start with statement list.")}
@@ -51,6 +51,8 @@ impl PestBarracudaParser {
     fn parse_pair_node(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
+            Rule::reference =>         { Self::parse_pair_reference(pair) },
+            Rule::variable =>         { Self::parse_pair_variable(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -60,6 +62,7 @@ impl PestBarracudaParser {
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
             Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
             Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
             Rule::external_statement => { Self::parse_pair_external_statement(pair) },
@@ -72,9 +75,10 @@ impl PestBarracudaParser {
             Rule::func_param =>         { Self::parse_pair_function_parameter(pair) },
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
+            Rule::naked_func_call =>          { Self::parse_pair_naked_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
+            Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
-            Rule::qualifier => { Self::parse_pair_identifier(pair) }
             _ => { panic!("Whoops! Unprocessed pest rule: {:?}", pair.as_rule()) }
         }
     }
@@ -98,6 +102,21 @@ impl PestBarracudaParser {
     /// Parses a pest token pair into an AST identifier
     fn parse_pair_identifier(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::IDENTIFIER(String::from(pair.as_str()))
+    }
+
+    /// Parses a pest token pair into an AST reference
+    fn parse_pair_reference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
+    }
+
+    /// Parses a pest token pair into an AST variable
+    fn parse_pair_variable(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let input = pair.as_str();
+        let references = input.chars().take_while(|&c| c == '*').count();
+        ASTNode::VARIABLE {
+            references,
+            identifier: input[references..].to_string()
+        }
     }
 
     /// Parses a pest token pair into an AST binary expression
@@ -153,19 +172,9 @@ impl PestBarracudaParser {
         let identifier = Self::parse_pair_node(pair.next().unwrap());
 
         let mut datatype = None;
-        let mut qualifier = None;
 
         // qualifier, datatype or expression
-        let qd_or_expression = Self::parse_pair_node(pair.next().unwrap());
-
-        // Qualifier match
-        let datatype_or_expression = match pair.next() {
-            Some(expression_pair) => {
-                qualifier = Some(qd_or_expression);
-                Self::parse_pair_node(expression_pair)
-            }
-            None => qd_or_expression
-        };
+        let datatype_or_expression = Self::parse_pair_node(pair.next().unwrap());
         
         // Datatype match
         let expression = match pair.next() {
@@ -179,7 +188,6 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
-            qualifier: Box::new(qualifier),
             expression: Box::new(expression)
         }
     }
@@ -324,6 +332,16 @@ impl PestBarracudaParser {
         ASTNode::FUNC_CALL {
             identifier: Box::new(identifier),
             arguments
+        }
+    }
+
+    /// Parses a pest token pair into an AST function call statement
+    fn parse_pair_naked_function_call(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let func_call = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::NAKED_FUNC_CALL {
+            func_call: Box::new(func_call)
         }
     }
 

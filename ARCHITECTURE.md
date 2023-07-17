@@ -8,7 +8,7 @@ This repo is a rust workspace of three rust crates. These crates are barracuda c
 + **[Barracuda Compiler](#barracuda-compiler)**
 + **[Barracuda CPU VM](#barracuda-cpu-vm)**
 
-#Barracuda Common
+# Barracuda Common
 Barracuda common acts as a utility library for the compiler and cpu vm of shared code. 
 For instance the definitions of operators is used by both the compiler for generation 
 and by the cpu vm for context therefore it is stored in the common library. 
@@ -34,6 +34,8 @@ The compiler starts with two files `main.rs` for the binary target and `lib.rs` 
 the context for processing the cll as its configuration is small due to the use of the clap library. Lib contains the 
 translation interface functions using ffi so that they are exposed when compiling as a DLL and is used to generate c headers.
 The core of the compiler's functionality is stored within the compiler module. 
+
+See compiler_flow.png for the path of compilation.
 
 ### compiler
 The compiler `mod.rs` file contains the definition of `Compiler` which accepts two type definitions for the

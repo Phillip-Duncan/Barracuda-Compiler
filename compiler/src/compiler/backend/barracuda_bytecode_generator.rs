@@ -12,16 +12,14 @@ use barracuda_common::{
     ProgramCode,
     BarracudaInstructions as INSTRUCTION,
     FixedBarracudaOperators as OP,
-    VariableBarracudaOperators as VAR_OP
 };
 
 use std::collections::HashMap;
+use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
-    symbol_table::{
-        SymbolType
-    }
+    symbol_table::SymbolType
 };
 use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
@@ -42,7 +40,7 @@ pub struct BarracudaByteCodeGenerator {
     builder: BarracudaProgramCodeBuilder,
     symbol_tracker: ScopeTracker,
 
-    function_labels: HashMap<String, u64>,
+    function_labels: HashMap<String, Vec<u64>>,
 
     // Max analysis branching depth
     // used for estimating the stack depth of a program
@@ -65,6 +63,9 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
         // Create symbol tracker
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
 
+        // Generate built-in functions
+        self.generate_builtin_functions();
+
         // Generate program
         let tree_root_node = tree.into_root();
         self.builder.comment(String::from("PROGRAM START"));
@@ -77,7 +78,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
             // Frame pointer
             // must point to local_var:0 - 1
-            f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes())
+            f64::from_ne_bytes((Self::static_register_count() - 1).to_ne_bytes()),
         ];
 
         // Generate code
@@ -137,9 +138,8 @@ impl BarracudaByteCodeGenerator {
     const fn static_register_count() -> usize { 2 }
     const fn default_max_stacksize() -> usize { 128 }
 
-    /// Generate code to push frame pointer on the top of the stack
+    // Generate code to push frame pointer on the top of the stack
     fn generate_get_frame_ptr(&mut self) {
-        // TODO: Change all emit_values to use f64 bit-wise representation
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::STK_READ);
     }
@@ -212,6 +212,12 @@ impl BarracudaByteCodeGenerator {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.generate_identifier(identifier_name)
             }
+            ASTNode::REFERENECE(identifier_name) => {
+                self.generate_reference(identifier_name)
+            }
+            ASTNode::VARIABLE { references, identifier } => {
+                self.generate_variable(references, identifier)
+            }
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
@@ -221,8 +227,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.generate_binary_op(op, lhs, rhs)
             }
-            ASTNode::CONSTRUCT { identifier, qualifier, datatype, expression } => {
-                self.generate_construct_statement(identifier, qualifier, datatype, expression);
+            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
+                self.generate_construct_statement(identifier, datatype, expression);
             }
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
@@ -254,6 +260,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::FUNC_CALL { identifier, arguments } => {
                 self.generate_function_call(identifier, arguments)
             }
+            ASTNode::NAKED_FUNC_CALL { func_call } => {
+                self.generate_naked_function_call(func_call)
+            }
             ASTNode::STATEMENT_LIST(statement_list) => {
                 self.generate_statement_list(statement_list)
             }
@@ -267,7 +276,7 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, qualifier) => {
+            SymbolType::Variable(_datatype, _) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
 
                 self.generate_local_var_address(localvar_id);
@@ -275,9 +284,10 @@ impl BarracudaByteCodeGenerator {
             }
             SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
                 let ptr_depth = qualifier.matches("*").count();
-                self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                self.builder.emit_op(OP::LDNX);
                 for _n in 0..ptr_depth {
-                    if (_n == ptr_depth - 1) {
+                    if _n == ptr_depth - 1 {
                         self.builder.emit_op(OP::READ);
                     }
                     else {
@@ -285,7 +295,7 @@ impl BarracudaByteCodeGenerator {
                     }
                 }
             }
-            SymbolType::Parameter(_datatype) => {
+            SymbolType::Parameter(_datatype, _) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -294,14 +304,37 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
+    fn generate_reference(&mut self, name: &String) {
+        let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
+
+        match symbol_result.symbol_type() {
+            SymbolType::Variable(_datatype, _) => {
+                let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
+                self.generate_local_var_address(localvar_id);
+            }
+            SymbolType::Parameter(_datatype, _) => {
+                let param_id = self.symbol_tracker.get_param_id(name).unwrap();
+                self.generate_parameter_address(param_id);
+            }
+            _ => {panic!("Symbol type does not contain meaning when referenced")}
+        }
+    }
+
+    fn generate_variable(&mut self, references: &usize, identifier: &String) {
+        self.generate_identifier(identifier);
+        for _ in 0..*references {
+            self.builder.emit_op(OP::STK_READ);
+        }
+    }
+
     fn generate_literal(&mut self, literal: &Literal) {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
             Literal::INTEGER(value) => { value as f64 }
-            Literal::STRING(_) => {
-                unimplemented!()
-                // This would likely involve allocation on the heap
-            }
+            //Literal::STRING(_) => {
+            //    unimplemented!()
+            //    This would likely involve allocation on the heap
+            //}
             Literal::BOOL(value) => { value as i64 as f64 }
         };
 
@@ -309,6 +342,10 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
+        let pointer_level = self.get_pointer_level(&expression);
+        if pointer_level != 0 {
+            panic!("Pointers cannot be used with the operation '{:?}' !", op);
+        }
         self.generate_node(expression);
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
@@ -317,6 +354,16 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
+        let lhs_pointer_level = self.get_pointer_level(&lhs);
+        let rhs_pointer_level = self.get_pointer_level(&rhs);
+        if lhs_pointer_level != 0 || rhs_pointer_level != 0 {
+            if !LEGAL_POINTER_OPERATIONS.contains(&op) {
+                panic!("Operation {:?} cannot be used with pointers!", op);
+            }
+        }
+        if lhs_pointer_level != rhs_pointer_level {
+            panic!("Pointer levels cannot be different in a binary operation! ({} vs {})", lhs_pointer_level, rhs_pointer_level);
+        }
         self.generate_node(lhs);
         self.generate_node(rhs);
         match op {
@@ -335,9 +382,13 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _qualifier: &Box<Option<ASTNode>>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+        let (identifier_pointer_level, identifier_name) = identifier.get_variable().unwrap();
         
+        let expression_pointer_level = self.get_pointer_level(&expression);
+        if identifier_pointer_level != expression_pointer_level {
+            panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
+        }
         // Leave result of expression at top of stack as this is the allocated
         // region for the local variable
         self.generate_node(expression);
@@ -354,15 +405,22 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
-
+        let (references, identifier_name) = identifier.get_variable().unwrap();
+        let lhs_pointer_level = self.get_pointer_level(&identifier);
+        let rhs_pointer_level = self.get_pointer_level(&expression);
+        if lhs_pointer_level != rhs_pointer_level {
+            panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
+        }
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_, qualifier) => {
+                SymbolType::Variable(_, _) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
                     self.generate_local_var_address(local_var_id);
+                    for _ in 0..references {
+                        self.builder.emit_op(OP::STK_READ);
+                    }
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }
@@ -370,10 +428,11 @@ impl BarracudaByteCodeGenerator {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
                     self.generate_node(expression);
                     if qualifier.contains("*") {
-                        self.builder.emit_var_op(VAR_OP::LDNX(global_id));
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::LDNX);
                         let ptr_depth = qualifier.matches("*").count();
                         for _n in 0..ptr_depth {
-                            if (_n == ptr_depth - 1) {
+                            if _n == ptr_depth - 1 {
                                 //self.builder.emit_op(OP::READ);
                                 continue;
                             }
@@ -385,14 +444,18 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_op(OP::WRITE);
                     }
                     else {
-                        self.builder.emit_var_op(VAR_OP::RCNX(global_id));
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::RCNX);
                     }
                 }
-                SymbolType::Parameter(_) => {
+                SymbolType::Parameter(_, _) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
                     self.generate_parameter_address(local_param_id);
+                    for _ in 0..references {
+                        self.builder.emit_op(OP::STK_READ);
+                    }
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }
@@ -500,37 +563,51 @@ impl BarracudaByteCodeGenerator {
         // Exit
         self.builder.set_label(while_exit);
         self.builder.comment(String::from("WHILE END"));
+
     }
 
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
-        let for_start = self.builder.create_label();
-        let for_exit = self.builder.create_label();
+        // Generate body
+        match body.as_ref() {
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.symbol_tracker.enter_scope(scope.clone());
 
-        // Start
-        self.builder.comment(String::from("FOR INIT"));
-        self.generate_node(initialization);
-        self.builder.set_label(for_start);
+                let for_start = self.builder.create_label();
+                let for_exit = self.builder.create_label();
 
-        // Condition
-        self.builder.comment(String::from("FOR CONDITION"));
-        self.generate_node(condition);
-        self.builder.reference(for_exit);
-        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
+                // Start
+                self.builder.comment(String::from("FOR INIT"));
+                self.generate_node(initialization);
+                self.builder.set_label(for_start);
 
-        // Generate Body
-        self.builder.comment(String::from("FOR BODY"));
-        self.generate_node(body);
+                // Condition
+                self.builder.comment(String::from("FOR CONDITION"));
+                self.generate_node(condition);
+                self.builder.reference(for_exit);
+                self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
 
-        self.builder.comment(String::from("FOR ADVANCE"));
-        self.generate_node(advancement);
+                // Generate Body
+                self.builder.comment(String::from("FOR BODY"));
+                self.generate_node(inner);
 
-        // Loop back to condition after body
-        self.builder.reference(for_start);
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
+                self.builder.comment(String::from("FOR ADVANCE"));
+                self.generate_node(advancement);
 
-        // Exit
-        self.builder.set_label(for_exit);
-        self.builder.comment(String::from("FOR END"));
+                // Loop back to condition after body
+                self.builder.reference(for_start);
+                self.builder.emit_instruction(INSTRUCTION::GOTO);
+
+                // Exit
+                self.builder.set_label(for_exit);
+                self.builder.comment(String::from("FOR END"));
+
+
+                self.symbol_tracker.exit_scope();
+
+                self.builder.emit_op(OP::DROP);
+            }
+            _ => panic!("Malformed for loop node!")
+        };
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
@@ -576,46 +653,67 @@ impl BarracudaByteCodeGenerator {
             panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
         }
         self.add_symbol(identifier_name.clone());
-        self.function_labels.insert(identifier_name.clone(), function_def_start);
+        self.function_labels.insert(identifier_name.clone(), vec![function_def_start, 0]);
 
     }
 
     fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let identifier_name = identifier.identifier_name().unwrap();
+        let (_references, identifier_name) = identifier.get_variable().unwrap();
         self.add_symbol(identifier_name);
+    }
+
+    fn generate_builtin_functions(&mut self)
+    {
+        for func in BARRACUDA_BUILT_IN_FUNCTIONS {
+            self.function_labels.insert(String::from(format!("__{}", func.to_string().to_lowercase())), vec![func.as_u32() as u64, 1]);
+        }
     }
 
     fn generate_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
-        let function_def_label = self.function_labels.get(&identifier_name).unwrap().clone();
+        let function_def_label = self.function_labels.get(&identifier_name).unwrap().clone()[0];
+        let function_builtin_label = self.function_labels.get(&identifier_name).unwrap().clone()[1];
         let function_call_end = self.builder.create_label();
 
-        // Generate Call Stack
-        self.builder.comment(format!("FN CALL {} START", &identifier_name));
-        {
+        if function_builtin_label == 1 {
+            self.builder.comment(format!("BUILT-IN FN CALL {} START", &identifier_name));
+            
+            let op = OP::from(function_def_label as u32).unwrap();
+
+            // Make sure number of arguments consumed is equal to the number of args supplied.
+            if op.consume() != (arguments.len() as i8) {
+                panic!("Invalid number of arguments ({}) supplied to builtin function __{} that requires {} arguments", arguments.len().to_string(), op.to_string().to_lowercase(), op.consume().to_string());
+            }
             // Push arguments onto the stack in reverse order
             for (i, arg) in arguments.iter().enumerate().rev() {
                 self.builder.comment(format!("FN ARG {}", i));
-                self.generate_node(arg)
+                self.generate_node(arg);
             }
+            self.builder.emit_op(op);
 
-            // Push return address
-            self.builder.comment(format!("RETURN ADDRESS"));
-            self.builder.reference(function_call_end);
-
-
-            // Push previous frame pointer
-            self.builder.comment(format!("PREV FRAME POINTER"));
-            self.generate_get_frame_ptr();
+            return;
         }
 
+        // Generate Call Stack
+        self.builder.comment(format!("FN CALL {} START", &identifier_name));
+
+        // Push arguments onto the stack in reverse order
+        for (i, arg) in arguments.iter().enumerate().rev() {
+            self.builder.comment(format!("FN ARG {}", i));
+            self.generate_node(arg);
+        }
+
+        // Push return address
+        self.builder.reference(function_call_end);
+
+        // Push previous frame pointer
+        self.generate_get_frame_ptr();
+
         // Update frame pointer
-        self.builder.comment(format!("UPDATE FRAME POINTER"));
         self.generate_get_stack_ptr();
         self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
         self.builder.emit_op(OP::SWAP);
         self.builder.emit_op(OP::STK_WRITE);
-
 
         // Jump into function definition
         self.builder.comment(format!("GOTO FN DEF"));
@@ -636,6 +734,11 @@ impl BarracudaByteCodeGenerator {
         self.generate_get_return_store();
     }
 
+    fn generate_naked_function_call(&mut self, func_call: &Box<ASTNode>) {
+        self.generate_node(func_call);
+        self.builder.emit_op(OP::DROP);
+    }
+
     fn generate_statement_list(&mut self, statements: &Vec<ASTNode>) {
         for statement in statements {
             self.generate_node(statement);
@@ -652,4 +755,118 @@ impl BarracudaByteCodeGenerator {
             self.builder.emit_op(OP::DROP);
         }
     }
+
+    fn get_pointer_level(&mut self, node: &Box<ASTNode>) -> usize {
+        match node.as_ref() {
+            ASTNode::VARIABLE{references, identifier} => {
+                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
+                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => {
+                        if references.clone() > ptr_level {
+                            panic!("Can't dereference a non-pointer!")
+                        }
+                        ptr_level - (references.clone())
+                    },
+                    _ => 0
+                }
+            },
+            ASTNode::REFERENECE(identifier) => {
+                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
+                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
+                    _ => 0
+                }
+            },
+            _ => 0
+        }
+    }
+
 }
+
+static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
+    OP::ACOS,
+    OP::ACOSH,
+    OP::ASIN,
+    OP::ASINH,
+    OP::ATAN,
+    OP::ATAN2,
+    OP::ATANH,
+    OP::CBRT,
+    OP::CEIL,
+    OP::CPYSGN,
+    OP::COS,
+    OP::COSH,
+    OP::COSPI,
+    OP::BESI0,
+    OP::BESI1,
+    OP::ERF,
+    OP::ERFC,
+    OP::ERFCI,
+    OP::ERFCX,
+    OP::ERFI,
+    OP::EXP,
+    OP::EXP10,
+    OP::EXP2,
+    OP::EXPM1,
+    OP::FABS,
+    OP::FDIM,
+    OP::FLOOR,
+    OP::FMA,
+    OP::FMAX,
+    OP::FMIN,
+    OP::FMOD,
+    OP::FREXP,
+    OP::HYPOT,
+    OP::ILOGB,
+    OP::ISFIN,
+    OP::ISINF,
+    OP::ISNAN,
+    OP::BESJ0,
+    OP::BESJ1,
+    OP::BESJN,
+    OP::LDEXP,
+    OP::LGAMMA,
+    OP::LLRINT,
+    OP::LLROUND,
+    OP::LOG,
+    OP::LOG10,
+    OP::LOG1P,
+    OP::LOG2,
+    OP::LOGB,
+    OP::LRINT,
+    OP::LROUND,
+    OP::MAX,
+    OP::MIN,
+    OP::MODF,
+    OP::NAN,
+    OP::NEARINT,
+    OP::NXTAFT,
+    OP::NORM,
+    OP::NORM3D,
+    OP::NORM4D,
+    OP::NORMCDF,
+    OP::NORMCDFINV,
+    OP::POW,
+    OP::RCBRT,
+    OP::REM,
+    OP::REMQUO,
+    OP::RHYPOT,
+    OP::RINT,
+    OP::RNORM,
+    OP::RNORM3D,
+    OP::RNORM4D,
+    OP::ROUND,
+    OP::RSQRT,
+    OP::SCALBLN,
+    OP::SCALBN,
+    OP::SGNBIT,
+    OP::SIN,
+    OP::SINH,
+    OP::SINPI,
+    OP::SQRT,
+    OP::TAN,
+    OP::TANH,
+    OP::TGAMMA,
+    OP::TRUNC,
+    OP::BESY0,
+    OP::BESY1,
+    OP::BESYN,
+];

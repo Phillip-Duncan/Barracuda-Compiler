@@ -13,7 +13,7 @@ pub enum Literal {
     INTEGER(u64),
 
     /// Form: "%c*"
-    STRING(String),
+    // STRING(String),
 
     /// Form: false | true
     BOOL(bool)

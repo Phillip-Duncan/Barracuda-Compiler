@@ -8,9 +8,9 @@ use std::fmt;
 /// Symbol types associated with an identifier
 #[derive(Debug, Clone)]
 pub enum SymbolType {
-    Variable(DataType, String),
+    Variable(DataType, usize),
     EnvironmentVariable(usize, DataType, String),
-    Parameter(DataType),
+    Parameter(DataType, usize),
     Function {
         func_params: Vec<DataType>,
         func_return: Box<PrimitiveDataType> // Cannot be mutable, const or unknown as defaults to void
@@ -253,10 +253,10 @@ impl SymbolTable {
 
     /// Helper function to simplify processing variables where data is stored within deeper
     /// ASTNodes.
-    fn process_variable(identifier: &ASTNode, qualifier: &Option<ASTNode>, datatype: &Option<ASTNode>) -> Option<Symbol> {
+    fn process_variable(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
-        let identifier = match identifier {
-            ASTNode::IDENTIFIER(name) => name.clone(),
+        let (references, identifier) = match identifier {
+            ASTNode::VARIABLE{references, identifier} => (references.clone(), identifier.clone()),
             _ => panic!("")    // AST Malformed
         };
 
@@ -266,28 +266,15 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        // Identify the variable type qualifier
-        //let qual = qualifier.as_ref().unwrap();
-        let emptyqual = ASTNode::IDENTIFIER(String::from(""));
-        let qual = match qualifier {
-            Some(qualifier_node) => qualifier_node,
-            None => &emptyqual
-        };
-
-        let qualifier = match qual {
-            ASTNode::IDENTIFIER(name) => name.clone(),
-            _ => String::new()
-        };
-
-        Some(Symbol::new(identifier, SymbolType::Variable(datatype, qualifier)))
+        Some(Symbol::new(identifier, SymbolType::Variable(datatype, references)))
     }
 
     /// Helper function to simplify processing parameters where data is stored within deeper
     /// ASTNodes.
     fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
-        let identifier = match identifier {
-            ASTNode::IDENTIFIER(name) => name.clone(),
+        let (references, identifier) = match identifier {
+            ASTNode::VARIABLE{references, identifier} => (references.clone(), identifier.clone()),
             _ => panic!("")    // AST Malformed
         };
 
@@ -297,7 +284,7 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
+        Some(Symbol::new(identifier, SymbolType::Parameter(datatype, references)))
     }
 
     /// Helper function to simplify processing functions where data is stored within deeper
@@ -354,8 +341,8 @@ impl SymbolTable {
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::CONSTRUCT{ identifier, qualifier, datatype, expression:_ } => {
-                match Self::process_variable(identifier.as_ref(), qualifier.as_ref(), datatype.as_ref()) {
+            ASTNode::CONSTRUCT{ identifier, datatype, expression:_ } => {
+                match Self::process_variable(identifier.as_ref(), datatype.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
@@ -497,18 +484,17 @@ mod tests {
     ///     }
     fn generate_test_ast() -> ASTNode {
         let f64_datatype = Box::new(Some(ASTNode::IDENTIFIER(String::from("f64"))));
-        let no_qualifier = Box::new(None);
         let ast = ASTNode::STATEMENT_LIST(vec![
             // fn add(x: f64, y: f64) -> f64
             ASTNode::FUNCTION {
                 identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
                 parameters: vec![
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("x")}),
                         datatype: f64_datatype.clone()
                     },
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("y"))),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("y")}),
                         datatype: f64_datatype.clone()
                     }
                 ],
@@ -519,8 +505,7 @@ mod tests {
                     inner: Box::new(ASTNode::STATEMENT_LIST(vec![
                         // let z: f64 = 2.0;
                         ASTNode::CONSTRUCT {
-                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("z"))),
-                            qualifier: no_qualifier.clone(),
+                            identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("z")}),
                             datatype: f64_datatype.clone(),
                             expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(2.0)))
                         },
@@ -542,15 +527,13 @@ mod tests {
             },
             // let a: f64 = 10.0;
             ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::IDENTIFIER(String::from("a"))),
-                qualifier: no_qualifier.clone(),
+                identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("a")}),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(10.0)))
             },
             // let b: f64 = 25.0;
             ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::IDENTIFIER(String::from("b"))),
-                qualifier: no_qualifier.clone(),
+                identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("b")}),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(25.0)))
             },
@@ -561,8 +544,7 @@ mod tests {
                 if_branch: Box::new(ASTNode::SCOPE_BLOCK {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
-                        qualifier: Box::new(None),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("c")}),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::FUNC_CALL {
                             identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
@@ -577,8 +559,7 @@ mod tests {
                 else_branch: Box::new(Some(ASTNode::SCOPE_BLOCK {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
-                        qualifier: Box::new(None),
+                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("c")}),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(5.0)))
                     }),

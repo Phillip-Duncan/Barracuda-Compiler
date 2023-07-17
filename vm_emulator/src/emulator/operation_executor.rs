@@ -2,9 +2,7 @@ use barracuda_common::BarracudaInstructions;
 use barracuda_common::{
     BarracudaOperators,
     FixedBarracudaOperators::*,
-    VariableBarracudaOperators::*,
     FixedBarracudaOperators,
-    VariableBarracudaOperators
 };
 use super::{
     ThreadContext,
@@ -40,9 +38,6 @@ impl BarracudaOperationExecutor {
             BarracudaOperators::FIXED(op) => {
                 Self::execute_fixed_op(op, context)
             },
-            BarracudaOperators::VARIABLE(op) => {
-                Self::execute_variable_op(op, context)
-            }
         }
     }
 
@@ -623,32 +618,30 @@ impl BarracudaOperationExecutor {
                 context.push(UINT(context.thread_id))
             },
             LDSTK_PTR => {
-                println!("LDSTK_PTR {}", context.get_stack_pointer().unwrap() as u64 + 1);
                 context.push(UINT(context.get_stack_pointer().unwrap() as u64 + 1))
             },
             RCSTK_PTR => {
                 let a = context.pop()?.into_u64() as usize - 1;
-                println!("RCSTK_PTR {}", a);
                 context.set_stack_pointer(a);
                 Ok(())
+            },
+            LDNT => {
+                context.push(UINT(1))
+            }
+            LDNX => {
+                let address = context.pop()?.into_i64() as usize;
+                let value = context.get_env_var(address)?;
+                context.push(REAL(value))
+            }
+            RCNX => {
+                let address = context.pop()?.into_i64() as usize;
+                let value = context.pop()?.into_f64();
+                context.set_env_var(address, value)
             }
 
             _ => {
                 let opcode: u32 = op.as_u32();
                 Err(Error::new(ErrorKind::NotFound, format!("Unknown or unimplemented opcode used {:?}({:#06X})", op, opcode)))
-            }
-        }
-    }
-
-    pub fn execute_variable_op(op: VariableBarracudaOperators, context: &mut ThreadContext) -> Result<(), Error> {
-        match op {
-            LDNX(address) => {
-                let value = context.get_env_var(address)?;
-                context.push(REAL(value))
-            }
-            RCNX(address) => {
-                let value = context.pop()?.into_f64();
-                context.set_env_var(address, value)
             }
         }
     }

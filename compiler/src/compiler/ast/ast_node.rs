@@ -14,6 +14,28 @@ pub enum ASTNode {
     ///         ^^^^^ -> Identifier
     IDENTIFIER(String),
 
+    /// Reference represents a reference to an identifier. 
+    /// In the example below, hello_ref points to the memory address of hello.
+    /// 
+    /// # Example:
+    ///     let hello = 4;
+    ///     let hello_ref = &hello;
+    ///                     ^^^^^^ -> Reference
+    REFERENECE(String),
+
+    /// Variable represents an identifier with extra information about how many times it is referenced. 
+    /// In the example below, hello_ref points to the memory address of hello.
+    /// 
+    /// # Example:
+    ///     let hello = 4;
+    ///     let hello_ref = &hello;
+    ///     let world = *hello_ref;
+    ///                 ^^^^^^^^^^ -> Variable
+    VARIABLE {
+        references: usize,
+        identifier: String
+    },
+
     /// Literal is a constant value used within an expression.
     /// # Example:
     ///     let hello = 4;
@@ -60,7 +82,6 @@ pub enum ASTNode {
     CONSTRUCT {
         identifier: Box<ASTNode>,
         datatype: Box<Option<ASTNode>>,
-        qualifier: Box<Option<ASTNode>>,
         expression: Box<ASTNode>
     },
 
@@ -224,6 +245,10 @@ pub enum ASTNode {
         arguments: Vec<ASTNode>
     },
 
+    NAKED_FUNC_CALL {
+        func_call: Box<ASTNode>
+    },
+
     /// Statement list is a collection of statements that should
     /// be run linearly.
     ///
@@ -257,6 +282,8 @@ impl ASTNode {
 
         match self {
             ASTNode::IDENTIFIER(_) => {}
+            ASTNode::REFERENECE(_) => {}
+            ASTNode::VARIABLE {..} => {}
             ASTNode::LITERAL(_) => {}
             ASTNode::UNARY_OP { op: _, expression } => {
                 output.push(expression.as_mut());
@@ -265,12 +292,9 @@ impl ASTNode {
                 output.push(lhs.as_mut());
                 output.push(rhs.as_mut());
             }
-            ASTNode::CONSTRUCT { identifier, qualifier, datatype, expression } => {
+            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 output.push(identifier.as_mut());
 
-                if qualifier.is_some() {
-                    output.push(qualifier.as_mut().as_mut().unwrap());
-                }
                 if datatype.is_some() {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }
@@ -326,6 +350,9 @@ impl ASTNode {
                     output.push(arg.borrow_mut());
                 }
             }
+            ASTNode::NAKED_FUNC_CALL { func_call } => {
+                output.push(func_call.as_mut());
+            }
             ASTNode::STATEMENT_LIST(statements) => {
                 for statement in statements {
                     output.push(statement.borrow_mut());
@@ -343,6 +370,14 @@ impl ASTNode {
     pub(crate) fn identifier_name(&self) -> Option<String> {
         match self {
             ASTNode::IDENTIFIER(name) => Some(name.clone()),
+            _ => None
+        }
+    }
+
+    /// Utility function for simplifying extracting information out of variable node
+    pub(crate) fn get_variable(&self) -> Option<(usize, String)> {
+        match self {
+            ASTNode::VARIABLE{references, identifier} => Some((references.clone(), identifier.clone())),
             _ => None
         }
     }
