@@ -51,12 +51,12 @@ impl PestBarracudaParser {
     fn parse_pair_node(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
-            Rule::reference =>         { Self::parse_pair_reference(pair) },
-            Rule::variable =>         { Self::parse_pair_variable(pair) },
+            Rule::reference =>          { Self::parse_pair_reference(pair) },
+            Rule::variable =>           { Self::parse_pair_variable(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
-            Rule::array =>            { Self::parse_pair_array(pair) },
+            Rule::array =>              { Self::parse_pair_array(pair) },
             Rule::equality |
             Rule::comparison |
             Rule::term |
@@ -77,7 +77,7 @@ impl PestBarracudaParser {
             Rule::func_param =>         { Self::parse_pair_function_parameter(pair) },
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
-            Rule::naked_func_call =>          { Self::parse_pair_naked_function_call(pair) },
+            Rule::naked_func_call =>    { Self::parse_pair_naked_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
             Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
