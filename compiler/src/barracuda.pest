@@ -30,6 +30,8 @@ identifier_char = _{
     ASCII_ALPHANUMERIC | "_"
 }
 
+array = {"[" ~ (expression ~ ("," ~ expression)* )? ~ "]"}
+
 identifier = @{ (ASCII_ALPHA | "_") ~ identifier_char*}
 reference = @{ "&" ~ identifier }
 variable = @{ "*"* ~ identifier }
@@ -75,7 +77,7 @@ factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
 unary      = { unary_operator ~ unary | index }
 index      = { primary ~ ( "[" ~ integer ~ "]" )* }
-primary    = _{ literal | func_call | reference | variable | "("~expression~")" }
+primary    = _{ literal | array | func_call | reference | variable | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement
@@ -93,7 +95,7 @@ statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = {"let " ~ variable ~ "=" ~ expression
-                       // | "let " ~ variable ~ ":" ~ datatype ~ "=" ~ expression //Currently datatypes are not functional.
+                       | "let " ~ variable ~ ":" ~ datatype ~ "=" ~ expression
                        // | "let " ~ variable ~ ":" ~ datatype  //Currently the 'expression' part of a construct statement is required.
                     }
 
@@ -102,7 +104,7 @@ external_statement = {"extern " ~ identifier}
 
 
 assign_statement = {variable ~ "=" ~ expression}
-datatype = _{identifier}
+datatype = _{("[" ~ integer ~ "]")+} // Currently datatypes can only be arrays.
 
 print_statement = {"print" ~ expression}
 
@@ -111,8 +113,8 @@ if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("e
 for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ scope_block}
 while_statement = {"while" ~ expression ~ scope_block}
 
-func_param = {variable} //{variable ~ ":" ~ datatype | variable} (datatype not yet functional)
-func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ global_scope_block }
+func_param = {variable ~ ":" ~ datatype | variable}
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ global_scope_block }
 return_statement = {"return" ~ expression}
 
 
