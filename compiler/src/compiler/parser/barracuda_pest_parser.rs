@@ -56,6 +56,7 @@ impl PestBarracudaParser {
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
+            Rule::array =>            { Self::parse_pair_array(pair) },
             Rule::equality |
             Rule::comparison |
             Rule::term |
@@ -98,6 +99,10 @@ impl PestBarracudaParser {
             },
             _ => {panic!("Whoops! Unprocessed literal rule: {:?}", pair.as_rule())}
         }
+    }
+
+    fn parse_pair_array(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::ARRAY(pair.into_inner().map(Self::parse_pair_node).collect())
     }
 
     /// Parses a pest token pair into an AST identifier
@@ -161,7 +166,6 @@ impl PestBarracudaParser {
 
     fn parse_pair_array_index(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
-        println!("pairy mclaery {:?}", pair);
         let primary = pair.next().unwrap();
         let mut expression = Self::parse_pair_node(primary);
         // Unary

@@ -44,6 +44,12 @@ pub enum ASTNode {
     ///                 ^^^^^ -> Literal
     LITERAL(Literal),
 
+    /// Array is a list of expressions.
+    /// # Example:
+    ///     let array : [4] = [1, 2, 3+4, 5];
+    ///                       ^^^^^^^^^^^^^^ -> Array
+    ARRAY(Vec<ASTNode>),
+
     /// Unary operation is an expression operation with only one argument
     ///
     /// # Example:
@@ -68,6 +74,11 @@ pub enum ASTNode {
         rhs: Box<ASTNode>
     },
 
+    /// Array index allows a specific element to be accessed from an array.
+    /// # Example:
+    ///     let array : [4] = [5,8,11,14];
+    ///     let example = array[2]; // example will now hold 11
+    ///                        ^^^ -> Array index
     ARRAY_INDEX {
         index: Box<ASTNode>,
         expression: Box<ASTNode>
@@ -290,6 +301,11 @@ impl ASTNode {
             ASTNode::REFERENECE(_) => {}
             ASTNode::VARIABLE {..} => {}
             ASTNode::LITERAL(_) => {}
+            ASTNode::ARRAY(items) => {
+                for item in items {
+                    output.push(item.borrow_mut());
+                }
+            }
             ASTNode::UNARY_OP { op: _, expression } => {
                 output.push(expression.as_mut());
             }

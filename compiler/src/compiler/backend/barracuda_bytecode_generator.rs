@@ -221,6 +221,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
+            ASTNode::ARRAY(items) => {
+                self.generate_array(items)
+            }
             ASTNode::UNARY_OP { op, expression } => {
                 self.generate_unary_op(op, expression)
             }
@@ -344,6 +347,13 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_value(literal_value);
     }
 
+    fn generate_array(&mut self, items: &Vec<ASTNode>) {
+        println!("in the matrix {:?}", items);
+        for item in items {
+            self.generate_node(item);
+        }
+    }
+
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
         let pointer_level = self.get_pointer_level(&expression);
         if pointer_level != 0 {
@@ -386,7 +396,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        println!("ooo, gen array index");
+        println!("{:?} index {:?}", expression, index);
         self.generate_node(expression);
     }
 
