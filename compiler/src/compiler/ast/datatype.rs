@@ -1,6 +1,6 @@
 use super::ast_node::ASTNode;
 
-/// Primitive Data types supported by thr AST Model
+/// Primitive Data types supported by the AST Model
 #[derive(Debug, Clone)]
 pub enum PrimitiveDataType {
     F64,
@@ -39,25 +39,23 @@ impl PrimitiveDataType {
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
+// Dubious implementation of datatypes that crowbars in arrays.
+// I will think about this more later on in the implementation.
+// When a full type system is implemented much of the other code in this file will be needed.
 pub enum DataType {
     MUTABLE(PrimitiveDataType),
     CONST(PrimitiveDataType),
+    ARRAY(u64),
     UNKNOWN
 }
 
 impl DataType {
 
-    /// Get datatype from assumed identifier ast node
+    /// Get datatype from assumed array AST node (e.g. let a: [4] = [1,2,3,4];)
     pub fn from(node: &ASTNode) -> Self {
-        let datatype_str = match node {
-            ASTNode::IDENTIFIER(name) => name.clone(),
+        match node {
+            ASTNode::LITERAL(super::Literal::INTEGER(value)) => DataType::ARRAY(value.clone()),
             _ => panic!("{:?}", node)
-        };
-
-        // TODO(Connor): Currently assumes that datatype is mutable
-        match PrimitiveDataType::parse(datatype_str) {
-            Some(primitive_type) => {DataType::MUTABLE(primitive_type)}
-            None => { DataType::UNKNOWN }
         }
     }
 }
