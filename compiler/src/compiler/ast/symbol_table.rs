@@ -56,6 +56,7 @@ impl Symbol {
         match &self.symbol_type {
             SymbolType::Variable(datatype,_) => match datatype {
                 DataType::MUTABLE(_) => true,
+                DataType::ARRAY(_) => true,
                 DataType::UNKNOWN => true,      // TODO(Connor): This should be removed once the type system is implemented
                 _ => false
             },

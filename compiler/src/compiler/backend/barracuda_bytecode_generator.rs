@@ -411,7 +411,6 @@ impl BarracudaByteCodeGenerator {
         // region for the local variable
         self.generate_node(expression);
         self.add_symbol(identifier_name.clone());
-        println!("out rageous {:?} {:?} {:?}", identifier, _datatype, expression);
         // Comment local var id
         let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
         self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
