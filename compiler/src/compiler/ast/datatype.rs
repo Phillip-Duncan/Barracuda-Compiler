@@ -55,6 +55,7 @@ impl DataType {
     pub fn from(node: &ASTNode) -> Self {
         match node {
             ASTNode::LITERAL(super::Literal::INTEGER(value)) => DataType::ARRAY(value.clone()),
+            ASTNode::IDENTIFIER(_) => DataType::MUTABLE(PrimitiveDataType::Void), // As datatypes are not properly implemented
             _ => panic!("{:?}", node)
         }
     }
