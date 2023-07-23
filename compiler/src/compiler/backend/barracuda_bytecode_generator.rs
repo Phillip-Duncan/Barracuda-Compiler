@@ -15,6 +15,7 @@ use barracuda_common::{
 };
 
 use std::collections::HashMap;
+use crate::compiler::ast::datatype::DataType;
 use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
 use crate::compiler::ast::{
     ScopeId,
@@ -396,16 +397,21 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        println!("{:?} index {:?}", expression, index);
+        let array_level = self.get_array_level(&expression);
+        println!("{:?} index {:?} level {}", expression, index, array_level);
         self.generate_node(expression);
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
         let (identifier_pointer_level, identifier_name) = identifier.get_variable().unwrap();
         
         let expression_pointer_level = self.get_pointer_level(&expression);
         if identifier_pointer_level != expression_pointer_level {
             panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
+        }
+        match datatype.as_ref() {
+            Some(datatype) => println!("I'm an array! {:?}", datatype),
+            None => ()
         }
         // Leave result of expression at top of stack as this is the allocated
         // region for the local variable
@@ -789,6 +795,24 @@ impl BarracudaByteCodeGenerator {
             ASTNode::REFERENECE(identifier) => {
                 match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
                     SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
+                    _ => 0
+                }
+            },
+            _ => 0
+        }
+    }
+
+    fn get_array_level(&mut self, node: &Box<ASTNode>) -> usize {
+
+        match node.as_ref() {
+            ASTNode::VARIABLE{identifier, ..} | ASTNode::REFERENECE(identifier) | ASTNode::IDENTIFIER(identifier) => {
+                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
+                    SymbolType::Variable (data_type, _) | SymbolType::Parameter (data_type, _) => {
+                        match data_type {
+                            DataType::ARRAY(level) => level,
+                            _ => 0
+                        }
+                    },
                     _ => 0
                 }
             },

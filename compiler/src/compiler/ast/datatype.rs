@@ -45,7 +45,7 @@ impl PrimitiveDataType {
 pub enum DataType {
     MUTABLE(PrimitiveDataType),
     CONST(PrimitiveDataType),
-    ARRAY(u64),
+    ARRAY(usize),
     UNKNOWN
 }
 
@@ -54,7 +54,7 @@ impl DataType {
     /// Get datatype from assumed array AST node (e.g. let a: [4] = [1,2,3,4];)
     pub fn from(node: &ASTNode) -> Self {
         match node {
-            ASTNode::LITERAL(super::Literal::INTEGER(value)) => DataType::ARRAY(value.clone()),
+            ASTNode::LITERAL(super::Literal::INTEGER(value)) => DataType::ARRAY(value.clone() as usize),
             ASTNode::IDENTIFIER(_) => DataType::MUTABLE(PrimitiveDataType::Void), // As datatypes are not properly implemented
             _ => panic!("{:?}", node)
         }
