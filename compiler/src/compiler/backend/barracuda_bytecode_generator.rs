@@ -410,16 +410,27 @@ impl BarracudaByteCodeGenerator {
             panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
         }
         match datatype.as_ref() {
-            Some(datatype) => println!("I'm an array! {:?}", datatype),
-            None => ()
+            Some(datatype) => {
+                println!("I'm an array! {:?}", datatype);
+                // Leave result of expression at top of stack as this is the allocated
+                // region for the local variable
+                self.generate_node(expression);
+                self.add_symbol(identifier_name.clone());
+
+                let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
+
+                self.generate_array_address(localvar_id);
+            },
+            None => {
+                // Leave result of expression at top of stack as this is the allocated
+                // region for the local variable
+                self.generate_node(expression);
+                self.add_symbol(identifier_name.clone());
+                // Comment local var id
+                let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+                self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
+            }
         }
-        // Leave result of expression at top of stack as this is the allocated
-        // region for the local variable
-        self.generate_node(expression);
-        self.add_symbol(identifier_name.clone());
-        // Comment local var id
-        let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-        self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
