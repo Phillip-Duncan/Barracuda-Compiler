@@ -64,6 +64,27 @@ impl Symbol {
         }
     }
 
+    pub fn is_array(&self) -> bool {
+        match &self.symbol_type {
+            SymbolType::Variable(datatype,_) => match datatype {
+                DataType::ARRAY(_) => true,
+                _ => false
+            },
+            _ => false
+        }
+    }
+
+    pub fn array_length(&self) -> usize {
+        match &self.symbol_type {
+            SymbolType::Variable(datatype,_) => match datatype {
+                DataType::ARRAY(size) => *size,
+                _ => 0
+            },
+            _ => 0
+        }
+    }
+
+
     pub fn unique_id(&self) -> String {
         format!("{}:{}", self.scope_id, self.identifier)
     }

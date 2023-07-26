@@ -417,9 +417,9 @@ impl BarracudaByteCodeGenerator {
                 self.generate_node(expression);
                 self.add_symbol(identifier_name.clone());
 
-                let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
+                //let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
 
-                self.generate_array_address(localvar_id);
+                //self.generate_local_var_address(localvar_id);
             },
             None => {
                 // Leave result of expression at top of stack as this is the allocated

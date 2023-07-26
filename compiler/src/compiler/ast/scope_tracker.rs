@@ -37,8 +37,10 @@ pub(crate) struct ScopeTracker {
     // Maps symbol.unqiue_id() -> localvar_id or param_id
     local_var_ids: HashMap<String, usize>,
     parameter_ids: HashMap<String, usize>,
+    array_ids: HashMap<String, usize>,
     local_var_count: usize,
     active_parameter_count: usize,
+    array_count: usize,
 }
 
 
@@ -52,8 +54,10 @@ impl ScopeTracker {
 
             local_var_ids: Default::default(),
             parameter_ids: Default::default(),
+            array_ids: Default::default(),
             local_var_count: 0,
-            active_parameter_count: 0
+            active_parameter_count: 0,
+            array_count: 0,
         }
     }
 
@@ -65,8 +69,10 @@ impl ScopeTracker {
 
             local_var_ids: Default::default(),
             parameter_ids: Default::default(),
+            array_ids: Default::default(),
             local_var_count: 0,
-            active_parameter_count: 0
+            active_parameter_count: 0,
+            array_count: 0,
         }
     }
 
@@ -118,7 +124,12 @@ impl ScopeTracker {
         let symbol = self.find_symbol(&identifier).unwrap();
         match symbol.symbol_type() {
             SymbolType::Variable(_,_) => {
-                if symbol.is_mutable() {
+                if symbol.is_array() {
+                    let unique_id = symbol.unique_id();
+                    let array_count = self.array_count;
+                    self.array_count += symbol.array_length();
+                    self.array_ids.insert(unique_id, array_count);
+                } else if symbol.is_mutable() {
                     let unique_id = symbol.unique_id();
                     self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
