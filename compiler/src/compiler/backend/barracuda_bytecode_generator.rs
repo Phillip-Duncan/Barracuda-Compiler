@@ -281,7 +281,6 @@ impl BarracudaByteCodeGenerator {
 
     fn generate_array_id(&mut self, name: &String) {
         let array_id = self.symbol_tracker.get_array_id(name).unwrap();
-        println!("I want an array with id {}", array_id);
         self.builder.emit_array(array_id, true);
         //self.generate_local_var_address(array_id);
         //self.builder.emit_op(OP::STK_READ);
@@ -366,10 +365,10 @@ impl BarracudaByteCodeGenerator {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
         let mut count: usize = 0;
         for item in items {
-            self.generate_node(item);
             self.builder.emit_array(address, true);
             self.builder.emit_value(f64::from_be_bytes(count.to_be_bytes()));
             self.builder.emit_op(OP::ADD);
+            self.generate_node(item);
             self.builder.emit_op(OP::WRITE);
             count += 1;
         }
@@ -419,9 +418,9 @@ impl BarracudaByteCodeGenerator {
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
         self.generate_node(expression);
         self.generate_node(index);
+        self.builder.emit_op(OP::LLROUND);
         self.builder.emit_op(OP::ADD);
-        self.builder.emit_op(OP::LDNXPTR);
-        self.builder.emit_op(OP::PTR_DEREF);
+        self.builder.emit_op(OP::LDNX);
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
@@ -433,7 +432,6 @@ impl BarracudaByteCodeGenerator {
         }
         match datatype.as_ref() {
             Some(datatype) => {
-                println!("I'm an array! {:?}", datatype);
                 self.add_symbol(identifier_name.clone());
                 match expression.as_ref() {
                     ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
@@ -459,6 +457,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
+        self.builder.add_environment_variable();
         let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name.clone())
     }

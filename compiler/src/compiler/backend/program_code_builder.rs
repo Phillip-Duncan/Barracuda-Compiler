@@ -39,14 +39,16 @@ enum BarracudaIR {
 /// generation usage and referencing which greatly reduces the complexity of jump addresses.
 pub struct BarracudaProgramCodeBuilder {
     program_out: Vec<BarracudaIR>,
-    label_count: u64
+    label_count: u64,
+    env_var_count: usize
 }
 
 impl BarracudaProgramCodeBuilder {
     pub fn new() -> Self {
         Self {
             program_out: vec![],
-            label_count: 0
+            label_count: 0,
+            env_var_count: 0
         }
     }
 
@@ -107,6 +109,11 @@ impl BarracudaProgramCodeBuilder {
     /// The exact memory address needs to be calculated later.
     pub fn emit_array(&mut self, address: usize, is_mutable: bool) {
         self.program_out.push(BarracudaIR::Array{address, is_mutable})
+    }
+
+    /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
+    pub fn add_environment_variable(&mut self) {
+        self.env_var_count += 1;
     }
 
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.
@@ -177,10 +184,10 @@ impl BarracudaProgramCodeBuilder {
                     output_program.push_value(value.clone());
                 }
                 BarracudaIR::Reference(id) => {
-                    output_program.push_value(f64::from_ne_bytes(locations[*id as usize].clone().to_ne_bytes()));
+                    output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
                 }
                 BarracudaIR::Array{address, is_mutable} => {
-                    println!("generate array with address {} and is_mutable {}", address, is_mutable);
+                    output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {
