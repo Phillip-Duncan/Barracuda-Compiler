@@ -190,6 +190,17 @@ impl ScopeTracker {
         }
     }
 
+    pub(crate) fn get_array_id(&self, identifier: &String) -> Option<usize> {
+        match self.find_symbol(&identifier) {
+            Some(symbol) => match self.array_ids.get(&symbol.unique_id()) {
+                Some(id) => Some(id.clone()),
+                None => None
+            }
+            None => None
+        }
+    }
+
+
     /// Returns a valid parameter resource id if a symbol with identifier exists and is a parameter.
     /// Similar to get_local_id however using a separate id generator
     pub(crate) fn get_param_id(&self, identifier: &String) -> Option<usize> {

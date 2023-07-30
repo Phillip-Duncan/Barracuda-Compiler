@@ -222,8 +222,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
-            ASTNode::ARRAY(items) => {
-                self.generate_array(items)
+            ASTNode::ARRAY(_) => {
+                panic!("Arrays literals can only be used for direct assignment!");
             }
             ASTNode::UNARY_OP { op, expression } => {
                 self.generate_unary_op(op, expression)
@@ -279,17 +279,31 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
+    fn generate_array_id(&mut self, name: &String) {
+        let array_id = self.symbol_tracker.get_array_id(name).unwrap();
+        println!("I want an array with id {}", array_id);
+        self.builder.emit_array(array_id, true);
+        //self.generate_local_var_address(array_id);
+        //self.builder.emit_op(OP::STK_READ);
+    }
+
+    fn generate_identifier_id(&mut self, name: &String) {
+        let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
+        self.generate_local_var_address(localvar_id);
+        self.builder.emit_op(OP::STK_READ);
+    }
+
     fn generate_identifier(&mut self, name: &String) {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, _) => {
-                let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
-
-                self.generate_local_var_address(localvar_id);
-                self.builder.emit_op(OP::STK_READ);
+            SymbolType::Variable(datatype, _) => {
+                match datatype {
+                    DataType::ARRAY(_) => self.generate_array_id(name),
+                    _ => self.generate_identifier_id(name)
+                }
             }
-            SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+            SymbolType::EnvironmentVariable( global_id, _, qualifier) => {
                 let ptr_depth = qualifier.matches("*").count();
                 self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
                 self.builder.emit_op(OP::LDNX);
@@ -348,10 +362,16 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_value(literal_value);
     }
 
-    fn generate_array(&mut self, items: &Vec<ASTNode>) {
-        println!("in the matrix {:?}", items);
+    fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
+        let address = self.symbol_tracker.get_array_id(identifier).unwrap();
+        let mut count: usize = 0;
         for item in items {
             self.generate_node(item);
+            self.builder.emit_array(address, true);
+            self.builder.emit_value(f64::from_be_bytes(count.to_be_bytes()));
+            self.builder.emit_op(OP::ADD);
+            self.builder.emit_op(OP::WRITE);
+            count += 1;
         }
     }
 
@@ -397,9 +417,11 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        let array_level = self.get_array_level(&expression);
-        println!("{:?} index {:?} level {}", expression, index, array_level);
         self.generate_node(expression);
+        self.generate_node(index);
+        self.builder.emit_op(OP::ADD);
+        self.builder.emit_op(OP::LDNXPTR);
+        self.builder.emit_op(OP::PTR_DEREF);
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
@@ -412,10 +434,13 @@ impl BarracudaByteCodeGenerator {
         match datatype.as_ref() {
             Some(datatype) => {
                 println!("I'm an array! {:?}", datatype);
-                // Leave result of expression at top of stack as this is the allocated
-                // region for the local variable
-                self.generate_node(expression);
                 self.add_symbol(identifier_name.clone());
+                match expression.as_ref() {
+                    ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                    _ => panic!("When assigning to an array, must use an array literal!")
+                }
+                //self.generate_node(expression);
+                //
 
                 //let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
 
@@ -806,24 +831,6 @@ impl BarracudaByteCodeGenerator {
             ASTNode::REFERENECE(identifier) => {
                 match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
                     SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
-                    _ => 0
-                }
-            },
-            _ => 0
-        }
-    }
-
-    fn get_array_level(&mut self, node: &Box<ASTNode>) -> usize {
-
-        match node.as_ref() {
-            ASTNode::VARIABLE{identifier, ..} | ASTNode::REFERENECE(identifier) | ASTNode::IDENTIFIER(identifier) => {
-                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable (data_type, _) | SymbolType::Parameter (data_type, _) => {
-                        match data_type {
-                            DataType::ARRAY(level) => level,
-                            _ => 0
-                        }
-                    },
                     _ => 0
                 }
             },

@@ -170,7 +170,7 @@ impl PestBarracudaParser {
         let mut expression = Self::parse_pair_node(primary);
         // Unary
         while pair.peek().is_some() {
-            let index = Self::parse_pair_literal(pair.next().unwrap());
+            let index = Self::parse_pair_node(pair.next().unwrap());
 
             expression = ASTNode::ARRAY_INDEX {
                 index: Box::new(index),

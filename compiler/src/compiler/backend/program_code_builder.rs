@@ -24,6 +24,10 @@ enum BarracudaIR {
     /// jumps within code without knowing the exact generated size until finished.
     Reference(u64),
 
+    // Arrays are stored in a different memory section to normal variables. 
+    // Generating the exact address of each array is only possible once the whole program is generated.
+    Array{address: usize, is_mutable: bool},
+
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
     Comment(String)
@@ -98,6 +102,13 @@ impl BarracudaProgramCodeBuilder {
         self.program_out.push(BarracudaIR::Reference(label))
     }
 
+    /// Emits an array.
+    /// Takes the preliminary address of the array and whether is it mutable or not.
+    /// The exact memory address needs to be calculated later.
+    pub fn emit_array(&mut self, address: usize, is_mutable: bool) {
+        self.program_out.push(BarracudaIR::Array{address, is_mutable})
+    }
+
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.
     pub fn finalize(self) -> ProgramCode {
         self.resolve_labels()
@@ -167,6 +178,9 @@ impl BarracudaProgramCodeBuilder {
                 }
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_ne_bytes(locations[*id as usize].clone().to_ne_bytes()));
+                }
+                BarracudaIR::Array{address, is_mutable} => {
+                    println!("generate array with address {} and is_mutable {}", address, is_mutable);
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {
