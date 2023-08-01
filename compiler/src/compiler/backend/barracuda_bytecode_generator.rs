@@ -367,7 +367,8 @@ impl BarracudaByteCodeGenerator {
         for item in items {
             self.builder.emit_array(address, true);
             self.builder.emit_value(f64::from_be_bytes(count.to_be_bytes()));
-            self.builder.emit_op(OP::ADD);
+            self.builder.emit_op(OP::ADD_PTR);
+            self.builder.emit_op(OP::LDNXPTR);
             self.generate_node(item);
             self.builder.emit_op(OP::WRITE);
             count += 1;
@@ -418,9 +419,9 @@ impl BarracudaByteCodeGenerator {
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
         self.generate_node(expression);
         self.generate_node(index);
-        self.builder.emit_op(OP::LLROUND);
-        self.builder.emit_op(OP::ADD);
-        self.builder.emit_op(OP::LDNX);
+        self.builder.emit_op(OP::ADD_PTR);
+        self.builder.emit_op(OP::LDNXPTR);
+        self.builder.emit_op(OP::READ);
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
@@ -431,7 +432,7 @@ impl BarracudaByteCodeGenerator {
             panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
         }
         match datatype.as_ref() {
-            Some(datatype) => {
+            Some(_datatype) => {
                 self.add_symbol(identifier_name.clone());
                 match expression.as_ref() {
                     ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),

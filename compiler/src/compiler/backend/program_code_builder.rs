@@ -186,7 +186,7 @@ impl BarracudaProgramCodeBuilder {
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
                 }
-                BarracudaIR::Array{address, is_mutable} => {
+                BarracudaIR::Array{address, ..} => {
                     output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
