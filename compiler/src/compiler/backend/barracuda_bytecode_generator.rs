@@ -474,16 +474,26 @@ impl BarracudaByteCodeGenerator {
             self.generate_array_assignment_statement(&array_index.to_owned().unwrap(), expression.as_ref(), identifier_name);
         } else if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_, _) => {
-                    let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+                SymbolType::Variable(datatype, _) => {
+                    match datatype {
+                        DataType::ARRAY(_) => {
+                            match expression.as_ref() {
+                                ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                                _ => panic!("When assigning to an array, must use an array literal!")
+                            }
+                        },
+                        _ => {
+                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
-                    self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-                    self.generate_local_var_address(local_var_id);
-                    for _ in 0..references {
-                        self.builder.emit_op(OP::STK_READ);
+                            self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
+                            self.generate_local_var_address(local_var_id);
+                            for _ in 0..references {
+                                self.builder.emit_op(OP::STK_READ);
+                            }
+                            self.generate_node(expression);
+                            self.builder.emit_op(OP::STK_WRITE);
+                        }
                     }
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
                 }
                 SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
