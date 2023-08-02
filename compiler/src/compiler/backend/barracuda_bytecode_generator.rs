@@ -240,8 +240,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
             }
-            ASTNode::ASSIGNMENT { identifier, expression } => {
-                self.generate_assignment_statement(identifier, expression)
+            ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
+                self.generate_assignment_statement(identifier, array_index, expression)
             }
             ASTNode::PRINT { expression } => {
                 self.generate_print_statement(expression)
@@ -463,14 +463,16 @@ impl BarracudaByteCodeGenerator {
         self.add_symbol(identifier_name.clone())
     }
 
-    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
+    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
         let (references, identifier_name) = identifier.get_variable().unwrap();
         let lhs_pointer_level = self.get_pointer_level(&identifier);
         let rhs_pointer_level = self.get_pointer_level(&expression);
         if lhs_pointer_level != rhs_pointer_level {
             panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
         }
-        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+        if array_index.is_some() {
+            self.generate_array_assignment_statement(&array_index.to_owned().unwrap(), expression.as_ref(), identifier_name);
+        } else if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_, _) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
@@ -526,6 +528,33 @@ impl BarracudaByteCodeGenerator {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
 
+    }
+
+    fn generate_array_assignment_statement(&mut self, array_index: &ASTNode, expression: &ASTNode, identifier_name: String) {
+        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+            match symbol.symbol_type() {
+                SymbolType::Variable(_, _) => {
+                    let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
+                    self.builder.emit_array(address, true);
+                    self.generate_node(array_index);
+                    self.builder.emit_op(OP::ADD_PTR);
+                    self.builder.emit_op(OP::LDNXPTR);
+                    self.generate_node(expression);
+                    self.builder.emit_op(OP::WRITE);
+                }
+                SymbolType::EnvironmentVariable(_, _, qualifier) => {
+                    panic!("Cannot use array assignment with environment variable '{}'", qualifier);
+                }
+                SymbolType::Parameter(_, _) => {
+                    panic!("Cannot use array assignment with parameters");
+                }
+                SymbolType::Function { .. } => {
+                    panic!("Cannot reassign a value to function '{}'", identifier_name);
+                }
+            }
+        } else {
+            panic!("Assignment identifier '{}' not recognised", identifier_name);
+        }
     }
 
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {

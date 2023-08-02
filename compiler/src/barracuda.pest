@@ -103,7 +103,7 @@ construct_statement = {"let " ~ variable ~ "=" ~ expression
 external_statement = {"extern " ~ identifier}
 
 
-assign_statement = {variable ~ "=" ~ expression}
+assign_statement = {variable ~ ("[" ~ expression ~ "]")? ~ "=" ~ expression}
 datatype = _{("[" ~ integer ~ "]")+} // Currently datatypes can only be arrays.
 
 print_statement = {"print" ~ expression}
