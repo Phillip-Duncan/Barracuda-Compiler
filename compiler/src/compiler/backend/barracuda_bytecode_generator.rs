@@ -419,6 +419,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
         self.generate_node(expression);
         self.generate_node(index);
+        self.builder.emit_op(OP::DOUBLETOLONGLONG);
         self.builder.emit_op(OP::ADD_PTR);
         self.builder.emit_op(OP::LDNXPTR);
         self.builder.emit_op(OP::READ);
@@ -547,6 +548,7 @@ impl BarracudaByteCodeGenerator {
                     let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
                     self.builder.emit_array(address, true);
                     self.generate_node(array_index);
+                    self.builder.emit_op(OP::DOUBLETOLONGLONG);
                     self.builder.emit_op(OP::ADD_PTR);
                     self.builder.emit_op(OP::LDNXPTR);
                     self.generate_node(expression);

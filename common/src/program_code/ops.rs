@@ -448,6 +448,20 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=1)]
     #[assoc(produce=0)]
     RCNX    = 0x1303 ,
+
+    #[assoc(consume=1)]
+    #[assoc(produce=0)]
+    LDUSPTR    = 0x1304 ,
+
+    #[assoc(consume=1)]
+    #[assoc(produce=0)]
+    LONGLONGTODOUBLE = 0x16C8 ,
+
+    #[assoc(consume=1)]
+    #[assoc(produce=0)]
+    DOUBLETOLONGLONG = 0x16C9 ,
+
+    
 }
 
 #[allow(dead_code)] // Used in library but not the binary
