@@ -94,17 +94,15 @@ statement = _{if_statement | for_statement | while_statement
 statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
-construct_statement = {"let " ~ variable ~ "=" ~ expression
-                       | "let " ~ variable ~ ":" ~ datatype ~ "=" ~ expression
-                       // | "let " ~ variable ~ ":" ~ datatype  //Currently the 'expression' part of a construct statement is required.
-                    }
+construct_statement = { "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression  }
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
 
 
 assign_statement = {variable ~ ("[" ~ expression ~ "]")? ~ "=" ~ expression}
-datatype = _{("[" ~ integer ~ "]")+} // Currently datatypes can only be arrays.
+
+datatype = {"float" | "int" | "bool" | ("[" ~ datatype ~ ";" ~ integer ~ "]")}
 
 print_statement = {"print" ~ expression}
 
@@ -113,8 +111,8 @@ if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("e
 for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ scope_block}
 while_statement = {"while" ~ expression ~ scope_block}
 
-func_param = {variable ~ ":" ~ datatype | variable}
-func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ global_scope_block }
+func_param = {identifier ~ ":" ~ datatype | identifier}
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ ("->" ~ datatype)? ~ global_scope_block }
 return_statement = {"return" ~ expression}
 
 
