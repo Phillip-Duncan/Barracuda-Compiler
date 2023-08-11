@@ -293,7 +293,7 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(datatype, _) => {
+            SymbolType::Variable(datatype) => {
                 match datatype {
                     DataType::ARRAY(_) => self.generate_array_id(name),
                     _ => self.generate_identifier_id(name)
@@ -312,7 +312,7 @@ impl BarracudaByteCodeGenerator {
                     }
                 }
             }
-            SymbolType::Parameter(_datatype, _) => {
+            SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -325,11 +325,11 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, _) => {
+            SymbolType::Variable(_datatype) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
                 self.generate_local_var_address(localvar_id);
             }
-            SymbolType::Parameter(_datatype, _) => {
+            SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
             }
@@ -423,12 +423,9 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let (identifier_pointer_level, identifier_name) = identifier.get_variable().unwrap();
+        let identifier_name = identifier.identifier_name().unwrap();
         
         let expression_pointer_level = self.get_pointer_level(&expression);
-        if identifier_pointer_level != expression_pointer_level {
-            panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
-        }
         match datatype.as_ref() {
             Some(_datatype) => {
                 self.add_symbol(identifier_name.clone());
@@ -462,7 +459,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let (references, identifier_name) = identifier.get_variable().unwrap();
+        let identifier_name = identifier.identifier_name().unwrap();
         let lhs_pointer_level = self.get_pointer_level(&identifier);
         let rhs_pointer_level = self.get_pointer_level(&expression);
         if lhs_pointer_level != rhs_pointer_level {
@@ -472,7 +469,7 @@ impl BarracudaByteCodeGenerator {
             self.generate_array_assignment_statement(&array_index.to_owned().unwrap(), expression.as_ref(), identifier_name);
         } else if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(datatype, _) => {
+                SymbolType::Variable(datatype) => {
                     match datatype {
                         DataType::ARRAY(_) => {
                             match expression.as_ref() {
@@ -485,9 +482,6 @@ impl BarracudaByteCodeGenerator {
 
                             self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
                             self.generate_local_var_address(local_var_id);
-                            for _ in 0..references {
-                                self.builder.emit_op(OP::STK_READ);
-                            }
                             self.generate_node(expression);
                             self.builder.emit_op(OP::STK_WRITE);
                         }
@@ -517,14 +511,11 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_op(OP::RCNX);
                     }
                 }
-                SymbolType::Parameter(_, _) => {
+                SymbolType::Parameter(_) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
 
                     self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
                     self.generate_parameter_address(local_param_id);
-                    for _ in 0..references {
-                        self.builder.emit_op(OP::STK_READ);
-                    }
                     self.generate_node(expression);
                     self.builder.emit_op(OP::STK_WRITE);
                 }
@@ -541,7 +532,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_array_assignment_statement(&mut self, array_index: &ASTNode, expression: &ASTNode, identifier_name: String) {
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_, _) => {
+                SymbolType::Variable(_) => {
                     let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
                     self.builder.emit_array(address, true);
                     self.generate_node(array_index);
@@ -554,7 +545,7 @@ impl BarracudaByteCodeGenerator {
                 SymbolType::EnvironmentVariable(_, _, qualifier) => {
                     panic!("Cannot use array assignment with environment variable '{}'", qualifier);
                 }
-                SymbolType::Parameter(_, _) => {
+                SymbolType::Parameter(_) => {
                     panic!("Cannot use array assignment with parameters");
                 }
                 SymbolType::Function { .. } => {
@@ -755,7 +746,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let (_references, identifier_name) = identifier.get_variable().unwrap();
+        let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name);
     }
 
@@ -853,16 +844,8 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn get_pointer_level(&mut self, node: &Box<ASTNode>) -> usize {
-        match node.as_ref() {
-            ASTNode::REFERENECE(identifier) => {
-                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
-                    _ => 0
-                }
-            },
-            _ => 0
-        }
+    fn get_pointer_level(&mut self, _node: &Box<ASTNode>) -> usize {
+        0 // TODO
     }
 
 }

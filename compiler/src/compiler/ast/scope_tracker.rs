@@ -123,7 +123,7 @@ impl ScopeTracker {
         // Assign resource ids to symbols
         let symbol = self.find_symbol(&identifier).unwrap();
         match symbol.symbol_type() {
-            SymbolType::Variable(_,_) => {
+            SymbolType::Variable(_) => {
                 if symbol.is_array() {
                     let unique_id = symbol.unique_id();
                     let array_count = self.array_count;
@@ -136,7 +136,7 @@ impl ScopeTracker {
                 }
             }
             SymbolType::EnvironmentVariable(_, _, _) => {}
-            SymbolType::Parameter(_, _) => {
+            SymbolType::Parameter(_) => {
                 let unique_id = symbol.unique_id();
                 self.parameter_ids.insert(unique_id, self.active_parameter_count);
                 self.active_parameter_count += 1;

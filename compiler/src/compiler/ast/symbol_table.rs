@@ -8,9 +8,9 @@ use std::fmt;
 /// Symbol types associated with an identifier
 #[derive(Debug, Clone)]
 pub enum SymbolType {
-    Variable(DataType, usize),
+    Variable(DataType),
     EnvironmentVariable(usize, DataType, String),
-    Parameter(DataType, usize),
+    Parameter(DataType),
     Function {
         func_params: Vec<DataType>,
         func_return: Box<PrimitiveDataType> // Cannot be mutable, const or unknown as defaults to void
@@ -54,7 +54,7 @@ impl Symbol {
 
     pub fn is_mutable(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(datatype,_) => match datatype {
+            SymbolType::Variable(datatype) => match datatype {
                 DataType::MUTABLE(_) => true,
                 DataType::ARRAY(_) => true,
                 DataType::UNKNOWN => true,      // TODO(Connor): This should be removed once the type system is implemented
@@ -66,7 +66,7 @@ impl Symbol {
 
     pub fn is_array(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(datatype,_) => match datatype {
+            SymbolType::Variable(datatype) => match datatype {
                 DataType::ARRAY(_) => true,
                 _ => false
             },
@@ -76,7 +76,7 @@ impl Symbol {
 
     pub fn array_length(&self) -> usize {
         match &self.symbol_type {
-            SymbolType::Variable(datatype,_) => match datatype {
+            SymbolType::Variable(datatype) => match datatype {
                 DataType::ARRAY(size) => *size,
                 _ => 0
             },
@@ -288,14 +288,14 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some(Symbol::new(identifier, SymbolType::Variable(datatype, references)))
+        Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
     }
 
     /// Helper function to simplify processing parameters where data is stored within deeper
     /// ASTNodes.
     fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
-        let (references, identifier) = match identifier {
+        let identifier = match identifier {
             ASTNode::IDENTIFIER(name) => name.clone(),
             _ => panic!("")    // AST Malformed
         };
@@ -306,7 +306,7 @@ impl SymbolTable {
             None => DataType::UNKNOWN
         };
 
-        Some(Symbol::new(identifier, SymbolType::Parameter(datatype, references)))
+        Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
     }
 
     /// Helper function to simplify processing functions where data is stored within deeper
