@@ -216,9 +216,6 @@ impl BarracudaByteCodeGenerator {
             ASTNode::REFERENECE(identifier_name) => {
                 self.generate_reference(identifier_name)
             }
-            ASTNode::VARIABLE { references, identifier } => {
-                self.generate_variable(references, identifier)
-            }
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
@@ -858,17 +855,6 @@ impl BarracudaByteCodeGenerator {
 
     fn get_pointer_level(&mut self, node: &Box<ASTNode>) -> usize {
         match node.as_ref() {
-            ASTNode::VARIABLE{references, identifier} => {
-                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => {
-                        if references.clone() > ptr_level {
-                            panic!("Can't dereference a non-pointer!")
-                        }
-                        ptr_level - (references.clone())
-                    },
-                    _ => 0
-                }
-            },
             ASTNode::REFERENECE(identifier) => {
                 match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
                     SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,

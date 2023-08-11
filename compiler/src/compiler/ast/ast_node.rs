@@ -23,18 +23,6 @@ pub enum ASTNode {
     ///                     ^^^^^^ -> Reference
     REFERENECE(String),
 
-    /// Variable represents an identifier with extra information about how many times it is referenced. 
-    /// In the example below, hello_ref points to the memory address of hello.
-    /// 
-    /// # Example:
-    ///     let hello = 4;
-    ///     let hello_ref = &hello;
-    ///     let world = *hello_ref;
-    ///                 ^^^^^^^^^^ -> Variable
-    VARIABLE {
-        references: usize,
-        identifier: String
-    },
 
     /// Literal is a constant value used within an expression.
     /// # Example:
@@ -300,7 +288,6 @@ impl ASTNode {
         match self {
             ASTNode::IDENTIFIER(_) => {}
             ASTNode::REFERENECE(_) => {}
-            ASTNode::VARIABLE {..} => {}
             ASTNode::LITERAL(_) => {}
             ASTNode::ARRAY(items) => {
                 for item in items {
@@ -402,11 +389,4 @@ impl ASTNode {
         }
     }
 
-    /// Utility function for simplifying extracting information out of variable node
-    pub(crate) fn get_variable(&self) -> Option<(usize, String)> {
-        match self {
-            ASTNode::VARIABLE{references, identifier} => Some((references.clone(), identifier.clone())),
-            _ => None
-        }
-    }
 }

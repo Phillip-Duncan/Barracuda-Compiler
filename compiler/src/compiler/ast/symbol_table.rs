@@ -277,8 +277,8 @@ impl SymbolTable {
     /// ASTNodes.
     fn process_variable(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
-        let (references, identifier) = match identifier {
-            ASTNode::VARIABLE{references, identifier} => (references.clone(), identifier.clone()),
+        let identifier = match identifier {
+            ASTNode::IDENTIFIER(name) => name.clone(),
             _ => panic!("")    // AST Malformed
         };
 
@@ -296,7 +296,7 @@ impl SymbolTable {
     fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
         // Get inner string
         let (references, identifier) = match identifier {
-            ASTNode::VARIABLE{references, identifier} => (references.clone(), identifier.clone()),
+            ASTNode::IDENTIFIER(name) => name.clone(),
             _ => panic!("")    // AST Malformed
         };
 
@@ -512,11 +512,11 @@ mod tests {
                 identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
                 parameters: vec![
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("x")}),
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
                         datatype: f64_datatype.clone()
                     },
                     ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("y")}),
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("y"))),
                         datatype: f64_datatype.clone()
                     }
                 ],
@@ -527,7 +527,7 @@ mod tests {
                     inner: Box::new(ASTNode::STATEMENT_LIST(vec![
                         // let z: f64 = 2.0;
                         ASTNode::CONSTRUCT {
-                            identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("z")}),
+                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("z"))),
                             datatype: f64_datatype.clone(),
                             expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(2.0)))
                         },
@@ -549,13 +549,13 @@ mod tests {
             },
             // let a: f64 = 10.0;
             ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("a")}),
+                identifier: Box::new(ASTNode::IDENTIFIER(String::from("a"))),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(10.0)))
             },
             // let b: f64 = 25.0;
             ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("b")}),
+                identifier: Box::new(ASTNode::IDENTIFIER(String::from("b"))),
                 datatype: f64_datatype.clone(),
                 expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(25.0)))
             },
@@ -566,7 +566,7 @@ mod tests {
                 if_branch: Box::new(ASTNode::SCOPE_BLOCK {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("c")}),
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::FUNC_CALL {
                             identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
@@ -581,7 +581,7 @@ mod tests {
                 else_branch: Box::new(Some(ASTNode::SCOPE_BLOCK {
                     scope: ScopeId::default(),
                     inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::VARIABLE {references: 0, identifier: String::from("c")}),
+                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
                         datatype: Box::new(None),
                         expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(5.0)))
                     }),
