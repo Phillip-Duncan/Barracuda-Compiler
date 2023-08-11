@@ -61,7 +61,8 @@ impl PestBarracudaParser {
             Rule::term |
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
-            Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::unary |
+            Rule::pointer =>              { Self::parse_pair_unary_expression(pair) },
             Rule::index =>              { Self::parse_pair_array_index(pair) },
             Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
@@ -391,6 +392,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::unary_not => Some(UnaryOperation::NOT),
             Rule::unary_neg => Some(UnaryOperation::NEGATE),
+            Rule::dereference => Some(UnaryOperation::PTR_DEREF),
             _ => None
         }
     }

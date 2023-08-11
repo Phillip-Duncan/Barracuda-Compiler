@@ -42,7 +42,7 @@ exponent_operator = _{pow}
 unary_operator = _{unary_not | unary_neg}
 pointer_operator = _{dereference}
 
-dereference = {"*" }
+dereference = {"*"}
 unary_not = {"!"}
 unary_neg = {"-"}
 
@@ -69,8 +69,8 @@ term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
 unary      = { unary_operator ~ unary | index }
-index      = { dereference ~ ( "[" ~ expression ~ "]" )* }
-pointer    = { pointer_operator ~ dereference | primary }
+index      = { pointer ~ ( "[" ~ expression ~ "]" )* }
+pointer    = { pointer_operator ~ pointer | primary }
 primary    = _{ literal | array | func_call | reference | identifier | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
@@ -89,7 +89,7 @@ statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
 construct_statement = { "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression |
-                        "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression  }
+                        "let " ~ identifier ~ "=" ~ expression  }
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
