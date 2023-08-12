@@ -56,8 +56,7 @@ impl Symbol {
         match &self.symbol_type {
             SymbolType::Variable(datatype) => match datatype {
                 DataType::MUTABLE(_) => true,
-                DataType::ARRAY(_) => true,
-                DataType::UNKNOWN => true,      // TODO(Connor): This should be removed once the type system is implemented
+                DataType::ARRAY(_,_) => true,
                 _ => false
             },
             _ => false
@@ -67,7 +66,7 @@ impl Symbol {
     pub fn is_array(&self) -> bool {
         match &self.symbol_type {
             SymbolType::Variable(datatype) => match datatype {
-                DataType::ARRAY(_) => true,
+                DataType::ARRAY(_,_) => true,
                 _ => false
             },
             _ => false
@@ -77,7 +76,7 @@ impl Symbol {
     pub fn array_length(&self) -> usize {
         match &self.symbol_type {
             SymbolType::Variable(datatype) => match datatype {
-                DataType::ARRAY(size) => *size,
+                DataType::ARRAY(datatype, size) => *size,
                 _ => 0
             },
             _ => 0
@@ -285,7 +284,7 @@ impl SymbolTable {
         // Identify the variable type
         let datatype = match datatype {
             Some(datatype_node) => DataType::from(datatype_node),
-            None => DataType::UNKNOWN
+            None => panic!("Variables should always have some datatype!") // TODO does this need to be here?
         };
 
         Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
@@ -303,7 +302,7 @@ impl SymbolTable {
         // Identify the variable type
         let datatype = match datatype {
             Some(datatype_node) => DataType::from(datatype_node),
-            None => DataType::UNKNOWN
+            None => panic!("Parameters should always have some datatype!") // TODO does this need to be here?
         };
 
         Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
@@ -324,7 +323,7 @@ impl SymbolTable {
                 ASTNode::PARAMETER{ identifier:_, datatype } => {
                     match datatype.as_ref() {
                         Some(datatype_node) => DataType::from(datatype_node),
-                        None => DataType::UNKNOWN
+                        None => panic!("Parameters should always have some datatype!") // TODO does this need to be here?
                     }
                 }
                 _ => panic!("")  // AST Malformed

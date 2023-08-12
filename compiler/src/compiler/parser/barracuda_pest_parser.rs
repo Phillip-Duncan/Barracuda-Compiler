@@ -1,3 +1,4 @@
+use crate::compiler::ast::datatype::DataType;
 use crate::pest::Parser;
 use super::AstParser;
 use super::super::ast::{
@@ -52,6 +53,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
             Rule::reference =>          { Self::parse_pair_reference(pair) },
+            Rule::datatype =>          { Self::parse_pair_datatype(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -113,6 +115,26 @@ impl PestBarracudaParser {
     /// Parses a pest token pair into an AST reference
     fn parse_pair_reference(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
+    }
+
+    /// Parses a pest token pair into an AST reference
+    fn parse_pair_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let primitive_or_datatype = pair.next().unwrap();
+        if pair.peek().is_some() {
+            // Array
+            let sub_datatype = Self::parse_pair_node(primitive_or_datatype);
+            let sub_datatype = match sub_datatype {
+                ASTNode::DATATYPE(datatype) => datatype,
+                _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
+            };
+            let sub_datatype = Box::new(sub_datatype);
+            let size = pair.as_str().parse().unwrap();
+            ASTNode::DATATYPE(DataType::ARRAY(sub_datatype, size))
+        } else {
+            // Primitive
+            Self::parse_pair_node(primitive_or_datatype)
+        }
     }
 
     /// Parses a pest token pair into an AST binary expression

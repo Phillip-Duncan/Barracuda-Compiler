@@ -216,6 +216,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::REFERENECE(identifier_name) => {
                 self.generate_reference(identifier_name)
             }
+            ASTNode::DATATYPE(_) => {
+                panic!("Malformed AST! Datatypes should not be directly generated.");
+            }
             ASTNode::LITERAL(literal) => {
                 self.generate_literal(literal)
             }
@@ -295,7 +298,7 @@ impl BarracudaByteCodeGenerator {
         match symbol_result.symbol_type() {
             SymbolType::Variable(datatype) => {
                 match datatype {
-                    DataType::ARRAY(_) => self.generate_array_id(name),
+                    DataType::ARRAY(_,_) => self.generate_array_id(name),
                     _ => self.generate_identifier_id(name)
                 }
             }
@@ -472,7 +475,7 @@ impl BarracudaByteCodeGenerator {
             match symbol.symbol_type() {
                 SymbolType::Variable(datatype) => {
                     match datatype {
-                        DataType::ARRAY(_) => {
+                        DataType::ARRAY(_,_) => {
                             match expression.as_ref() {
                                 ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
                                 _ => panic!("When assigning to an array, must use an array literal!")

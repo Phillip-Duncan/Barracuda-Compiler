@@ -1,3 +1,4 @@
+use super::datatype::DataType;
 use super::literals::Literal;
 use super::operators::{UnaryOperation, BinaryOperation};
 use super::scope::ScopeId;
@@ -22,6 +23,11 @@ pub enum ASTNode {
     ///     let hello_ref = &hello;
     ///                     ^^^^^^ -> Reference
     REFERENECE(String),
+
+    /// # Example:
+    ///     let hello: i64 = 4;
+    ///                ^^^ -> Datatype
+    DATATYPE(DataType),
 
 
     /// Literal is a constant value used within an expression.
@@ -288,6 +294,7 @@ impl ASTNode {
         match self {
             ASTNode::IDENTIFIER(_) => {}
             ASTNode::REFERENECE(_) => {}
+            ASTNode::DATATYPE(_) => {}
             ASTNode::LITERAL(_) => {}
             ASTNode::ARRAY(items) => {
                 for item in items {
