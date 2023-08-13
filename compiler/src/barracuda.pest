@@ -98,7 +98,9 @@ external_statement = {"extern " ~ identifier}
 assign_statement = {"*"* ~ identifier ~ ("[" ~ expression ~ "]")? ~ "=" ~ expression}
 
 primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool"}
-datatype = {primitive_datatype | ("[" ~ datatype ~ ";" ~ integer ~ "]")}
+pointer_datatype = {"*" ~ datatype}
+array_datatype = {"[" ~ datatype ~ ";" ~ integer ~ "]"}
+datatype = _{primitive_datatype | pointer_datatype | array_datatype}
 
 print_statement = {"print" ~ expression}
 

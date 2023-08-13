@@ -53,7 +53,9 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
             Rule::reference =>          { Self::parse_pair_reference(pair) },
-            Rule::datatype =>          { Self::parse_pair_datatype(pair) },
+            Rule::primitive_datatype => { Self::parse_pair_primitive_datatype(pair) },
+            Rule::pointer_datatype =>   { Self::parse_pair_pointer_datatype(pair) },
+            Rule::array_datatype =>     { Self::parse_pair_array_datatype(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
@@ -117,24 +119,33 @@ impl PestBarracudaParser {
         ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
     }
 
-    /// Parses a pest token pair into an AST reference
-    fn parse_pair_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+    fn parse_pair_primitive_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::DATATYPE(DataType::from_str(pair.as_str().to_owned()))
+    }
+
+    fn parse_pair_pointer_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
-        let primitive_or_datatype = pair.next().unwrap();
-        if pair.peek().is_some() {
-            // Array
-            let sub_datatype = Self::parse_pair_node(primitive_or_datatype);
-            let sub_datatype = match sub_datatype {
-                ASTNode::DATATYPE(datatype) => datatype,
-                _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
-            };
-            let sub_datatype = Box::new(sub_datatype);
-            let size = pair.as_str().parse().unwrap();
-            ASTNode::DATATYPE(DataType::ARRAY(sub_datatype, size))
-        } else {
-            // Primitive
-            Self::parse_pair_node(primitive_or_datatype)
-        }
+        let sub_datatype = pair.next().unwrap();
+        let sub_datatype = Self::parse_pair_node(sub_datatype);
+        let sub_datatype = match sub_datatype {
+            ASTNode::DATATYPE(datatype) => datatype,
+            _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
+        };
+        let sub_datatype = Box::new(sub_datatype);
+        ASTNode::DATATYPE(DataType::POINTER(sub_datatype))
+    }
+
+    fn parse_pair_array_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let sub_datatype = pair.next().unwrap();
+        let sub_datatype = Self::parse_pair_node(sub_datatype);
+        let sub_datatype = match sub_datatype {
+            ASTNode::DATATYPE(datatype) => datatype,
+            _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
+        };
+        let sub_datatype = Box::new(sub_datatype);
+        let size = pair.as_str().parse().unwrap();
+        ASTNode::DATATYPE(DataType::ARRAY(sub_datatype, size))
     }
 
     /// Parses a pest token pair into an AST binary expression
