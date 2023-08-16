@@ -25,7 +25,7 @@ impl PrimitiveDataType {
             "f32" => {Self::F32},
             "f16" => {Self::F16},
             "f8"  => {Self::F8},
-            "128" => {Self::I128},
+            "i128" => {Self::I128},
             "i64" => {Self::I64},
             "i32" => {Self::I32},
             "i16" => {Self::I16},
