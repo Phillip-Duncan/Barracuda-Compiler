@@ -1,5 +1,5 @@
 use crate::compiler::PrimitiveDataType;
-use crate::compiler::ast::Literal;
+use crate::compiler::ast::{Literal, datatype};
 use crate::compiler::ast::datatype::DataType;
 
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
@@ -94,7 +94,7 @@ impl BarracudaSemanticAnalyser {
         panic!("Still need to do this");
     }
 
-    fn type_from_node(&mut self, name: &String) -> DataType {
+    fn type_from_node(&mut self, name: &ASTNode) -> DataType {
         panic!("Still need to do this");
     }
 
@@ -125,9 +125,23 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_array(&mut self, items: &Vec<ASTNode>) -> ASTNode {
+        if items.len() == 0 {
+            panic!("Cannot create an array of length 0!")
+        }
+        let mut typed_items: Vec<ASTNode> = vec![];
+        for item in items {
+            typed_items.push(self.analyse_node(item))
+        }
+        let datatype = self.type_from_node(&typed_items[0]);
+        for item in typed_items.iter().skip(1) {
+            let datatype_2 = self.type_from_node(item); 
+            if datatype != datatype_2 {
+                panic!("Cannot create array with mismatched types!")
+            }
+        }
         ASTNode::TYPED_NODE { 
-            datatype: (), 
-            inner: ASTNode::ARRAY(())
+            datatype: DataType::ARRAY(Box::new(datatype), items.len()), 
+            inner: Box::new(ASTNode::ARRAY(typed_items))
         }
     }
 
