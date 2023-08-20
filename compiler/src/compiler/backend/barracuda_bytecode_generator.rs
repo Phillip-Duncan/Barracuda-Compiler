@@ -343,13 +343,6 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_variable(&mut self, references: &usize, identifier: &String) {
-        self.generate_identifier(identifier);
-        for _ in 0..*references {
-            self.builder.emit_op(OP::STK_READ);
-        }
-    }
-
     fn generate_literal(&mut self, literal: &Literal) {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
