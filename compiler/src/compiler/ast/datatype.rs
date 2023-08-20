@@ -46,7 +46,10 @@ pub enum DataType {
 
 impl DataType {
     pub fn from(node: &ASTNode) -> Self {
-        panic!("Datatypes not implemented! {:?}", node);
+        match node {
+            ASTNode::DATATYPE(datatype) => datatype.clone(),
+            _ => panic!("Node {:?} must be a datatype node to convert it to a datatype", node)
+        }
     }
 
     pub fn from_str(datatype: String) -> Self {

@@ -15,6 +15,7 @@ mod compiler;
 
 // Compiler types to use
 type PARSER = compiler::PestBarracudaParser;
+type ANALYSER = compiler::BarracudaSemanticAnalyser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;
 
 
@@ -99,7 +100,7 @@ fn generate_environment_context(request: &CompilerRequest) -> EnvironmentSymbolC
 pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let env_vars = generate_environment_context(&request);
 
-    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+    let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
         .set_environment_variables(env_vars);
     let program_code = compiler.compile_str(request.code_text.to_str());
     let compiled_text = program_code.to_string();
@@ -175,7 +176,7 @@ mod tests {
     // This function also strips the first two elements as they are the same for every program.
     // It also validates everything that doesn't end up in the final stack.
     fn compile_and_merge_with_env_vars(text: &str, env_vars: EnvironmentSymbolContext) -> Vec<MergedInstructions> {
-        let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+        let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
             .set_environment_variables(env_vars);
         let code = compiler.compile_str(text);
         assert!(code.values.len() == code.operations.len() && code.values.len() == code.instructions.len());

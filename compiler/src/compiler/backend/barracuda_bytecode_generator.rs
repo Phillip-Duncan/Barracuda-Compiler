@@ -276,6 +276,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.generate_scope_block(inner, scope);
             }
+            ASTNode::TYPED_NODE { .. } => {
+                panic!("Typed nodes are not implemened yet!");
+            }
         };
     }
 

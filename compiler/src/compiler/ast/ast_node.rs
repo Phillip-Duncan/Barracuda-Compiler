@@ -281,7 +281,20 @@ pub enum ASTNode {
     SCOPE_BLOCK {
         inner: Box<ASTNode>,
         scope: ScopeId
-    }
+    },
+
+    /// Print statement will display the result of an expression to stdout of interpreter
+    ///
+    /// # Syntax:
+    ///     print <expression>;
+    ///
+    /// # Example:
+    ///     print 12*12;    -> '144'
+    ///     ^^^^^^^^^^^ -> Print Statement
+    TYPED_NODE {
+        datatype: DataType,
+        inner: Box<ASTNode>
+    },
 }
 
 impl ASTNode {
@@ -381,6 +394,9 @@ impl ASTNode {
                 }
             }
             ASTNode::SCOPE_BLOCK { inner, scope: _ } => {
+                output.push(inner.as_mut());
+            }
+            ASTNode::TYPED_NODE { inner, .. } => {
                 output.push(inner.as_mut());
             }
         }

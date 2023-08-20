@@ -460,11 +460,8 @@ impl AstParser for PestBarracudaParser {
         Self {}
     }
 
-    /// Parse processes a source string into an abstract syntax tree
-    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
-        AbstractSyntaxTree::new(
-            Self::parse_into_node_tree(source),
-            env_vars
-        )
+    /// Parse processes a source string into an  
+    fn parse(self, source: &str) -> ASTNode {
+        Self::parse_into_node_tree(source)
     }
 }
