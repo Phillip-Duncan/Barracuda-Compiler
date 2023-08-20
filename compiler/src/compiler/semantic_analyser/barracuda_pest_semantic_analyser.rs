@@ -19,7 +19,7 @@ impl BarracudaSemanticAnalyser {
     fn analyse_node(self, node: &ASTNode) -> ASTNode {
         match node {
             ASTNode::IDENTIFIER(identifier_name) => {
-                self.analyse_identifier(identifier_name)
+                self.analyse_identifier(identifier_name) 
             }
             ASTNode::REFERENECE(identifier_name) => {
                 self.analyse_reference(identifier_name)
@@ -30,8 +30,8 @@ impl BarracudaSemanticAnalyser {
             ASTNode::LITERAL(literal) => {
                 self.analyse_literal(literal)
             }
-            ASTNode::ARRAY(_) => {
-                panic!("Arrays literals can only be used for direct assignment!");
+            ASTNode::ARRAY(items) => {
+                self.analyse_array(items)
             }
             ASTNode::UNARY_OP { op, expression } => {
                 self.analyse_unary_op(op, expression)
@@ -124,17 +124,10 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
-        let address = self.symbol_tracker.get_array_id(identifier).unwrap();
-        let mut count: usize = 0;
-        for item in items {
-            self.builder.emit_array(address, true);
-            self.builder.emit_value(f64::from_be_bytes(count.to_be_bytes()));
-            self.builder.emit_op(OP::ADD_PTR);
-            self.builder.emit_op(OP::LDNXPTR);
-            self.analyse_node(item);
-            self.builder.emit_op(OP::WRITE);
-            count += 1;
+    fn analyse_array(&mut self, items: &Vec<ASTNode>) -> ASTNode {
+        ASTNode::TYPED_NODE { 
+            datatype: (), 
+            inner: ASTNode::ARRAY(())
         }
     }
 
