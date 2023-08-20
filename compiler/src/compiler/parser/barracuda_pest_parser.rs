@@ -2,13 +2,11 @@ use crate::compiler::ast::datatype::DataType;
 use crate::pest::Parser;
 use super::AstParser;
 use super::super::ast::{
-    AbstractSyntaxTree,
     ASTNode,
     Literal,
     BinaryOperation,
     UnaryOperation,
-    ScopeId,
-    environment_symbol_context::EnvironmentSymbolContext
+    ScopeId
 };
 
 

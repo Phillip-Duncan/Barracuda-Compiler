@@ -42,6 +42,7 @@ pub enum DataType {
     CONST(PrimitiveDataType),
     POINTER(Box<DataType>),
     ARRAY(Box<DataType>, usize),
+    NONE
 }
 
 impl DataType {
