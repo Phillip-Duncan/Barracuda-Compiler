@@ -1,5 +1,5 @@
 use crate::compiler::PrimitiveDataType;
-use crate::compiler::ast::{Literal, datatype};
+use crate::compiler::ast::{Literal, datatype, UnaryOperation, BinaryOperation};
 use crate::compiler::ast::datatype::DataType;
 
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
@@ -145,39 +145,45 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
-        let pointer_level = self.get_pointer_level(&expression);
-        if pointer_level != 0 {
-            panic!("Pointers cannot be used with the operation '{:?}' !", op);
-        }
-        self.analyse_node(expression);
-        match op {
-            UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
-            UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
-            UnaryOperation::PTR_DEREF => { self.builder.emit_op(OP::PTR_DEREF) }
+    fn analyse_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) -> ASTNode {
+        let expression = self.analyse_node(expression);
+        let datatype = self.type_from_node(&expression);
+        let datatype = match op {
+            UnaryOperation::NOT | UnaryOperation::NEGATE => { 
+                match datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) => datatype,
+                    _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
+                }
+            }
+            UnaryOperation::PTR_DEREF => { 
+                match datatype {
+                    DataType::POINTER(inner_datatype) => *inner_datatype.as_ref(),
+                    _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
+                }
+            }
         };
+        ASTNode::TYPED_NODE { 
+            datatype,
+            inner: Box::new(ASTNode::UNARY_OP { 
+                op: op.clone(), 
+                expression: Box::new(expression) 
+            })
+        }
     }
 
-    fn analyse_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
-        let lhs_pointer_level = self.get_pointer_level(&lhs);
-        let rhs_pointer_level = self.get_pointer_level(&rhs);
-        if lhs_pointer_level != 0 || rhs_pointer_level != 0 {
-            if !LEGAL_POINTER_OPERATIONS.contains(&op) {
-                panic!("Operation {:?} cannot be used with pointers!", op);
-            }
+    fn analyse_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) -> ASTNode {
+        let lhs = self.analyse_node(lhs);
+        let rhs = self.analyse_node(rhs);
+        let lhs_datatype = self.type_from_node(&lhs);
+        let rhs_datatype = self.type_from_node(&rhs);
+        if lhs_datatype != rhs_datatype {
+            panic!("Cannot perform operation {:?} with mismatched types!", op)
         }
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in a binary operation! ({} vs {})", lhs_pointer_level, rhs_pointer_level);
-        }
-        self.analyse_node(lhs);
-        self.analyse_node(rhs);
+        let datatype = lhs_datatype;
+        
+
         match op {
-            BinaryOperation::ADD   => { self.builder.emit_op(OP::ADD); }
-            BinaryOperation::SUB   => { self.builder.emit_op(OP::SUB); }
-            BinaryOperation::DIV   => { self.builder.emit_op(OP::DIV); }
-            BinaryOperation::MUL   => { self.builder.emit_op(OP::MUL); }
-            BinaryOperation::MOD   => { self.builder.emit_op(OP::FMOD); }
-            BinaryOperation::POW   => { self.builder.emit_op(OP::POW); }
+
             BinaryOperation::EQUAL => { self.builder.emit_op(OP::EQ); }
             BinaryOperation::NOT_EQUAL => { self.builder.emit_op(OP::NEQ); }
             BinaryOperation::GREATER_THAN  => { self.builder.emit_op(OP::GT); }
@@ -185,6 +191,33 @@ impl BarracudaSemanticAnalyser {
             BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
             BinaryOperation::LESS_EQUAL    => { self.builder.emit_op(OP::LTEQ); }
         };
+        let datatype = match op {
+            BinaryOperation::ADD | BinaryOperation::SUB | BinaryOperation::DIV 
+          | BinaryOperation::MUL | BinaryOperation::MOD | BinaryOperation::POW => { 
+                match datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) => datatype,
+                    _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
+                }
+            }
+            BinaryOperation::GREATER_THAN | BinaryOperation::LESS_THAN 
+          | BinaryOperation::GREATER_EQUAL | BinaryOperation::LESS_EQUAL => { 
+                match datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) => DataType::CONST(PrimitiveDataType::Bool),
+                    _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
+                }
+            }
+            BinaryOperation::EQUAL | BinaryOperation::NOT_EQUAL => { 
+                DataType::CONST(PrimitiveDataType::Bool)
+            }
+        };
+        ASTNode::TYPED_NODE { 
+            datatype,
+            inner: Box::new(ASTNode::BINARY_OP { 
+                op: op.clone(), 
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs)
+            })
+        }
     }
 
     fn analyse_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
