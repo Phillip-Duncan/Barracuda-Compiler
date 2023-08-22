@@ -53,9 +53,7 @@ impl BarracudaSemanticAnalyser {
             ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
                 self.analyse_assignment_statement(identifier, array_index, expression)
             }
-            ASTNode::PRINT { expression } => {
-                self.analyse_print_statement(expression)
-            }
+            ASTNode::PRINT { expression } => node,
             ASTNode::RETURN { expression } => {
                 self.analyse_return_statement(expression)
             }
@@ -226,32 +224,43 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        self.analyse_node(expression);
-        self.analyse_node(index);
-        self.builder.emit_op(OP::DOUBLETOLONGLONG);
-        self.builder.emit_op(OP::ADD_PTR);
-        self.builder.emit_op(OP::LDNXPTR);
-        self.builder.emit_op(OP::READ);
+    fn analyse_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
+        let expression = Box::new(self.analyse_node(expression));
+        let index = Box::new(self.analyse_node(index));
+        let expression_datatype = self.type_from_node(&expression);
+        let index_datatype = self.type_from_node(&index);
+        // check index is a literal and expression is an array. Return array innards
+        if let DataType::ARRAY(inner_type, _size) = index_datatype {
+            if let DataType::CONST(_) | DataType::MUTABLE(_)  = expression_datatype {
+                ASTNode::TYPED_NODE { 
+                    datatype: inner_type.as_ref().clone(), 
+                    inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+                }
+            } else {
+                panic!("Can only index arrays with literal values!")
+            }
+        } else {
+            panic!("Can't index a non-array!")
+        }
     }
 
     fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+        let expression = Box::new(self.analyse_node(expression));
+        let expression_datatype = self.type_from_node(&expression);
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if let Some(datatype) = datatype.as_ref() {
                 let datatype = match datatype {
                     ASTNode::DATATYPE(datatype) => datatype,
                     _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
                 };
-                let true_datatype = self.type_from_node(&expression);
-                if datatype != true_datatype {
-                    panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, true_datatype);
+                if datatype != expression_datatype {
+                    panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, expression_datatype);
                 }
                 self.mark_identifier_type(name, datatype.clone());
-                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: None, expression: expression.clone() }   
+                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: Box::new(None), expression: expression.clone() }   
             } else {
-                let datatype = self.type_from_node(&expression);
-                self.mark_identifier_type(name, datatype);
-                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: None, expression: expression.clone() }   
+                self.mark_identifier_type(name, expression_datatype);
+                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: Box::new(None), expression: expression.clone() }   
             }
         } else {
             panic!("Malformed AST! Construct statement should always start with an identifier")
@@ -361,16 +370,6 @@ impl BarracudaSemanticAnalyser {
         } else {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
-    }
-
-    fn analyse_print_statement(&mut self, expression: &Box<ASTNode>) {
-        self.builder.comment(format!("PRINT"));
-        self.analyse_node(expression);
-        self.builder.emit_op(OP::PRINTFF);
-
-        // New Line character
-        self.builder.emit_value(10.0);
-        self.builder.emit_op(OP::PRINTC);
     }
 
     fn analyse_return_statement(&mut self, expression: &Box<ASTNode>) {
