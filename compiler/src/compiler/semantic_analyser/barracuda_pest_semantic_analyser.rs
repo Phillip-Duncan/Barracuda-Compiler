@@ -1,3 +1,5 @@
+use std::process::id;
+
 use crate::compiler::PrimitiveDataType;
 use crate::compiler::ast::{Literal, datatype, UnaryOperation, BinaryOperation};
 use crate::compiler::ast::datatype::DataType;
@@ -88,6 +90,10 @@ impl BarracudaSemanticAnalyser {
                 panic!("Typed nodes are not implemened yet!");
             }
         };
+    }
+
+    fn mark_identifier_type(&mut self, name: &String, datatype: DataType) {
+        panic!("Still need to do this");
     }
 
     fn type_from_identifier(&mut self, name: &String) -> DataType {
@@ -229,33 +235,26 @@ impl BarracudaSemanticAnalyser {
         self.builder.emit_op(OP::READ);
     }
 
-    fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
-        
-        let expression_pointer_level = self.get_pointer_level(&expression);
-        match datatype.as_ref() {
-            Some(_datatype) => {
-                self.add_symbol(identifier_name.clone());
-                match expression.as_ref() {
-                    ASTNode::ARRAY(items) => self.analyse_array(&items, &identifier_name),
-                    _ => panic!("When assigning to an array, must use an array literal!")
+    fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            if let Some(datatype) = datatype.as_ref() {
+                let datatype = match datatype {
+                    ASTNode::DATATYPE(datatype) => datatype,
+                    _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
+                };
+                let true_datatype = self.type_from_node(&expression);
+                if datatype != true_datatype {
+                    panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, true_datatype);
                 }
-                //self.analyse_node(expression);
-                //
-
-                //let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
-
-                //self.analyse_local_var_address(localvar_id);
-            },
-            None => {
-                // Leave result of expression at top of stack as this is the allocated
-                // region for the local variable
-                self.analyse_node(expression);
-                self.add_symbol(identifier_name.clone());
-                // Comment local var id
-                let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-                self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
+                self.mark_identifier_type(name, datatype.clone());
+                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: None, expression: expression.clone() }   
+            } else {
+                let datatype = self.type_from_node(&expression);
+                self.mark_identifier_type(name, datatype);
+                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: None, expression: expression.clone() }   
             }
+        } else {
+            panic!("Malformed AST! Construct statement should always start with an identifier")
         }
     }
 
