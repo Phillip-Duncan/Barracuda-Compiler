@@ -1,7 +1,7 @@
 use super::ast_node::ASTNode;
 
 /// Primitive Data types supported by the AST Model
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveDataType {
     F128,
     F64,
@@ -41,8 +41,7 @@ pub enum DataType {
     MUTABLE(PrimitiveDataType),
     CONST(PrimitiveDataType),
     POINTER(Box<DataType>),
-    ARRAY(Box<DataType>, usize),
-    NONE
+    ARRAY(Box<DataType>, usize)
 }
 
 impl DataType {
@@ -58,3 +57,16 @@ impl DataType {
     }
 }
 
+impl PartialEq for DataType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (DataType::MUTABLE(this_type), DataType::MUTABLE(other_type))
+            | (DataType::CONST(this_type), DataType::CONST(other_type)) => this_type == other_type,
+            (DataType::POINTER(this_inner), DataType::POINTER(other_inner)) => this_inner == other_inner,
+            (DataType::ARRAY(this_inner, this_size), DataType::ARRAY(other_inner, other_size)) => {
+                this_inner == other_inner && this_size == other_size
+            },
+            (_, _) => false,
+        }
+    }
+}
