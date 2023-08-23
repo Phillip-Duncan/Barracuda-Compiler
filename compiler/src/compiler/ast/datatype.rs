@@ -60,8 +60,12 @@ impl DataType {
 impl PartialEq for DataType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (DataType::MUTABLE(this_type), DataType::MUTABLE(other_type))
-            | (DataType::CONST(this_type), DataType::CONST(other_type)) => this_type == other_type,
+            // Currently all primitive types are considered equal as everything is just a float on the VM.
+            // This will need to be changed if proper integer operations are implemented.
+            (DataType::MUTABLE(_), DataType::MUTABLE(_))
+            | (DataType::CONST(_), DataType::CONST(_))
+            | (DataType::MUTABLE(_), DataType::CONST(_))
+            | (DataType::CONST(_), DataType::MUTABLE(_)) => true,
             (DataType::POINTER(this_inner), DataType::POINTER(other_inner)) => this_inner == other_inner,
             (DataType::ARRAY(this_inner, this_size), DataType::ARRAY(other_inner, other_size)) => {
                 this_inner == other_inner && this_size == other_size

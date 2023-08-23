@@ -96,8 +96,11 @@ impl BarracudaSemanticAnalyser {
         panic!("Still need to do this");
     }
 
-    fn type_from_node(&self, name: &ASTNode) -> DataType {
-        panic!("Still need to do this");
+    fn type_from_node(&self, node: &ASTNode) -> DataType {
+        match node {
+            ASTNode::TYPED_NODE { datatype, .. } => datatype.clone(),
+            _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", node)
+        }
     }
 
     fn analyse_identifier(&self, name: &String) -> ASTNode {
