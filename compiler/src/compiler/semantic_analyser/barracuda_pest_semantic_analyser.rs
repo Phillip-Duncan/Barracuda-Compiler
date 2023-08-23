@@ -51,7 +51,7 @@ impl BarracudaSemanticAnalyser {
             ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
                 self.analyse_assignment_statement(identifier, array_index, expression)
             }
-            ASTNode::PRINT { expression } => node.clone(),
+            ASTNode::PRINT { .. } => node.clone(),
             ASTNode::RETURN { expression } => {
                 self.analyse_return_statement(expression)
             }
@@ -115,9 +115,9 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_literal(&self, literal: &Literal) -> ASTNode {
         let datatype = match *literal {
-            Literal::FLOAT(value) => DataType::CONST(PrimitiveDataType::F64),
-            Literal::INTEGER(value) => DataType::CONST(PrimitiveDataType::I64),
-            Literal::BOOL(value) => DataType::CONST(PrimitiveDataType::Bool)
+            Literal::FLOAT(_) => DataType::CONST(PrimitiveDataType::F64),
+            Literal::INTEGER(_) => DataType::CONST(PrimitiveDataType::I64),
+            Literal::BOOL(_) => DataType::CONST(PrimitiveDataType::Bool)
         };
 
         ASTNode::TYPED_NODE { 
