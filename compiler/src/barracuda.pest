@@ -95,7 +95,7 @@ construct_statement = { "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression 
 external_statement = {"extern " ~ identifier}
 
 
-assign_statement = {"*"* ~ identifier ~ ("[" ~ expression ~ "]")? ~ "=" ~ expression}
+assign_statement = {"*"* ~ identifier ~ ("[" ~ expression ~ "]")* ~ "=" ~ expression}
 
 primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool"}
 pointer_datatype = {"*" ~ datatype}

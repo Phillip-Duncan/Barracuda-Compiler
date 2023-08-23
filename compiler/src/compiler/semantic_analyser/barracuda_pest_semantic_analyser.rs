@@ -45,15 +45,15 @@ impl BarracudaSemanticAnalyser {
                 self.analyse_array_index(index, expression)
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
-                self.analyse_construct_statement(identifier, datatype, expression);
+                self.analyse_construct_statement(identifier, datatype, expression)
             }
             ASTNode::EXTERN { identifier } => {
-                self.analyse_extern_statement(identifier);
+                self.analyse_extern_statement(identifier)
             }
             ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
                 self.analyse_assignment_statement(identifier, array_index, expression)
             }
-            ASTNode::PRINT { expression } => node,
+            ASTNode::PRINT { expression } => node.clone(),
             ASTNode::RETURN { expression } => {
                 self.analyse_return_statement(expression)
             }
@@ -185,16 +185,6 @@ impl BarracudaSemanticAnalyser {
         }
         let datatype = lhs_datatype;
         
-
-        match op {
-
-            BinaryOperation::EQUAL => { self.builder.emit_op(OP::EQ); }
-            BinaryOperation::NOT_EQUAL => { self.builder.emit_op(OP::NEQ); }
-            BinaryOperation::GREATER_THAN  => { self.builder.emit_op(OP::GT); }
-            BinaryOperation::LESS_THAN     => { self.builder.emit_op(OP::LT); }
-            BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
-            BinaryOperation::LESS_EQUAL    => { self.builder.emit_op(OP::LTEQ); }
-        };
         let datatype = match op {
             BinaryOperation::ADD | BinaryOperation::SUB | BinaryOperation::DIV 
           | BinaryOperation::MUL | BinaryOperation::MOD | BinaryOperation::POW => { 
@@ -267,196 +257,45 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_extern_statement(&mut self, identifier: &Box<ASTNode>) {
-        self.builder.add_environment_variable();
-        let identifier_name = identifier.identifier_name().unwrap();
-        self.add_symbol(identifier_name.clone())
+    fn analyse_extern_statement(&mut self, identifier: &Box<ASTNode>) -> ASTNode {
+        panic!("Still need to do this!");
     }
 
-    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let identifier_name = identifier.identifier_name().unwrap();
-        let lhs_pointer_level = self.get_pointer_level(&identifier);
-        let rhs_pointer_level = self.get_pointer_level(&expression);
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
-        }
-        if array_index.is_some() {
-            self.analyse_array_assignment_statement(&array_index.to_owned().unwrap(), expression.as_ref(), identifier_name);
-        } else if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-            match symbol.symbol_type() {
-                SymbolType::Variable(datatype) => {
-                    match datatype {
-                        DataType::ARRAY(_,_) => {
-                            match expression.as_ref() {
-                                ASTNode::ARRAY(items) => self.analyse_array(&items, &identifier_name),
-                                _ => panic!("When assigning to an array, must use an array literal!")
-                            }
-                        },
-                        _ => {
-                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-
-                            self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-                            self.analyse_local_var_address(local_var_id);
-                            self.analyse_node(expression);
-                            self.builder.emit_op(OP::STK_WRITE);
-                        }
-                    }
-                }
-                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
-                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
-                    self.analyse_node(expression);
-                    if qualifier.contains("*") {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::LDNX);
-                        let ptr_depth = qualifier.matches("*").count();
-                        for _n in 0..ptr_depth {
-                            if _n == ptr_depth - 1 {
-                                //self.builder.emit_op(OP::READ);
-                                continue;
-                            }
-                            else {
-                                self.builder.emit_op(OP::PTR_DEREF);
-                            }
-                        }
-                        self.builder.emit_op(OP::SWAP);
-                        self.builder.emit_op(OP::WRITE);
-                    }
-                    else {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::RCNX);
-                    }
-                }
-                SymbolType::Parameter(_) => {
-                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
-
-                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
-                    self.analyse_parameter_address(local_param_id);
-                    self.analyse_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
-                }
-                SymbolType::Function { .. } => {
-                    panic!("Cannot reassign a value to function '{}'", identifier_name);
-                }
-            }
-        } else {
-            panic!("Assignment identifier '{}' not recognised", identifier_name);
-        }
-
+    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+        panic!("Still need to do this!");
     }
 
-    fn analyse_array_assignment_statement(&mut self, array_index: &ASTNode, expression: &ASTNode, identifier_name: String) {
-        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-            match symbol.symbol_type() {
-                SymbolType::Variable(_) => {
-                    let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
-                    self.builder.emit_array(address, true);
-                    self.analyse_node(array_index);
-                    self.builder.emit_op(OP::DOUBLETOLONGLONG);
-                    self.builder.emit_op(OP::ADD_PTR);
-                    self.builder.emit_op(OP::LDNXPTR);
-                    self.analyse_node(expression);
-                    self.builder.emit_op(OP::WRITE);
-                }
-                SymbolType::EnvironmentVariable(_, _, qualifier) => {
-                    panic!("Cannot use array assignment with environment variable '{}'", qualifier);
-                }
-                SymbolType::Parameter(_) => {
-                    panic!("Cannot use array assignment with parameters");
-                }
-                SymbolType::Function { .. } => {
-                    panic!("Cannot reassign a value to function '{}'", identifier_name);
-                }
-            }
-        } else {
-            panic!("Assignment identifier '{}' not recognised", identifier_name);
-        }
+    fn analyse_return_statement(&mut self, expression: &Box<ASTNode>) -> ASTNode {
+        panic!("Still need to do this!");
     }
 
-    fn analyse_return_statement(&mut self, expression: &Box<ASTNode>) {
-        // Store return result in register
-        self.analyse_set_return_store(expression);
-        self.analyse_return_handler();
-    }
-
-    fn analyse_return_handler(&mut self) {
-        self.builder.comment(String::from("RETURN HANDLER START"));
-
-        // Set stack pointer to frame ptr
-        self.analyse_get_frame_ptr();
-        self.analyse_set_stack_ptr();
-
-        // Set frame ptr to old frame ptr
-        self.builder.emit_value(f64::from_ne_bytes(Self::frame_ptr_address().to_ne_bytes()));
-        self.builder.emit_op(OP::SWAP);
-        self.builder.emit_op(OP::STK_WRITE);
-
-        // GOTO return address
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
-
-        self.builder.comment(String::from("RETURN HANDLER END"));
-    }
-
-    fn analyse_branch_statement(&mut self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) {
-        let if_end = self.builder.create_label();
-
-        // Conditional Jump
-        self.builder.comment(String::from("IF CONDITION"));
-        self.analyse_node(condition);
-        self.builder.reference(if_end);
-        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
-
-        // If condition != 0
-        // analyse if block
-        self.builder.comment(String::from("IF BRANCH"));
-        self.analyse_node(if_branch);
-
-        // If condition == 0, i.e Else
-        match else_branch.as_ref() {
-            None => {
-                self.builder.set_label(if_end);
-            },
+    fn analyse_branch_statement(&mut self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) -> ASTNode {
+        let condition = Box::new(self.analyse_node(condition));
+        let if_branch = Box::new(self.analyse_node(if_branch));
+        let else_branch = match else_branch.as_ref() {
             Some(else_branch) => {
-                let else_end = self.builder.create_label();
-
-                // Skip else block if encountered after running if block
-                self.builder.reference(else_end);
-                self.builder.emit_instruction(INSTRUCTION::GOTO);
-                self.builder.set_label(if_end);
-
-                // analyse else block
-                self.builder.comment(String::from("ELSE BRANCH"));
-                self.analyse_node(else_branch);
-                self.builder.set_label(else_end);
+                Box::new(Some(self.analyse_node(else_branch)))
             }
+            None => Box::new(None)
+        };
+        let datatype = self.type_from_node(&condition);
+        match datatype {
+            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            _ => panic!("Literal values must be used for if statement conditions!")
         }
-        self.builder.comment(String::from("IF END"));
+
+        ASTNode::BRANCH { condition, if_branch, else_branch }
     }
 
-    fn analyse_while_statement(&mut self, condition: &Box<ASTNode>, body: &Box<ASTNode>) {
-        let while_start = self.builder.create_label();
-        let while_exit = self.builder.create_label();
-
-        // Start
-        self.builder.set_label(while_start);
-
-        // analyse condition
-        self.builder.comment(String::from("WHILE CONDITION"));
-        self.analyse_node(condition);
-        self.builder.reference(while_exit);
-        self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
-
-        // analyse body
-        self.builder.comment(String::from("WHILE BODY"));
-        self.analyse_node(body);
-
-        // Loop back to condition after body
-        self.builder.reference(while_start);
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
-
-        // Exit
-        self.builder.set_label(while_exit);
-        self.builder.comment(String::from("WHILE END"));
-
+    fn analyse_while_statement(&mut self, condition: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+        let condition = Box::new(self.analyse_node(condition));
+        let body = Box::new(self.analyse_node(body));
+        let datatype = self.type_from_node(&condition);
+        match datatype {
+            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            _ => panic!("Literal values must be used for while statement conditions!")
+        }
+        ASTNode::WHILE_LOOP { condition, body }
     }
 
     fn analyse_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
