@@ -1,7 +1,5 @@
-use std::process::id;
-
 use crate::compiler::PrimitiveDataType;
-use crate::compiler::ast::{Literal, datatype, UnaryOperation, BinaryOperation, ScopeId};
+use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId};
 use crate::compiler::ast::datatype::DataType;
 
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
@@ -18,7 +16,7 @@ pub struct BarracudaSemanticAnalyser;
 impl BarracudaSemanticAnalyser {
  
     /// Parses all pest pair tokens into a valid ASTNode
-    fn analyse_node(self, node: &ASTNode) -> ASTNode {
+    fn analyse_node(&self, node: &ASTNode) -> ASTNode {
         match node {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.analyse_identifier(identifier_name) 
@@ -90,32 +88,32 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn mark_identifier_type(self, name: &String, datatype: DataType) {
+    fn mark_identifier_type(&self, name: &String, datatype: DataType) {
         panic!("Still need to do this");
     }
 
-    fn type_from_identifier(self, name: &String) -> DataType {
+    fn type_from_identifier(&self, name: &String) -> DataType {
         panic!("Still need to do this");
     }
 
-    fn type_from_node(self, name: &ASTNode) -> DataType {
+    fn type_from_node(&self, name: &ASTNode) -> DataType {
         panic!("Still need to do this");
     }
 
-    fn analyse_identifier(self, name: &String) -> ASTNode {
+    fn analyse_identifier(&self, name: &String) -> ASTNode {
         let datatype = self.type_from_identifier(name);
-        ASTNode::TYPED_NODE { datatype, inner: Box::new(ASTNode::IDENTIFIER(*name)) }
+        ASTNode::TYPED_NODE { datatype, inner: Box::new(ASTNode::IDENTIFIER(name.clone())) }
     }
 
-    fn analyse_reference(self, name: &String) -> ASTNode {
+    fn analyse_reference(&self, name: &String) -> ASTNode {
         let datatype = self.type_from_identifier(name);
         ASTNode::TYPED_NODE { 
             datatype: DataType::POINTER(Box::new(datatype)), 
-            inner: Box::new(ASTNode::REFERENECE(*name)) 
+            inner: Box::new(ASTNode::REFERENECE(name.clone())) 
         }
     }
 
-    fn analyse_literal(self, literal: &Literal) -> ASTNode {
+    fn analyse_literal(&self, literal: &Literal) -> ASTNode {
         let datatype = match *literal {
             Literal::FLOAT(value) => DataType::CONST(PrimitiveDataType::F64),
             Literal::INTEGER(value) => DataType::CONST(PrimitiveDataType::I64),
@@ -124,11 +122,11 @@ impl BarracudaSemanticAnalyser {
 
         ASTNode::TYPED_NODE { 
             datatype, 
-            inner: Box::new(ASTNode::LITERAL(*literal))
+            inner: Box::new(ASTNode::LITERAL(literal.clone()))
         }
     }
 
-    fn analyse_array(self, items: &Vec<ASTNode>) -> ASTNode {
+    fn analyse_array(&self, items: &Vec<ASTNode>) -> ASTNode {
         if items.len() == 0 {
             panic!("Cannot create an array of length 0!")
         }
@@ -149,7 +147,7 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_unary_op(self, op: &UnaryOperation, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_unary_op(&self, op: &UnaryOperation, expression: &Box<ASTNode>) -> ASTNode {
         let expression = self.analyse_node(expression);
         let datatype = self.type_from_node(&expression);
         let datatype = match op {
@@ -161,7 +159,7 @@ impl BarracudaSemanticAnalyser {
             }
             UnaryOperation::PTR_DEREF => { 
                 match datatype {
-                    DataType::POINTER(inner_datatype) => *inner_datatype.as_ref(),
+                    DataType::POINTER(inner_datatype) => inner_datatype.as_ref().clone(),
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
                 }
             }
@@ -175,7 +173,7 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_binary_op(self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) -> ASTNode {
+    fn analyse_binary_op(&self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) -> ASTNode {
         let lhs = self.analyse_node(lhs);
         let rhs = self.analyse_node(rhs);
         let lhs_datatype = self.type_from_node(&lhs);
@@ -214,7 +212,7 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_array_index(self, index: &Box<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_array_index(&self, index: &Box<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
         let expression = Box::new(self.analyse_node(expression));
         let index = Box::new(self.analyse_node(index));
         let expression_datatype = self.type_from_node(&expression);
@@ -234,11 +232,11 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_construct_statement(self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_construct_statement(&self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
         let expression = Box::new(self.analyse_node(expression));
         let expression_datatype = self.type_from_node(&expression);
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            if let Some(datatype) = datatype.as_ref() {
+            if let Some(datatype) = datatype.as_ref().clone() {
                 let datatype = match datatype {
                     ASTNode::DATATYPE(datatype) => datatype,
                     _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
@@ -257,19 +255,19 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_extern_statement(self, identifier: &Box<ASTNode>) -> ASTNode {
+    fn analyse_extern_statement(&self, identifier: &Box<ASTNode>) -> ASTNode {
         panic!("Still need to do this!");
     }
 
-    fn analyse_assignment_statement(self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_assignment_statement(&self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
         panic!("Still need to do this!");
     }
 
-    fn analyse_return_statement(self, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_return_statement(&self, expression: &Box<ASTNode>) -> ASTNode {
         panic!("Still need to do this!");
     }
 
-    fn analyse_branch_statement(self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) -> ASTNode {
+    fn analyse_branch_statement(&self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) -> ASTNode {
         let condition = Box::new(self.analyse_node(condition));
         let if_branch = Box::new(self.analyse_node(if_branch));
         let else_branch = match else_branch.as_ref() {
@@ -287,7 +285,7 @@ impl BarracudaSemanticAnalyser {
         ASTNode::BRANCH { condition, if_branch, else_branch }
     }
 
-    fn analyse_while_statement(self, condition: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+    fn analyse_while_statement(&self, condition: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
         let condition = Box::new(self.analyse_node(condition));
         let body = Box::new(self.analyse_node(body));
         let datatype = self.type_from_node(&condition);
@@ -298,7 +296,7 @@ impl BarracudaSemanticAnalyser {
         ASTNode::WHILE_LOOP { condition, body }
     }
 
-    fn analyse_for_loop(self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+    fn analyse_for_loop(&self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
         let initialization = Box::new(self.analyse_node(initialization));
         let condition = Box::new(self.analyse_node(condition));
         let advancement = Box::new(self.analyse_node(advancement));
@@ -311,11 +309,11 @@ impl BarracudaSemanticAnalyser {
         ASTNode::FOR_LOOP { initialization, condition, advancement, body }
     }
 
-    fn analyse_function_definition(self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+    fn analyse_function_definition(&self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
         panic!("Still need to do this!")
     }
 
-    fn analyse_parameter(self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) -> ASTNode {
+    fn analyse_parameter(&self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) -> ASTNode {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if let Some(datatype) = datatype.as_ref() {
                 let datatype = match datatype {
@@ -334,16 +332,16 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_function_call(self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
+    fn analyse_function_call(&self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
         panic!("Still need to do this!");
     }
 
-    fn analyse_naked_function_call(self, func_call: &Box<ASTNode>) -> ASTNode {
+    fn analyse_naked_function_call(&self, func_call: &Box<ASTNode>) -> ASTNode {
         let func_call = Box::new(self.analyse_node(func_call));
         ASTNode::NAKED_FUNC_CALL { func_call }
     }
 
-    fn analyse_statement_list(self, statements: &Vec<ASTNode>) -> ASTNode {
+    fn analyse_statement_list(&self, statements: &Vec<ASTNode>) -> ASTNode {
         let mut new_statements = Vec::new();
         for statement in statements {
             new_statements.push(self.analyse_node(statement));
@@ -351,7 +349,7 @@ impl BarracudaSemanticAnalyser {
         ASTNode::STATEMENT_LIST(new_statements)
     }
 
-    fn analyse_scope_block(self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
+    fn analyse_scope_block(&self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
         let inner = Box::new(self.analyse_node(inner));
         ASTNode::SCOPE_BLOCK { inner, scope: scope.clone() }
     }
@@ -366,6 +364,6 @@ impl SemanticAnalyser for BarracudaSemanticAnalyser {
 
     /// Parse processes a source string into an abstract syntax tree
     fn analyse(self, root_node: ASTNode, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree { 
-        AbstractSyntaxTree::new(BarracudaSemanticAnalyser::analyse_node(self, &root_node), env_vars)
+        AbstractSyntaxTree::new(BarracudaSemanticAnalyser::analyse_node(&self, &root_node), env_vars)
     }
 }
