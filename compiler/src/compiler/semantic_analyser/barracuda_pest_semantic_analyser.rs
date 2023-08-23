@@ -299,99 +299,42 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
-        // analyse body
-        match body.as_ref() {
-            ASTNode::SCOPE_BLOCK { inner, scope } => {
-                self.symbol_tracker.enter_scope(scope.clone());
-
-                let for_start = self.builder.create_label();
-                let for_exit = self.builder.create_label();
-
-                // Start
-                self.builder.comment(String::from("FOR INIT"));
-                self.analyse_node(initialization);
-                self.builder.set_label(for_start);
-
-                // Condition
-                self.builder.comment(String::from("FOR CONDITION"));
-                self.analyse_node(condition);
-                self.builder.reference(for_exit);
-                self.builder.emit_instruction(INSTRUCTION::GOTO_IF);
-
-                // analyse Body
-                self.builder.comment(String::from("FOR BODY"));
-                self.analyse_node(inner);
-
-                self.builder.comment(String::from("FOR ADVANCE"));
-                self.analyse_node(advancement);
-
-                // Loop back to condition after body
-                self.builder.reference(for_start);
-                self.builder.emit_instruction(INSTRUCTION::GOTO);
-
-                // Exit
-                self.builder.set_label(for_exit);
-                self.builder.comment(String::from("FOR END"));
-
-
-                self.symbol_tracker.exit_scope();
-
-                self.builder.emit_op(OP::DROP);
-            }
-            _ => panic!("Malformed for loop node!")
-        };
+        let initialization = Box::new(self.analyse_node(initialization));
+        let condition = Box::new(self.analyse_node(condition));
+        let advancement = Box::new(self.analyse_node(advancement));
+        let body = Box::new(self.analyse_node(body));
+        let datatype = self.type_from_node(&condition);
+        match datatype {
+            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            _ => panic!("Literal values must be used for for statement conditions!")
+        }
+        ASTNode::FOR_LOOP { initialization, condition, advancement, body }
     }
 
     fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
-
-        let identifier_name = identifier.identifier_name().unwrap();
-
-        // Create labels and assign them
-        let function_def_start = self.builder.create_label();
-        let function_def_end = self.builder.create_label();
-
-        // Jump over function definition approaching from the top
-        self.builder.reference(function_def_end);
-        self.builder.emit_instruction(INSTRUCTION::GOTO);
-
-        self.builder.comment(format!("FN {} START", &identifier_name));
-        self.builder.set_label(function_def_start);
-
-        // analyse body
-        match body.as_ref() {
-            ASTNode::SCOPE_BLOCK { inner, scope } => {
-                self.symbol_tracker.enter_scope(scope.clone());
-
-                // Process parameters into scope
-                for parameter in parameters {
-                    self.analyse_node(parameter);
-                }
-
-                // analyse function body
-                self.analyse_node(inner);
-
-                self.symbol_tracker.exit_scope();
-            }
-            _ => panic!("Malformed function node!")
-        };
-
-        // Return if reaches end
-        self.analyse_return_handler();
-        self.builder.set_label(function_def_end);
-        self.builder.comment(format!("FN {} END", &identifier_name));
-
-        // Add function symbol (Done after function to disallow recursion as it doesn't work at the moment)
-        if self.symbol_tracker.find_symbol(&identifier_name).is_some() {
-            panic!("Identifier `{}` can't be assigned to function as it already exists!", identifier_name);
-        }
-        self.add_symbol(identifier_name.clone());
-        self.function_labels.insert(identifier_name.clone(), vec![function_def_start, 0]);
-
+        panic!("Still need to do this!")
     }
 
     fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let identifier_name = identifier.identifier_name().unwrap();
-        self.add_symbol(identifier_name);
+        let expression = Box::new(self.analyse_node(expression));
+        let expression_datatype = self.type_from_node(&expression);
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            if let Some(datatype) = datatype.as_ref() {
+                let datatype = match datatype {
+                    ASTNode::DATATYPE(datatype) => datatype,
+                    _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
+                };
+                if datatype != expression_datatype {
+                    panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, expression_datatype);
+                }
+                self.mark_identifier_type(name, datatype.clone());
+                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: Box::new(None), expression: expression.clone() }   
+            } else {
+                panic!("Malformed AST! Multiple dispatch is not implemented so functions must contain types")
+            }
+        } else {
+            panic!("Malformed AST! Construct statement should always start with an identifier")
+        }
     }
 
     fn analyse_builtin_functions(&mut self)
