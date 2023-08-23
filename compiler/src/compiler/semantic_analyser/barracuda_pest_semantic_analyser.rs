@@ -315,7 +315,7 @@ impl BarracudaSemanticAnalyser {
         panic!("Still need to do this!")
     }
 
-    fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
+    fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) {
         let expression = Box::new(self.analyse_node(expression));
         let expression_datatype = self.type_from_node(&expression);
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
@@ -330,7 +330,7 @@ impl BarracudaSemanticAnalyser {
                 self.mark_identifier_type(name, datatype.clone());
                 ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype: Box::new(None), expression: expression.clone() }   
             } else {
-                panic!("Malformed AST! Multiple dispatch is not implemented so functions must contain types")
+                panic!("Malformed AST! Multiple dispatch is not implemented so functions must contain")
             }
         } else {
             panic!("Malformed AST! Construct statement should always start with an identifier")
