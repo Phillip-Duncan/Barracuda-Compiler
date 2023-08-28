@@ -458,7 +458,9 @@ impl BarracudaByteCodeGenerator {
         self.add_symbol(identifier_name.clone())
     }
 
-    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
+        panic!("Need to fix this!");
+        /* 
         let identifier_name = identifier.identifier_name().unwrap();
         let lhs_pointer_level = self.get_pointer_level(&identifier);
         let rhs_pointer_level = self.get_pointer_level(&expression);
@@ -526,7 +528,7 @@ impl BarracudaByteCodeGenerator {
         } else {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
-
+        */
     }
 
     fn generate_array_assignment_statement(&mut self, array_index: &ASTNode, expression: &ASTNode, identifier_name: String) {

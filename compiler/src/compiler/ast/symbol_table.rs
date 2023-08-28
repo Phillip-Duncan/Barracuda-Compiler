@@ -280,7 +280,6 @@ impl SymbolTable {
             ASTNode::IDENTIFIER(name) => name.clone(),
             _ => panic!("")    // AST Malformed
         };
-        println!("we are going to find.... {:?}", datatype);
         // Identify the variable type
         let datatype = match datatype {
             Some(datatype_node) => DataType::from(datatype_node),
@@ -363,7 +362,6 @@ impl SymbolTable {
                 };
             }
             ASTNode::CONSTRUCT{ identifier, datatype, expression:_ } => {
-                println!("que hummus? {:?} {:?}", identifier, datatype);
                 match Self::process_variable(identifier.as_ref(), datatype.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed

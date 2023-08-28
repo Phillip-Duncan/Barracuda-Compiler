@@ -1,5 +1,6 @@
 use crate::compiler::PrimitiveDataType;
-use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId, ScopeTracker};
+use crate::compiler::ast::symbol_table::SymbolType;
+use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId, ScopeTracker, datatype};
 use crate::compiler::ast::datatype::DataType;
 
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
@@ -53,7 +54,9 @@ impl BarracudaSemanticAnalyser {
             ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
                 self.analyse_assignment_statement(identifier, array_index, expression)
             }
-            ASTNode::PRINT { .. } => node.clone(),
+            ASTNode::PRINT { expression } => {
+                self.analyse_print_statement(expression)
+            },
             ASTNode::RETURN { expression } => {
                 self.analyse_return_statement(expression)
             }
@@ -90,13 +93,18 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn mark_identifier_type(&mut self, name: &String, _datatype: DataType) {
+    fn mark_identifier(&mut self, name: &String) {
         self.symbol_tracker.add_symbol(name.clone());
     }
 
     fn type_from_identifier(&mut self, name: &String) -> DataType {
-        println!("getting the symbol for real ok {:?}", self.symbol_tracker.find_symbol(name));
-        panic!("Still need to do this");
+        match self.symbol_tracker.find_symbol(name) {
+            Some(symbol) => match symbol.symbol_type() {
+                SymbolType::Variable(datatype) | SymbolType::EnvironmentVariable(_, datatype, _) => datatype,
+                _ => panic!("Identifier {} isn't a variable!", name)
+            },
+            None => panic!("Identifier {} doesn't exist!", name)
+        }
     }
 
     fn type_from_node(&mut self, node: &ASTNode) -> DataType {
@@ -224,8 +232,8 @@ impl BarracudaSemanticAnalyser {
         let expression_datatype = self.type_from_node(&expression);
         let index_datatype = self.type_from_node(&index);
         // check index is a literal and expression is an array. Return array innards
-        if let DataType::ARRAY(inner_type, _size) = index_datatype {
-            if let DataType::CONST(_) | DataType::MUTABLE(_)  = expression_datatype {
+        if let DataType::ARRAY(inner_type, _size) = expression_datatype {
+            if let DataType::CONST(_) | DataType::MUTABLE(_)  = index_datatype {
                 ASTNode::TYPED_NODE { 
                     datatype: inner_type.as_ref().clone(), 
                     inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
@@ -234,7 +242,7 @@ impl BarracudaSemanticAnalyser {
                 panic!("Can only index arrays with literal values!")
             }
         } else {
-            panic!("Can't index a non-array!")
+            panic!("Can't index a non-array! (indexing {:?} with {:?})", expression_datatype, index_datatype)
         }
     }
 
@@ -250,11 +258,11 @@ impl BarracudaSemanticAnalyser {
                 if datatype != expression_datatype {
                     panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, expression_datatype);
                 }
-                self.mark_identifier_type(name, datatype.clone());
+                self.mark_identifier(name);
                 let datatype = Box::new(Some(ASTNode::DATATYPE(datatype)));
                 ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
             } else {
-                self.mark_identifier_type(name, expression_datatype.clone());
+                self.mark_identifier(name);
                 let datatype = Box::new(Some(ASTNode::DATATYPE(expression_datatype)));
                 ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
             }
@@ -264,11 +272,48 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_extern_statement(&mut self, identifier: &Box<ASTNode>) -> ASTNode {
-        panic!("Still need to do this!");
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            self.mark_identifier(name);
+            ASTNode::EXTERN { identifier: identifier.clone() }
+        } else {
+            panic!("Malformed AST! Extern statement should always contain an identifier")
+        }
     }
 
-    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
-        panic!("Still need to do this!");
+    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
+        let identifier = Box::new(self.analyse_node(identifier));
+        let mut identifier_datatype = self.type_from_node(&identifier);
+
+        let mut new_index = Vec::new();
+        for index in array_index {
+            let index = self.analyse_node(index);
+            let index_datatype = self.type_from_node(&index);
+            match index_datatype {
+                DataType::CONST(_) | DataType::MUTABLE(_) => {}
+                _ => panic!("Can only index arrays with literal values!")
+            };
+            new_index.push(index);
+            identifier_datatype = match identifier_datatype {
+                DataType::ARRAY(datatype, _) => *datatype,
+                _ => panic!("Can't index a non-array!")
+            };
+            
+        }
+
+        let expression = self.analyse_node(expression);
+        let expression_datatype = self.type_from_node(&expression);
+        let expression = Box::new(expression);
+
+        if expression_datatype != identifier_datatype {
+            panic!("Identifier and expression must be equal in an assignment statement! (Currently {:?} vs {:?})", identifier_datatype, expression_datatype)
+        }
+        
+        ASTNode::ASSIGNMENT { identifier, array_index: new_index, expression }
+    }
+
+    fn analyse_print_statement(&mut self, expression: &Box<ASTNode>) -> ASTNode {
+        let expression = Box::new(self.analyse_node(expression));
+        ASTNode::PRINT { expression }
     }
 
     fn analyse_return_statement(&mut self, expression: &Box<ASTNode>) -> ASTNode {
@@ -328,7 +373,7 @@ impl BarracudaSemanticAnalyser {
                     ASTNode::DATATYPE(datatype) => datatype,
                     _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
                 };
-                self.mark_identifier_type(name, datatype.clone());
+                self.mark_identifier(name);
                 let identifier = identifier.clone();
                 let datatype = Box::new(None);
                 ASTNode::PARAMETER { identifier, datatype }
