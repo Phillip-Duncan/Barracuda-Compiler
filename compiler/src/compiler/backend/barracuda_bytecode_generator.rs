@@ -210,29 +210,32 @@ impl BarracudaByteCodeGenerator {
 impl BarracudaByteCodeGenerator {
     fn generate_node(&mut self, node: &ASTNode) {
         match node {
-            ASTNode::IDENTIFIER(identifier_name) => {
-                self.generate_identifier(identifier_name)
-            }
-            ASTNode::REFERENECE(identifier_name) => {
-                self.generate_reference(identifier_name)
-            }
-            ASTNode::DATATYPE(_) => {
-                panic!("Malformed AST! Datatypes should not be directly generated.");
-            }
-            ASTNode::LITERAL(literal) => {
-                self.generate_literal(literal)
-            }
-            ASTNode::ARRAY(_) => {
-                panic!("Arrays literals can only be used for direct assignment!");
-            }
-            ASTNode::UNARY_OP { op, expression } => {
-                self.generate_unary_op(op, expression)
-            }
-            ASTNode::BINARY_OP { op, lhs, rhs } => {
-                self.generate_binary_op(op, lhs, rhs)
-            }
-            ASTNode::ARRAY_INDEX { index, expression } => {
-                self.generate_array_index(index, expression)
+            ASTNode::TYPED_NODE { datatype, inner } => match inner.as_ref() {
+                ASTNode::IDENTIFIER(identifier_name) => {
+                    self.generate_identifier(identifier_name)
+                }
+                ASTNode::REFERENECE(identifier_name) => {
+                    self.generate_reference(identifier_name)
+                }
+                ASTNode::LITERAL(literal) => {
+                    self.generate_literal(literal)
+                }
+                ASTNode::ARRAY(_) => {
+                    panic!("Arrays literals can only be used for direct assignment!");
+                }
+                ASTNode::UNARY_OP { op, expression } => {
+                    self.generate_unary_op(op, expression)
+                }
+                ASTNode::BINARY_OP { op, lhs, rhs } => {
+                    self.generate_binary_op(op, lhs, rhs)
+                }
+                ASTNode::ARRAY_INDEX { index, expression } => {
+                    self.generate_array_index(index, expression)
+                }
+                ASTNode::FUNC_CALL { identifier, arguments } => {
+                    self.generate_function_call(identifier, arguments)
+                }
+                _ => panic!("Malformed AST! Node {:?} should not be inside a typed node.", node)
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 self.generate_construct_statement(identifier, datatype, expression);
@@ -264,9 +267,6 @@ impl BarracudaByteCodeGenerator {
             ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
                 self.generate_function_definition(identifier, parameters, return_type, body)
             }
-            ASTNode::FUNC_CALL { identifier, arguments } => {
-                self.generate_function_call(identifier, arguments)
-            }
             ASTNode::NAKED_FUNC_CALL { func_call } => {
                 self.generate_naked_function_call(func_call)
             }
@@ -276,8 +276,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.generate_scope_block(inner, scope);
             }
-            ASTNode::TYPED_NODE { .. } => {
-                panic!("Typed nodes are not implemened yet!");
+            _ => {
+                panic!("Malformed AST! Node {:?} should not be directly generated.", node);
             }
         };
     }
@@ -347,10 +347,6 @@ impl BarracudaByteCodeGenerator {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
             Literal::INTEGER(value) => { value as f64 }
-            //Literal::STRING(_) => {
-            //    unimplemented!()
-            //    This would likely involve allocation on the heap
-            //}
             Literal::BOOL(value) => { value as i64 as f64 }
         };
 
@@ -372,10 +368,6 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
-        let pointer_level = self.get_pointer_level(&expression);
-        if pointer_level != 0 {
-            panic!("Pointers cannot be used with the operation '{:?}' !", op);
-        }
         self.generate_node(expression);
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
@@ -385,16 +377,6 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
-        let lhs_pointer_level = self.get_pointer_level(&lhs);
-        let rhs_pointer_level = self.get_pointer_level(&rhs);
-        if lhs_pointer_level != 0 || rhs_pointer_level != 0 {
-            if !LEGAL_POINTER_OPERATIONS.contains(&op) {
-                panic!("Operation {:?} cannot be used with pointers!", op);
-            }
-        }
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in a binary operation! ({} vs {})", lhs_pointer_level, rhs_pointer_level);
-        }
         self.generate_node(lhs);
         self.generate_node(rhs);
         match op {
@@ -423,6 +405,8 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
+        panic!("Still need to do this one")
+        /* 
         let identifier_name = identifier.identifier_name().unwrap();
         
         let expression_pointer_level = self.get_pointer_level(&expression);
@@ -450,6 +434,7 @@ impl BarracudaByteCodeGenerator {
                 self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
             }
         }
+        */
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
@@ -844,10 +829,6 @@ impl BarracudaByteCodeGenerator {
         for _ in 0..symbols_dropped {
             self.builder.emit_op(OP::DROP);
         }
-    }
-
-    fn get_pointer_level(&mut self, _node: &Box<ASTNode>) -> usize {
-        0 // TODO
     }
 
 }
