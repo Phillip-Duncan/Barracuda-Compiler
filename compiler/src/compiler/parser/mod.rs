@@ -1,4 +1,4 @@
-use super::ast::ASTNode;
+use super::{ast::AbstractSyntaxTree, EnvironmentSymbolContext};
 pub mod barracuda_pest_parser;
 
 /// Parser handles interpretation of high-level tokens into the intermediate
@@ -9,7 +9,7 @@ pub trait AstParser {
     fn default() -> Self;
 
     /// Parse a source string into an Abstract Syntax Tree
-    fn parse(self, source: &str) -> ASTNode;
+    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree;
 }
 
 // Concrete Definition Export

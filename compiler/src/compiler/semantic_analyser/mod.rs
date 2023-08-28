@@ -7,7 +7,7 @@ pub trait SemanticAnalyser {
     fn default() -> Self;
 
     /// Analyse an Abstract Syntax Tree and annotate it with types.
-    fn analyse(self, root_node: ASTNode, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree;
+    fn analyse(self, root_node: AbstractSyntaxTree, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree;
 }
 
 // Concrete Definition Export

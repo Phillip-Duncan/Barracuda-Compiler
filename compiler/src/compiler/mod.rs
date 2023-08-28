@@ -70,8 +70,8 @@ impl<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> Compiler<P, A, G> {
 
     /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
-        let root_node = self.parser.parse(source);
-        let annotated_ast = self.semantic_analyser.analyse(root_node, self.env_vars.clone());
+        let ast = self.parser.parse(source, self.env_vars.clone());
+        let annotated_ast = self.semantic_analyser.analyse(ast, self.env_vars.clone());
         let program_code = self.generator.generate(annotated_ast);
 
         return program_code
