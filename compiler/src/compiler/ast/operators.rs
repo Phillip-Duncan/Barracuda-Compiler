@@ -25,5 +25,3 @@ pub enum BinaryOperation {
     GREATER_EQUAL,  // <lhs> >= <rhs>
     LESS_EQUAL      // <lhs> <= <rhs>
 }
-
-pub const LEGAL_POINTER_OPERATIONS: &[BinaryOperation] = &[BinaryOperation::EQUAL, BinaryOperation::NOT_EQUAL];

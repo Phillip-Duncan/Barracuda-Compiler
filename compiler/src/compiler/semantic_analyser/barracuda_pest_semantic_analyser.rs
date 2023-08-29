@@ -107,13 +107,6 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn type_from_node(&mut self, node: &ASTNode) -> DataType {
-        match node {
-            ASTNode::TYPED_NODE { datatype, .. } => datatype.clone(),
-            _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", node)
-        }
-    }
-
     fn analyse_identifier(&mut self, name: &String) -> ASTNode {
         let datatype = self.type_from_identifier(name);
         ASTNode::TYPED_NODE { datatype, inner: Box::new(ASTNode::IDENTIFIER(name.clone())) }
@@ -148,9 +141,9 @@ impl BarracudaSemanticAnalyser {
         for item in items {
             typed_items.push(self.analyse_node(item))
         }
-        let datatype = self.type_from_node(&typed_items[0]);
+        let datatype = typed_items[0].get_type();
         for item in typed_items.iter().skip(1) {
-            let datatype_2 = self.type_from_node(item); 
+            let datatype_2 = item.get_type();
             if datatype != datatype_2 {
                 panic!("Cannot create array with mismatched types!")
             }
@@ -163,7 +156,7 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) -> ASTNode {
         let expression = self.analyse_node(expression);
-        let datatype = self.type_from_node(&expression);
+        let datatype = expression.get_type();
         let datatype = match op {
             UnaryOperation::NOT | UnaryOperation::NEGATE => { 
                 match datatype {
@@ -190,8 +183,8 @@ impl BarracudaSemanticAnalyser {
     fn analyse_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) -> ASTNode {
         let lhs = self.analyse_node(lhs);
         let rhs = self.analyse_node(rhs);
-        let lhs_datatype = self.type_from_node(&lhs);
-        let rhs_datatype = self.type_from_node(&rhs);
+        let lhs_datatype = lhs.get_type();
+        let rhs_datatype = rhs.get_type();
         if lhs_datatype != rhs_datatype {
             panic!("Cannot perform operation {:?} with mismatched types!", op)
         }
@@ -229,8 +222,8 @@ impl BarracudaSemanticAnalyser {
     fn analyse_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
         let expression = Box::new(self.analyse_node(expression));
         let index = Box::new(self.analyse_node(index));
-        let expression_datatype = self.type_from_node(&expression);
-        let index_datatype = self.type_from_node(&index);
+        let expression_datatype = expression.get_type();
+        let index_datatype = index.get_type();
         // check index is a literal and expression is an array. Return array innards
         if let DataType::ARRAY(inner_type, _size) = expression_datatype {
             if let DataType::CONST(_) | DataType::MUTABLE(_)  = index_datatype {
@@ -247,8 +240,9 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
+        println!("see the marching band");
         let expression = Box::new(self.analyse_node(expression));
-        let expression_datatype = self.type_from_node(&expression);
+        let expression_datatype = expression.get_type();
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if let Some(datatype) = datatype.as_ref().clone() {
                 let datatype = match datatype {
@@ -263,7 +257,9 @@ impl BarracudaSemanticAnalyser {
                 ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
             } else {
                 self.mark_identifier(name);
+                println!("sad no datatype :(");
                 let datatype = Box::new(Some(ASTNode::DATATYPE(expression_datatype)));
+                println!("got it!");
                 ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
             }
         } else {
@@ -282,12 +278,12 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
         let identifier = Box::new(self.analyse_node(identifier));
-        let mut identifier_datatype = self.type_from_node(&identifier);
+        let mut identifier_datatype = identifier.get_type();
 
         let mut new_index = Vec::new();
         for index in array_index {
             let index = self.analyse_node(index);
-            let index_datatype = self.type_from_node(&index);
+            let index_datatype = index.get_type();
             match index_datatype {
                 DataType::CONST(_) | DataType::MUTABLE(_) => {}
                 _ => panic!("Can only index arrays with literal values!")
@@ -301,7 +297,7 @@ impl BarracudaSemanticAnalyser {
         }
 
         let expression = self.analyse_node(expression);
-        let expression_datatype = self.type_from_node(&expression);
+        let expression_datatype = expression.get_type();
         let expression = Box::new(expression);
 
         if expression_datatype != identifier_datatype {
@@ -329,7 +325,7 @@ impl BarracudaSemanticAnalyser {
             }
             None => Box::new(None)
         };
-        let datatype = self.type_from_node(&condition);
+        let datatype = condition.get_type();
         match datatype {
             DataType::CONST(_) | DataType::MUTABLE(_) => {},
             _ => panic!("Literal values must be used for if statement conditions!")
@@ -341,7 +337,7 @@ impl BarracudaSemanticAnalyser {
     fn analyse_while_statement(&mut self, condition: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
         let condition = Box::new(self.analyse_node(condition));
         let body = Box::new(self.analyse_node(body));
-        let datatype = self.type_from_node(&condition);
+        let datatype = condition.get_type();
         match datatype {
             DataType::CONST(_) | DataType::MUTABLE(_) => {},
             _ => panic!("Literal values must be used for while statement conditions!")
@@ -354,7 +350,7 @@ impl BarracudaSemanticAnalyser {
         let condition = Box::new(self.analyse_node(condition));
         let advancement = Box::new(self.analyse_node(advancement));
         let body = Box::new(self.analyse_node(body));
-        let datatype = self.type_from_node(&condition);
+        let datatype = condition.get_type();
         match datatype {
             DataType::CONST(_) | DataType::MUTABLE(_) => {},
             _ => panic!("Literal values must be used for for statement conditions!")

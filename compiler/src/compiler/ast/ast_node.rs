@@ -407,8 +407,19 @@ impl ASTNode {
     /// Utility function for simplifying extracting string out of identifier node
     pub(crate) fn identifier_name(&self) -> Option<String> {
         match self {
-            ASTNode::IDENTIFIER(name) => Some(name.clone()),
+            ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                ASTNode::IDENTIFIER(name) => Some(name.clone()),
+                _ => None
+            }
             _ => None
+        }
+    }
+
+    /// Utility function for simplifying extracting type out of node
+    pub(crate) fn get_type(&self) -> DataType {
+        match self {
+            ASTNode::TYPED_NODE { datatype, .. } => datatype.clone(),
+            _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", self)
         }
     }
 

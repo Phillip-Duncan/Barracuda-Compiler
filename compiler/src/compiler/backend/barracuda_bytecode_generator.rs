@@ -16,7 +16,6 @@ use barracuda_common::{
 
 use std::collections::HashMap;
 use crate::compiler::ast::datatype::DataType;
-use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
@@ -405,18 +404,19 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        panic!("Still need to do this one")
-        /* 
+
         let identifier_name = identifier.identifier_name().unwrap();
-        
-        let expression_pointer_level = self.get_pointer_level(&expression);
-        match datatype.as_ref() {
-            Some(_datatype) => {
-                self.add_symbol(identifier_name.clone());
-                match expression.as_ref() {
-                    ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                    _ => panic!("When assigning to an array, must use an array literal!")
-                }
+        let datatype = identifier.get_type();
+    
+        match datatype {
+            DataType::ARRAY(inner, size)=> {
+                panic!("Still need to do this!");
+                // Are we a multidimensional array?
+                //self.add_symbol(identifier_name.clone());
+                //match expression.as_ref() {
+                //    ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                //    _ => panic!("When assigning to an array, must use an array literal!")
+                //}
                 //self.generate_node(expression);
                 //
 
@@ -424,7 +424,7 @@ impl BarracudaByteCodeGenerator {
 
                 //self.generate_local_var_address(localvar_id);
             },
-            None => {
+            _ => {
                 // Leave result of expression at top of stack as this is the allocated
                 // region for the local variable
                 self.generate_node(expression);
@@ -434,7 +434,7 @@ impl BarracudaByteCodeGenerator {
                 self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
             }
         }
-        */
+
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
@@ -444,85 +444,85 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
-        panic!("Need to fix this!");
-        /* 
-        let identifier_name = identifier.identifier_name().unwrap();
-        let lhs_pointer_level = self.get_pointer_level(&identifier);
-        let rhs_pointer_level = self.get_pointer_level(&expression);
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
-        }
-        if array_index.is_some() {
-            self.generate_array_assignment_statement(&array_index.to_owned().unwrap(), expression.as_ref(), identifier_name);
-        } else if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-            match symbol.symbol_type() {
-                SymbolType::Variable(datatype) => {
-                    match datatype {
-                        DataType::ARRAY(_,_) => {
-                            match expression.as_ref() {
-                                ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                                _ => panic!("When assigning to an array, must use an array literal!")
-                            }
-                        },
-                        _ => {
-                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
 
-                            self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-                            self.generate_local_var_address(local_var_id);
+        let identifier_name = identifier.identifier_name().unwrap();
+        let datatype = identifier.get_type();
+
+        match datatype {
+            DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name),
+            _ => {
+                if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+                    match symbol.symbol_type() {
+                        SymbolType::Variable(datatype) => {
+                            match datatype {
+                                DataType::ARRAY(_,_) => {
+                                    match expression.as_ref() {
+                                        ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                                        _ => panic!("When assigning to an array, must use an array literal!")
+                                    }
+                                },
+                                _ => {
+                                    let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+        
+                                    self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
+                                    self.generate_local_var_address(local_var_id);
+                                    self.generate_node(expression);
+                                    self.builder.emit_op(OP::STK_WRITE);
+                                }
+                            }
+                        }
+                        SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+                            self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
+                            self.generate_node(expression);
+                            if qualifier.contains("*") {
+                                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                                self.builder.emit_op(OP::LDNX);
+                                let ptr_depth = qualifier.matches("*").count();
+                                for _n in 0..ptr_depth {
+                                    if _n == ptr_depth - 1 {
+                                        //self.builder.emit_op(OP::READ);
+                                        continue;
+                                    }
+                                    else {
+                                        self.builder.emit_op(OP::PTR_DEREF);
+                                    }
+                                }
+                                self.builder.emit_op(OP::SWAP);
+                                self.builder.emit_op(OP::WRITE);
+                            }
+                            else {
+                                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                                self.builder.emit_op(OP::RCNX);
+                            }
+                        }
+                        SymbolType::Parameter(_) => {
+                            let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
+        
+                            self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
+                            self.generate_parameter_address(local_param_id);
                             self.generate_node(expression);
                             self.builder.emit_op(OP::STK_WRITE);
                         }
-                    }
-                }
-                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
-                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
-                    self.generate_node(expression);
-                    if qualifier.contains("*") {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::LDNX);
-                        let ptr_depth = qualifier.matches("*").count();
-                        for _n in 0..ptr_depth {
-                            if _n == ptr_depth - 1 {
-                                //self.builder.emit_op(OP::READ);
-                                continue;
-                            }
-                            else {
-                                self.builder.emit_op(OP::PTR_DEREF);
-                            }
+                        SymbolType::Function { .. } => {
+                            panic!("Cannot reassign a value to function '{}'", identifier_name);
                         }
-                        self.builder.emit_op(OP::SWAP);
-                        self.builder.emit_op(OP::WRITE);
                     }
-                    else {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::RCNX);
-                    }
-                }
-                SymbolType::Parameter(_) => {
-                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
-
-                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
-                    self.generate_parameter_address(local_param_id);
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
-                }
-                SymbolType::Function { .. } => {
-                    panic!("Cannot reassign a value to function '{}'", identifier_name);
+                } else {
+                    panic!("Assignment identifier '{}' not recognised", identifier_name);
                 }
             }
-        } else {
-            panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
-        */
     }
 
-    fn generate_array_assignment_statement(&mut self, array_index: &ASTNode, expression: &ASTNode, identifier_name: String) {
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String) {
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_) => {
                     let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
                     self.builder.emit_array(address, true);
-                    self.generate_node(array_index);
+                    for index in array_index {
+                        self.generate_node(index);
+                    }
                     self.builder.emit_op(OP::DOUBLETOLONGLONG);
                     self.builder.emit_op(OP::ADD_PTR);
                     self.builder.emit_op(OP::LDNXPTR);
