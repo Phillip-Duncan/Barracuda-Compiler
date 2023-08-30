@@ -430,6 +430,7 @@ impl BarracudaByteCodeGenerator {
                 self.generate_node(expression);
                 self.add_symbol(identifier_name.clone());
                 // Comment local var id
+                println!("Ok, we are at identifier name: {:?}", identifier_name);
                 let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
                 self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
             }

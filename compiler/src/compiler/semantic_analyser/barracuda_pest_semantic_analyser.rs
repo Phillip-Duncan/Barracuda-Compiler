@@ -240,10 +240,11 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
-        println!("see the marching band");
         let expression = Box::new(self.analyse_node(expression));
         let expression_datatype = expression.get_type();
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            self.mark_identifier(name);
+            let identifier = Box::new(self.analyse_node(identifier));
             if let Some(datatype) = datatype.as_ref().clone() {
                 let datatype = match datatype {
                     ASTNode::DATATYPE(datatype) => datatype,
@@ -252,15 +253,11 @@ impl BarracudaSemanticAnalyser {
                 if datatype != expression_datatype {
                     panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, expression_datatype);
                 }
-                self.mark_identifier(name);
                 let datatype = Box::new(Some(ASTNode::DATATYPE(datatype)));
-                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
+                ASTNode::CONSTRUCT { identifier, datatype, expression: expression.clone() }   
             } else {
-                self.mark_identifier(name);
-                println!("sad no datatype :(");
                 let datatype = Box::new(Some(ASTNode::DATATYPE(expression_datatype)));
-                println!("got it!");
-                ASTNode::CONSTRUCT { identifier: identifier.clone(), datatype, expression: expression.clone() }   
+                ASTNode::CONSTRUCT { identifier, datatype, expression: expression.clone() }   
             }
         } else {
             panic!("Malformed AST! Construct statement should always start with an identifier")

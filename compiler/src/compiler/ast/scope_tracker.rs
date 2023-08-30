@@ -182,9 +182,12 @@ impl ScopeTracker {
     ///     let f = 64;     // localvar_id = 2
     pub(crate) fn get_local_id(&self, identifier: &String) -> Option<usize> {
         match self.find_symbol(&identifier) {
-            Some(symbol) => match self.local_var_ids.get(&symbol.unique_id()) {
-                Some(id) => Some(id.clone()),
-                None => None
+            Some(symbol) => {
+                println!("hi guys {:?}", symbol);
+                    match self.local_var_ids.get(&symbol.unique_id()) {
+                    Some(id) => Some(id.clone()),
+                    None => None
+                }
             }
             None => None
         }

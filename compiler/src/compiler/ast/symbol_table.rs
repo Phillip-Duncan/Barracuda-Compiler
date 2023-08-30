@@ -283,7 +283,7 @@ impl SymbolTable {
         // Identify the variable type
         let datatype = match datatype {
             Some(datatype_node) => DataType::from(datatype_node),
-            None => panic!("Variables should always have some datatype!") // TODO does this need to be here?
+            None => DataType::NONE
         };
 
         Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
@@ -361,8 +361,12 @@ impl SymbolTable {
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::CONSTRUCT{ identifier, datatype, expression:_ } => {
-                match Self::process_variable(identifier.as_ref(), datatype.as_ref()) {
+            ASTNode::CONSTRUCT{ identifier, datatype, .. } => {
+                let identifier = match identifier.as_ref() {
+                    ASTNode::TYPED_NODE { inner, .. } => inner,
+                    _ => identifier
+                };
+                match Self::process_variable(identifier.as_ref(), datatype) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
