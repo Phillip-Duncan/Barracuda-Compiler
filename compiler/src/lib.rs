@@ -753,14 +753,14 @@ mod tests {
     // Tests for pointers
     #[test]
     fn reference() {
-        let stack = compile_and_merge("let a = 3; let *b = &a;");
+        let stack = compile_and_merge("let a = 3; let b = &a;");
         assert_eq!(vec![Val(3.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack);
     }
 
     #[test]
     fn dereference() {
-        let old_stack = compile_and_merge("let a = 3; let *b = &a; let *c = b;");
-        let stack = compile_and_merge("let a = 3; let *b = &a; let c = *b;");
+        let old_stack = compile_and_merge("let a = 3; let b = &a; let c = b;");
+        let stack = compile_and_merge("let a = 3; let b = &a; let c = *b;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Op(FIXED(STK_READ))], stack[old_stack.len()..]);
@@ -768,8 +768,8 @@ mod tests {
 
     #[test]
     fn double_dereference() {
-        let old_stack = compile_and_merge("let a = 3; let *b = &a; let **c = &b; let **d = c;");
-        let stack = compile_and_merge("let a = 3; let *b = &a; let **c = &b; let d = **c;");
+        let old_stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = c;");
+        let stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = **c;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Op(FIXED(STK_READ)), Op(FIXED(STK_READ))], stack[old_stack.len()..]);
@@ -777,8 +777,8 @@ mod tests {
 
     #[test]
     fn pointer_assign() {
-        let old_stack = compile_and_merge("let a = 3; let *b = &a;");
-        let stack = compile_and_merge("let a = 3; let *b = &a; *b = 4;");
+        let old_stack = compile_and_merge("let a = 3; let b = &a;");
+        let stack = compile_and_merge("let a = 3; let b = &a; *b = 4;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(generate_variable_call(2), stack[old_stack.len()..old_stack.len()+5]);
@@ -787,8 +787,8 @@ mod tests {
 
     #[test]
     fn triple_pointer_assign() {
-        let old_stack = compile_and_merge("let a = 3; let *b = &a; let **c = &b; let ***d = &c;");
-        let stack = compile_and_merge("let a = 3; let *b = &a; let **c = &b; let ***d = &c; ***d = 4;");
+        let old_stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = &c;");
+        let stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = &c; ***d = 4;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(generate_variable_call(4), stack[old_stack.len()..old_stack.len()+5]);
