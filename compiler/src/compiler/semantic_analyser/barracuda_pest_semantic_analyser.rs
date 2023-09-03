@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use crate::compiler::PrimitiveDataType;
 use crate::compiler::ast::symbol_table::SymbolType;
-use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId, ScopeTracker, datatype};
+use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId, datatype, environment_symbol_context};
 use crate::compiler::ast::datatype::DataType;
 
+use super::scope_tracker::ScopeTracker;
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
 use super::super::ast::{
     AbstractSyntaxTree,
@@ -13,13 +16,14 @@ use super::super::ast::{
 
 /// BarracudaSemanticAnalyser is a concrete SemanticAnalyser.
 pub struct BarracudaSemanticAnalyser {
-    symbol_tracker: ScopeTracker
+    symbol_tracker: ScopeTracker,
+    env_vars: HashMap<String, (usize, PrimitiveDataType, String)>
 }
 
 impl BarracudaSemanticAnalyser {
  
     /// Parses all pest pair tokens into a valid ASTNode
-    fn analyse_node(&mut self, node: &ASTNode) -> ASTNode {
+    pub fn analyse_node(&mut self, node: &ASTNode) -> ASTNode {
         match node {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.analyse_identifier(identifier_name) 
@@ -93,14 +97,14 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn mark_identifier(&mut self, name: &String) {
-        self.symbol_tracker.add_symbol(name.clone());
+    fn mark_identifier(&mut self, name: &String, datatype: SymbolType) {
+        self.symbol_tracker.add_symbol(name, datatype);
     }
 
     fn type_from_identifier(&mut self, name: &String) -> DataType {
         match self.symbol_tracker.find_symbol(name) {
-            Some(symbol) => match symbol.symbol_type() {
-                SymbolType::Variable(datatype) | SymbolType::EnvironmentVariable(_, datatype, _) => datatype,
+            Some(symbol) => match symbol {
+                SymbolType::Variable(datatype) | SymbolType::EnvironmentVariable(_, datatype, _) => datatype.clone(),
                 _ => panic!("Identifier {} isn't a variable!", name)
             },
             None => panic!("Identifier {} doesn't exist!", name)
@@ -109,6 +113,7 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_identifier(&mut self, name: &String) -> ASTNode {
         let datatype = self.type_from_identifier(name);
+        println!("Identifier {} datatype: {:?}", name, datatype);
         ASTNode::TYPED_NODE { datatype, inner: Box::new(ASTNode::IDENTIFIER(name.clone())) }
     }
 
@@ -243,7 +248,7 @@ impl BarracudaSemanticAnalyser {
         let expression = Box::new(self.analyse_node(expression));
         let expression_datatype = expression.get_type();
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            self.mark_identifier(name);
+            self.mark_identifier(name, SymbolType::Variable(expression_datatype.clone()));
             let identifier = Box::new(self.analyse_node(identifier));
             if let Some(datatype) = datatype.as_ref().clone() {
                 let datatype = match datatype {
@@ -266,8 +271,13 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_extern_statement(&mut self, identifier: &Box<ASTNode>) -> ASTNode {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            self.mark_identifier(name);
-            ASTNode::EXTERN { identifier: identifier.clone() }
+            match self.env_vars.get(name) {
+                Some((usize, datatype, string)) => {
+                    self.mark_identifier(name, SymbolType::EnvironmentVariable(usize.clone(), DataType::MUTABLE(datatype.clone()), string.clone()));
+                    ASTNode::EXTERN { identifier: identifier.clone() }
+                }
+                None => panic!("Tried to declare environment variable {} that doesn't exist!", name)
+            }
         } else {
             panic!("Malformed AST! Extern statement should always contain an identifier")
         }
@@ -366,7 +376,7 @@ impl BarracudaSemanticAnalyser {
                     ASTNode::DATATYPE(datatype) => datatype,
                     _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
                 };
-                self.mark_identifier(name);
+                self.mark_identifier(name, SymbolType::Parameter(datatype.clone()));
                 let identifier = identifier.clone();
                 let datatype = Box::new(None);
                 ASTNode::PARAMETER { identifier, datatype }
@@ -396,7 +406,7 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
-        self.symbol_tracker.enter_scope(scope.clone());
+        self.symbol_tracker.enter_scope();
         let inner = Box::new(self.analyse_node(inner));
         self.symbol_tracker.exit_scope();
         ASTNode::SCOPE_BLOCK { inner, scope: scope.clone() }
@@ -408,14 +418,14 @@ impl BarracudaSemanticAnalyser {
 impl SemanticAnalyser for BarracudaSemanticAnalyser {
     fn default() -> Self {
         Self {
-            symbol_tracker: ScopeTracker::default()
+            symbol_tracker: ScopeTracker::new(),
+            env_vars: HashMap::new()
         }
     }
 
     /// Parse processes a source string into an abstract syntax tree
-    fn analyse(mut self, ast: AbstractSyntaxTree, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
-        self.symbol_tracker = ScopeTracker::new(ast.get_symbol_table());
-        let root_node = ast.into_root();
+    fn analyse(mut self, root_node: ASTNode, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
+        self.env_vars = env_vars.copy_addresses();
         AbstractSyntaxTree::new(BarracudaSemanticAnalyser::analyse_node(&mut self, &root_node), env_vars)
     }
 }

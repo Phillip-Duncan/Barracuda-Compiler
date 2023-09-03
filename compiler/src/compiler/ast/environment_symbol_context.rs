@@ -21,4 +21,8 @@ impl EnvironmentSymbolContext {
     pub fn into(self) -> HashMap<String, (usize, PrimitiveDataType, String)> {
         return self.environment_variable_addresses;
     }
+
+    pub fn copy_addresses(&self) -> HashMap<String, (usize, PrimitiveDataType, String)> {
+        return self.environment_variable_addresses.clone();
+    }
 }

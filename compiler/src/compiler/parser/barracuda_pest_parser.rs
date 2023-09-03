@@ -1,5 +1,3 @@
-use crate::compiler::EnvironmentSymbolContext;
-use crate::compiler::ast::AbstractSyntaxTree;
 use crate::compiler::ast::datatype::DataType;
 use crate::pest::Parser;
 use super::AstParser;
@@ -459,7 +457,7 @@ impl AstParser for PestBarracudaParser {
     }
 
     /// Parse processes a source string into an  
-    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
-        AbstractSyntaxTree::new(Self::parse_into_node_tree(source), env_vars)
+    fn parse(self, source: &str) -> ASTNode {
+        Self::parse_into_node_tree(source)
     }
 }
