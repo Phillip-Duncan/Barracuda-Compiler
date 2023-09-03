@@ -129,7 +129,7 @@ impl ScopeTracker {
                     let array_count = self.array_count;
                     self.array_count += symbol.array_length();
                     self.array_ids.insert(unique_id, array_count);
-                } else if symbol.is_mutable() {
+                } else {
                     let unique_id = symbol.unique_id();
                     self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
@@ -183,8 +183,7 @@ impl ScopeTracker {
     pub(crate) fn get_local_id(&self, identifier: &String) -> Option<usize> {
         match self.find_symbol(&identifier) {
             Some(symbol) => {
-                println!("hi guys {:?}", symbol);
-                    match self.local_var_ids.get(&symbol.unique_id()) {
+                match self.local_var_ids.get(&symbol.unique_id()) {
                     Some(id) => Some(id.clone()),
                     None => None
                 }

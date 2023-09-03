@@ -113,7 +113,6 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_identifier(&mut self, name: &String) -> ASTNode {
         let datatype = self.type_from_identifier(name);
-        println!("Identifier {} datatype: {:?}", name, datatype);
         ASTNode::TYPED_NODE { datatype, inner: Box::new(ASTNode::IDENTIFIER(name.clone())) }
     }
 
