@@ -248,6 +248,7 @@ impl PestBarracudaParser {
     /// Parses a pest token pair into an AST assignment statement
     fn parse_pair_assignment_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
+        let pointer_level = pair.next().unwrap().as_str().len();
         let identifier = Box::new(Self::parse_pair_node(pair.next().unwrap()));
         let mut array_index = Vec::new();
         let mut expression = Self::parse_pair_node(pair.next().unwrap());
@@ -259,6 +260,7 @@ impl PestBarracudaParser {
 
         ASTNode::ASSIGNMENT {
             identifier,
+            pointer_level,
             array_index,
             expression
         }

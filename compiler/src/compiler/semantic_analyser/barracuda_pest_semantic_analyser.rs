@@ -55,8 +55,8 @@ impl BarracudaSemanticAnalyser {
             ASTNode::EXTERN { identifier } => {
                 self.analyse_extern_statement(identifier)
             }
-            ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
-                self.analyse_assignment_statement(identifier, array_index, expression)
+            ASTNode::ASSIGNMENT { identifier, pointer_level, array_index, expression } => {
+                self.analyse_assignment_statement(identifier, pointer_level.clone(), array_index, expression)
             }
             ASTNode::PRINT { expression } => {
                 self.analyse_print_statement(expression)
@@ -282,12 +282,19 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
+    fn analyse_assignment_statement(&mut self, identifier: &Box<ASTNode>, pointer_level: usize, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) -> ASTNode {
         let identifier = Box::new(self.analyse_node(identifier));
         let mut identifier_datatype = identifier.get_type();
 
+        for _ in 0..pointer_level {
+            identifier_datatype = match identifier_datatype {
+                DataType::POINTER(datatype) => *datatype,
+                _ => panic!("Can't perform pointer assignment on a non-pointer!")
+            };
+        }
+
         let mut new_index = Vec::new();
-        for index in array_index {
+        for index in array_index { 
             let index = self.analyse_node(index);
             let index_datatype = index.get_type();
             match index_datatype {
@@ -299,7 +306,6 @@ impl BarracudaSemanticAnalyser {
                 DataType::ARRAY(datatype, _) => *datatype,
                 _ => panic!("Can't index a non-array!")
             };
-            
         }
 
         let expression = self.analyse_node(expression);
@@ -310,7 +316,7 @@ impl BarracudaSemanticAnalyser {
             panic!("Identifier and expression must be equal in an assignment statement! (Currently {:?} vs {:?})", identifier_datatype, expression_datatype)
         }
         
-        ASTNode::ASSIGNMENT { identifier, array_index: new_index, expression }
+        ASTNode::ASSIGNMENT { identifier, pointer_level, array_index: new_index, expression }
     }
 
     fn analyse_print_statement(&mut self, expression: &Box<ASTNode>) -> ASTNode {

@@ -111,6 +111,7 @@ pub enum ASTNode {
     ///     ^^^^^^ -> Assignment
     ASSIGNMENT {
         identifier: Box<ASTNode>,
+        pointer_level: usize,
         array_index: Vec<ASTNode>,
         expression: Box<ASTNode>
     },
@@ -335,7 +336,7 @@ impl ASTNode {
             ASTNode::EXTERN {identifier} => {
                 output.push(identifier.as_mut());
             }
-            ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
+            ASTNode::ASSIGNMENT { identifier, array_index, expression, .. } => {
                 output.push(identifier.as_mut());
                 for index in array_index {
                     output.push(index);

@@ -242,7 +242,7 @@ impl BarracudaByteCodeGenerator {
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
             }
-            ASTNode::ASSIGNMENT { identifier, array_index, expression } => {
+            ASTNode::ASSIGNMENT { identifier, pointer_level, array_index, expression } => {
                 self.generate_assignment_statement(identifier, array_index, expression)
             }
             ASTNode::PRINT { expression } => {
