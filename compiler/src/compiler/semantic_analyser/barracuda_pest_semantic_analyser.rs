@@ -257,7 +257,7 @@ impl BarracudaSemanticAnalyser {
                 if datatype != expression_datatype {
                     panic!("Provided data doesn't match given datatype in construct statement! {:?} vs {:?}", datatype, expression_datatype);
                 }
-                let datatype = Box::new(Some(ASTNode::DATATYPE(datatype)));
+                let datatype: Box<Option<ASTNode>> = Box::new(Some(ASTNode::DATATYPE(datatype)));
                 ASTNode::CONSTRUCT { identifier, datatype, expression: expression.clone() }   
             } else {
                 let datatype = Box::new(Some(ASTNode::DATATYPE(expression_datatype)));
@@ -273,7 +273,8 @@ impl BarracudaSemanticAnalyser {
             match self.env_vars.get(name) {
                 Some((usize, datatype, string)) => {
                     self.mark_identifier(name, SymbolType::EnvironmentVariable(usize.clone(), DataType::MUTABLE(datatype.clone()), string.clone()));
-                    ASTNode::EXTERN { identifier: identifier.clone() }
+                    let identifier = Box::new(self.analyse_node(identifier));
+                    ASTNode::EXTERN { identifier }
                 }
                 None => panic!("Tried to declare environment variable {} that doesn't exist!", name)
             }
