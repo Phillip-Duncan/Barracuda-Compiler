@@ -371,7 +371,7 @@ impl BarracudaByteCodeGenerator {
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
             UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
-            UnaryOperation::PTR_DEREF => { self.builder.emit_op(OP::PTR_DEREF) }
+            UnaryOperation::PTR_DEREF => { self.builder.emit_op(OP::STK_READ) }
         };
     }
 
@@ -450,67 +450,7 @@ impl BarracudaByteCodeGenerator {
 
         match datatype {
             DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name),
-            _ => {
-                if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-                    match symbol.symbol_type() {
-                        SymbolType::Variable(datatype) => {
-                            match datatype {
-                                DataType::ARRAY(_,_) => {
-                                    match expression.as_ref() {
-                                        ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                                        _ => panic!("When assigning to an array, must use an array literal!")
-                                    }
-                                },
-                                _ => {
-                                    let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-        
-                                    self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-                                    self.generate_local_var_address(local_var_id);
-                                    self.generate_node(expression);
-                                    self.builder.emit_op(OP::STK_WRITE);
-                                }
-                            }
-                        }
-                        SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
-                            self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
-                            self.generate_node(expression);
-                            if qualifier.contains("*") {
-                                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                                self.builder.emit_op(OP::LDNX);
-                                let ptr_depth = qualifier.matches("*").count();
-                                for _n in 0..ptr_depth {
-                                    if _n == ptr_depth - 1 {
-                                        //self.builder.emit_op(OP::READ);
-                                        continue;
-                                    }
-                                    else {
-                                        self.builder.emit_op(OP::PTR_DEREF);
-                                    }
-                                }
-                                self.builder.emit_op(OP::SWAP);
-                                self.builder.emit_op(OP::WRITE);
-                            }
-                            else {
-                                self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                                self.builder.emit_op(OP::RCNX);
-                            }
-                        }
-                        SymbolType::Parameter(_) => {
-                            let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
-        
-                            self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
-                            self.generate_parameter_address(local_param_id);
-                            self.generate_node(expression);
-                            self.builder.emit_op(OP::STK_WRITE);
-                        }
-                        SymbolType::Function { .. } => {
-                            panic!("Cannot reassign a value to function '{}'", identifier_name);
-                        }
-                    }
-                } else {
-                    panic!("Assignment identifier '{}' not recognised", identifier_name);
-                }
-            }
+            _ => self.generate_regular_assignment_statement(expression.as_ref(), identifier_name)
         }
     }
 
@@ -534,6 +474,68 @@ impl BarracudaByteCodeGenerator {
                 }
                 SymbolType::Parameter(_) => {
                     panic!("Cannot use array assignment with parameters");
+                }
+                SymbolType::Function { .. } => {
+                    panic!("Cannot reassign a value to function '{}'", identifier_name);
+                }
+            }
+        } else {
+            panic!("Assignment identifier '{}' not recognised", identifier_name);
+        }
+    }
+
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String) {
+        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+            match symbol.symbol_type() {
+                SymbolType::Variable(datatype) => {
+                    match datatype {
+                        DataType::ARRAY(_,_) => {
+                            match expression {
+                                ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                                _ => panic!("When assigning to an array, must use an array literal!")
+                            }
+                        },
+                        _ => {
+                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+
+                            self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
+                            self.generate_local_var_address(local_var_id);
+                            self.generate_node(expression);
+                            self.builder.emit_op(OP::STK_WRITE);
+                        }
+                    }
+                }
+                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
+                    self.generate_node(expression);
+                    if qualifier.contains("*") {
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::LDNX);
+                        let ptr_depth = qualifier.matches("*").count();
+                        for _n in 0..ptr_depth {
+                            if _n == ptr_depth - 1 {
+                                //self.builder.emit_op(OP::READ);
+                                continue;
+                            }
+                            else {
+                                self.builder.emit_op(OP::PTR_DEREF);
+                            }
+                        }
+                        self.builder.emit_op(OP::SWAP);
+                        self.builder.emit_op(OP::WRITE);
+                    }
+                    else {
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::RCNX);
+                    }
+                }
+                SymbolType::Parameter(_) => {
+                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
+
+                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
+                    self.generate_parameter_address(local_param_id);
+                    self.generate_node(expression);
+                    self.builder.emit_op(OP::STK_WRITE);
                 }
                 SymbolType::Function { .. } => {
                     panic!("Cannot reassign a value to function '{}'", identifier_name);
