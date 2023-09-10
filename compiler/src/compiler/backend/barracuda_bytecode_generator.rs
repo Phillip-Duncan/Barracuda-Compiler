@@ -243,7 +243,7 @@ impl BarracudaByteCodeGenerator {
                 self.generate_extern_statement(identifier);
             }
             ASTNode::ASSIGNMENT { identifier, pointer_level, array_index, expression } => {
-                self.generate_assignment_statement(identifier, array_index, expression)
+                self.generate_assignment_statement(identifier, pointer_level.clone(), array_index, expression)
             }
             ASTNode::PRINT { expression } => {
                 self.generate_print_statement(expression)
@@ -443,18 +443,25 @@ impl BarracudaByteCodeGenerator {
         self.add_symbol(identifier_name.clone())
     }
 
-    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
-
+    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, pointer_level: usize, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
+        println!("identifier: {:?} {:?}, {:?}", identifier, array_index, expression);
         let identifier_name = identifier.identifier_name().unwrap();
-        let datatype = identifier.get_type();
+        let mut datatype = identifier.get_type();
+
+        for _ in 0..pointer_level {
+            datatype = match datatype {
+                DataType::POINTER(inner) => *inner.clone(),
+                _ => panic!("Can't dereference variable {} {} times as it does not have a high enough pointer level!", identifier_name, pointer_level)
+            }
+        }
 
         match datatype {
-            DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name),
-            _ => self.generate_regular_assignment_statement(expression.as_ref(), identifier_name)
+            DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name, pointer_level),
+            _ => self.generate_regular_assignment_statement(expression.as_ref(), identifier_name, pointer_level)
         }
     }
 
-    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String) {
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_) => {
@@ -484,7 +491,7 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String) {
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(datatype) => {
@@ -500,6 +507,9 @@ impl BarracudaByteCodeGenerator {
 
                             self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
                             self.generate_local_var_address(local_var_id);
+                            for _ in 0..pointer_level {
+                                self.builder.emit_op(OP::STK_READ);
+                            }
                             self.generate_node(expression);
                             self.builder.emit_op(OP::STK_WRITE);
                         }
