@@ -806,4 +806,11 @@ mod tests {
         assert_eq!(function_def, stack);
     }
 
+    // Tests for arrays
+    #[test]
+    fn create_array() {
+        let stack = compile_and_merge("let a = [1];");
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE))], stack);
+    }
+
 }

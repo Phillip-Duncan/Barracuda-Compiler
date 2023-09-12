@@ -409,20 +409,15 @@ impl BarracudaByteCodeGenerator {
         let datatype = identifier.get_type();
     
         match datatype {
-            DataType::ARRAY(inner, size)=> {
-                panic!("Still need to do this!");
-                // Are we a multidimensional array?
-                //self.add_symbol(identifier_name.clone());
-                //match expression.as_ref() {
-                //    ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                //    _ => panic!("When assigning to an array, must use an array literal!")
-                //}
-                //self.generate_node(expression);
-                //
-
-                //let array_address = self.symbol_tracker.get_array_address(identifier_name).unwrap();
-
-                //self.generate_local_var_address(localvar_id);
+            DataType::ARRAY(inner, size) => {
+                self.add_symbol(identifier_name.clone());
+                match expression.as_ref() {
+                    ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                        ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                        _ => panic!("When assigning to an array, must use an array literal!")
+                    }
+                    _ => panic!("When assigning to an array, must use an array literal!")
+                }
             },
             _ => {
                 // Leave result of expression at top of stack as this is the allocated
