@@ -813,4 +813,42 @@ mod tests {
         assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE))], stack);
     }
 
+    #[test]
+    fn create_long_array() {
+        let stack = compile_and_merge("let a = [1,2,3,4,5,6,7,8,9,10];");
+        let stack_length = 6;
+        let array_elements = 10;
+        for i in 0..array_elements {
+            let start = i * stack_length;
+            let end = (i+1) * stack_length;
+            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+        }
+        assert_eq!(stack.len(), stack_length * array_elements);
+    }
+
+    #[test]
+    fn create_three_arrays() {
+        let stack = compile_and_merge("let a = [1]; let b = [2]; let c = [3];");
+        let stack_length = 6;
+        let array_elements = 3;
+        for i in 0..array_elements {
+            let start = i * stack_length;
+            let end = (i+1) * stack_length;
+            assert_eq!(vec![Val(ptr(i)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+        }
+        assert_eq!(stack.len(), stack_length * array_elements);
+    }
+
+    #[test]
+    fn create_three_long_arrays() {
+        let stack = compile_and_merge("let a = [1,2,3]; let b = [4,5,6]; let c = [7,8,9];");
+        let stack_length = 6;
+        let array_elements = 9;
+        for i in 0..array_elements {
+            let start = i * stack_length;
+            let end = (i+1) * stack_length;
+            assert_eq!(vec![Val(ptr(3*(i/3))), Val(ptr(i%3)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+        }
+        assert_eq!(stack.len(), stack_length * array_elements);
+    }
 }
