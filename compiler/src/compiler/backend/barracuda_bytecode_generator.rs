@@ -354,16 +354,30 @@ impl BarracudaByteCodeGenerator {
 
     fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
-        let mut count: usize = 0;
+        self.generate_subarray(items, address, 0);
+    }
+
+    fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
         for item in items {
-            self.builder.emit_array(address, true);
-            self.builder.emit_value(f64::from_be_bytes(count.to_be_bytes()));
-            self.builder.emit_op(OP::ADD_PTR);
-            self.builder.emit_op(OP::LDNXPTR);
-            self.generate_node(item);
-            self.builder.emit_op(OP::WRITE);
-            count += 1;
+            match item {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
+                    _ => position = self.generate_array_item(&item, address, position),
+                }
+                _ => position = self.generate_array_item(&item, address, position),
+            }
         }
+        position
+    }
+
+    fn generate_array_item(&mut self, item: &ASTNode, address: usize, position: usize) -> usize {
+        self.builder.emit_array(address, true);
+        self.builder.emit_value(f64::from_be_bytes(position.to_be_bytes()));
+        self.builder.emit_op(OP::ADD_PTR);
+        self.builder.emit_op(OP::LDNXPTR);
+        self.generate_node(item);
+        self.builder.emit_op(OP::WRITE);
+        position + 1
     }
 
     fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {

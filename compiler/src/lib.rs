@@ -851,4 +851,36 @@ mod tests {
         }
         assert_eq!(stack.len(), stack_length * array_elements);
     }
+
+    #[test]
+    fn create_2d_array() {
+        let stack = compile_and_merge("let a = [[1]];");
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE))], stack);
+    }
+
+    #[test]
+    fn create_large_2d_array() {
+        let stack = compile_and_merge("let a = [[1,2,3],[4,5,6],[7,8,9]];");
+        let stack_length = 6;
+        let array_elements = 9;
+        for i in 0..array_elements {
+            let start = i * stack_length;
+            let end = (i+1) * stack_length;
+            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+        }
+        assert_eq!(stack.len(), stack_length * array_elements);
+    }
+
+    #[test]
+    fn create_deep_2d_array() {
+        let stack = compile_and_merge("let a = [[[1,2], [3,4]],[[5,6], [7,8]],[[9,10], [11,12]],[[13,14], [15,16]]];");
+        let stack_length = 6;
+        let array_elements = 16;
+        for i in 0..array_elements {
+            let start = i * stack_length;
+            let end = (i+1) * stack_length;
+            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+        }
+        assert_eq!(stack.len(), stack_length * array_elements);
+    }
 }
