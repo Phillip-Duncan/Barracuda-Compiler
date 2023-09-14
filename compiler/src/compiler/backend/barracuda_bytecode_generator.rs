@@ -229,7 +229,7 @@ impl BarracudaByteCodeGenerator {
                     self.generate_binary_op(op, lhs, rhs)
                 }
                 ASTNode::ARRAY_INDEX { index, expression } => {
-                    self.generate_array_index(index, expression)
+                    self.generate_array_index(index, expression, datatype)
                 }
                 ASTNode::FUNC_CALL { identifier, arguments } => {
                     self.generate_function_call(identifier, arguments)
@@ -408,13 +408,27 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>) {
+    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>, datatype: &DataType) {
+        // what is my type? If I go to NOT AN ARRAY, THEN ADD LDNXPTR + READ
+        // If I go to ARRAY, then multiply by array length
+        // i.e. if I go to array[3], then go ahead by 3
         self.generate_node(expression);
         self.generate_node(index);
-        self.builder.emit_op(OP::DOUBLETOLONGLONG);
-        self.builder.emit_op(OP::ADD_PTR);
-        self.builder.emit_op(OP::LDNXPTR);
-        self.builder.emit_op(OP::READ);
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                let array_length = DataType::get_array_length(&datatype);
+                self.builder.emit_value(array_length as f64);
+                self.builder.emit_op(OP::MUL);
+                self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                self.builder.emit_op(OP::ADD_PTR);
+            },
+            _ => {
+                self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                self.builder.emit_op(OP::ADD_PTR);
+                self.builder.emit_op(OP::LDNXPTR);
+                self.builder.emit_op(OP::READ);
+            }
+        }
     }
 
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {

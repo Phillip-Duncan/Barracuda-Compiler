@@ -56,6 +56,15 @@ impl DataType {
     pub fn from_str(datatype: String) -> Self {
         DataType::MUTABLE(PrimitiveDataType::parse(datatype).unwrap())
     }
+
+    pub fn get_array_length(datatype: &Self) -> usize {
+        match datatype {
+            DataType::ARRAY(inner, size) => {
+                size * DataType::get_array_length(inner)
+            }
+            _ => 1
+        }
+    }
 }
 
 impl PartialEq for DataType {
