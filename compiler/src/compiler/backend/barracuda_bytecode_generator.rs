@@ -478,6 +478,13 @@ impl BarracudaByteCodeGenerator {
             }
         }
 
+        for _ in array_index {
+            datatype = match datatype {
+                DataType::ARRAY(inner, _) => *inner.clone(),
+                _ => panic!("Can't index variable {} times as it is not an array (type {:?})!", identifier_name, datatype)
+            }
+        }
+
         match datatype {
             DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name, pointer_level),
             _ => self.generate_regular_assignment_statement(expression.as_ref(), identifier_name, pointer_level)
@@ -485,6 +492,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
+        println!("hehe, haha {:?} {:?}", identifier_name, expression);
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_) => {
@@ -515,6 +523,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
+        println!("just regular {:?} {:?}", identifier_name, expression);
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(datatype) => {
