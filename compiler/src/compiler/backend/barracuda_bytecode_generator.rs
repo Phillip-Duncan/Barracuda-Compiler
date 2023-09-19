@@ -15,7 +15,7 @@ use barracuda_common::{
 };
 
 use std::collections::HashMap;
-use crate::compiler::ast::datatype::DataType;
+use crate::compiler::ast::datatype::{DataType, self};
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
@@ -467,32 +467,68 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, pointer_level: usize, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
-        println!("identifier: {:?} {:?}, {:?}", identifier, array_index, expression);
         let identifier_name = identifier.identifier_name().unwrap();
-        let mut datatype = identifier.get_type();
 
-        for _ in 0..pointer_level {
-            datatype = match datatype {
-                DataType::POINTER(inner) => *inner.clone(),
-                _ => panic!("Can't dereference variable {} {} times as it does not have a high enough pointer level!", identifier_name, pointer_level)
+        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
+            match symbol.symbol_type() {
+                SymbolType::Variable(datatype) => {
+                    match datatype {
+                        DataType::ARRAY(_,_) => {
+                            let address = self.symbol_tracker.get_array_id(identifier).unwrap();
+                            self.generate_array_assignment_statement(array_index, expression, identifier_name, pointer_level);
+                        }
+                        _ => {
+                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+                            self.generate_local_var_address(local_var_id);
+                            self.generate_regular_assignment_statement(expression, identifier_name, pointer_level);
+                        }
+                    }
+                }
+                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
+                    self.generate_node(expression);
+                    if qualifier.contains("*") {
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::LDNX);
+                        let ptr_depth = qualifier.matches("*").count();
+                        for _n in 0..ptr_depth {
+                            if _n == ptr_depth - 1 {
+                                continue;
+                            }
+                            else {
+                                self.builder.emit_op(OP::PTR_DEREF);
+                            }
+                        }
+                        self.builder.emit_op(OP::SWAP);
+                        self.builder.emit_op(OP::WRITE);
+                    }
+                    else {
+                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
+                        self.builder.emit_op(OP::RCNX);
+                    }
+                }
+                SymbolType::Parameter(datatype) => {
+                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
+                    self.generate_parameter_address(local_param_id);
+                    self.generate_regular_assignment_statement(expression, identifier_name, pointer_level);
+                }
+                SymbolType::Function { .. } => {
+                    panic!("Cannot reassign a value to function '{}'", identifier_name);
+                }
             }
-        }
-
-        for _ in array_index {
-            datatype = match datatype {
-                DataType::ARRAY(inner, _) => *inner.clone(),
-                _ => panic!("Can't index variable {} times as it is not an array (type {:?})!", identifier_name, datatype)
-            }
-        }
-
-        match datatype {
-            DataType::ARRAY(_, _) => self.generate_array_assignment_statement(array_index, expression.as_ref(), identifier_name, pointer_level),
-            _ => self.generate_regular_assignment_statement(expression.as_ref(), identifier_name, pointer_level)
+        } else {
+            panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
     }
 
     fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
-        println!("hehe, haha {:?} {:?}", identifier_name, expression);
+        for _ in 0..pointer_level {
+            self.builder.emit_op(OP::STK_READ);
+        }
+
+        self.generate_node(expression);
+        self.builder.emit_op(OP::WRITE);
+        /*
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(_) => {
@@ -520,10 +556,17 @@ impl BarracudaByteCodeGenerator {
         } else {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
+        */
     }
 
     fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
-        println!("just regular {:?} {:?}", identifier_name, expression);
+        for _ in 0..pointer_level {
+            self.builder.emit_op(OP::STK_READ);
+        }
+
+        self.generate_node(expression);
+        self.builder.emit_op(OP::STK_WRITE);
+        /*
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(datatype) => {
@@ -547,30 +590,6 @@ impl BarracudaByteCodeGenerator {
                         }
                     }
                 }
-                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
-                    self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
-                    self.generate_node(expression);
-                    if qualifier.contains("*") {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::LDNX);
-                        let ptr_depth = qualifier.matches("*").count();
-                        for _n in 0..ptr_depth {
-                            if _n == ptr_depth - 1 {
-                                //self.builder.emit_op(OP::READ);
-                                continue;
-                            }
-                            else {
-                                self.builder.emit_op(OP::PTR_DEREF);
-                            }
-                        }
-                        self.builder.emit_op(OP::SWAP);
-                        self.builder.emit_op(OP::WRITE);
-                    }
-                    else {
-                        self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::RCNX);
-                    }
-                }
                 SymbolType::Parameter(_) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
 
@@ -586,6 +605,7 @@ impl BarracudaByteCodeGenerator {
         } else {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
+        */
     }
 
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {
