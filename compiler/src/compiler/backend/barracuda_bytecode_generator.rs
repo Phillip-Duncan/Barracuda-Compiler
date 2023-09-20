@@ -362,16 +362,21 @@ impl BarracudaByteCodeGenerator {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
-                    _ => position = self.generate_array_item(&item, address, position),
+                    _ => position = {
+                        self.builder.emit_array(address, true);
+                        self.generate_array_item(&item, position)
+                    },
                 }
-                _ => position = self.generate_array_item(&item, address, position),
+                _ => position = {
+                    self.builder.emit_array(address, true);
+                    self.generate_array_item(&item, position)
+                },
             }
         }
         position
     }
 
-    fn generate_array_item(&mut self, item: &ASTNode, address: usize, position: usize) -> usize {
-        self.builder.emit_array(address, true);
+    fn generate_array_item(&mut self, item: &ASTNode, position: usize) -> usize {
         self.builder.emit_value(f64::from_be_bytes(position.to_be_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
         self.builder.emit_op(OP::LDNXPTR);
@@ -409,9 +414,6 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>, datatype: &DataType) {
-        // what is my type? If I go to NOT AN ARRAY, THEN ADD LDNXPTR + READ
-        // If I go to ARRAY, then multiply by array length
-        // i.e. if I go to array[3], then go ahead by 3
         self.generate_node(expression);
         self.generate_node(index);
         match datatype {
@@ -474,13 +476,14 @@ impl BarracudaByteCodeGenerator {
                 SymbolType::Variable(datatype) => {
                     match datatype {
                         DataType::ARRAY(_,_) => {
-                            let address = self.symbol_tracker.get_array_id(identifier).unwrap();
-                            self.generate_array_assignment_statement(array_index, expression, identifier_name, pointer_level);
+                            let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
+                            self.builder.emit_array(address, true);
+                            self.generate_array_assignment_statement(array_index, expression, identifier_name, datatype);
                         }
                         _ => {
                             let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
                             self.generate_local_var_address(local_var_id);
-                            self.generate_regular_assignment_statement(expression, identifier_name, pointer_level);
+                            self.generate_regular_assignment_statement(expression, array_index, identifier_name, datatype, pointer_level);
                         }
                     }
                 }
@@ -510,7 +513,7 @@ impl BarracudaByteCodeGenerator {
                 SymbolType::Parameter(datatype) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
                     self.generate_parameter_address(local_param_id);
-                    self.generate_regular_assignment_statement(expression, identifier_name, pointer_level);
+                    self.generate_regular_assignment_statement(expression, array_index, identifier_name, datatype, pointer_level);
                 }
                 SymbolType::Function { .. } => {
                     panic!("Cannot reassign a value to function '{}'", identifier_name);
@@ -521,91 +524,75 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
-        for _ in 0..pointer_level {
-            self.builder.emit_op(OP::STK_READ);
-        }
-
-        self.generate_node(expression);
-        self.builder.emit_op(OP::WRITE);
-        /*
-        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-            match symbol.symbol_type() {
-                SymbolType::Variable(_) => {
-                    let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
-                    self.builder.emit_array(address, true);
-                    for index in array_index {
-                        self.generate_node(index);
-                    }
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, identifier_name: String, mut datatype: DataType) {
+        //we have pointer as usize on the stack
+        for index in array_index {
+            let array_length = DataType::get_array_length(&datatype);
+            datatype = match datatype {
+                DataType::ARRAY(inner, _) => {
+                    self.generate_node(index);
+                    self.builder.emit_value(array_length as f64);
+                    self.builder.emit_op(OP::MUL);
                     self.builder.emit_op(OP::DOUBLETOLONGLONG);
                     self.builder.emit_op(OP::ADD_PTR);
-                    self.builder.emit_op(OP::LDNXPTR);
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::WRITE);
-                }
-                SymbolType::EnvironmentVariable(_, _, qualifier) => {
-                    panic!("Cannot use array assignment with environment variable '{}'", qualifier);
-                }
-                SymbolType::Parameter(_) => {
-                    panic!("Cannot use array assignment with parameters");
-                }
-                SymbolType::Function { .. } => {
-                    panic!("Cannot reassign a value to function '{}'", identifier_name);
-                }
+                    *inner
+                },
+                _ => panic!("Datatype {:?} should be an array!", datatype)
             }
-        } else {
-            panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
-        */
+
+        match datatype {
+            DataType::ARRAY(_, _) => match expression {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => {self.generate_array_assignment(items, 0);},
+                    _ => panic!("Expected an array! Found {:?}", expression)
+                },
+                _ => panic!("Expected an array! Found {:?}", expression)
+            }
+            _ => {
+                self.builder.emit_op(OP::LDNXPTR);
+                self.generate_node(expression);
+                self.builder.emit_op(OP::WRITE);
+            }
+        }
     }
 
-    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, identifier_name: String, pointer_level: usize) {
+    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, mut position: usize) -> usize {
+        for item in items {
+            match item {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => position = self.generate_array_assignment(&items, position),
+                    _ => {
+                        self.builder.emit_op(OP::DUP);
+                        position = self.generate_array_item(&item, position);
+                    },
+                }
+                _ => {
+                    self.builder.emit_op(OP::DUP);
+                    position = self.generate_array_item(&item, position);
+                },
+            }
+        }
+        position
+    }
+
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, identifier_name: String, mut datatype: DataType, pointer_level: usize) {
         for _ in 0..pointer_level {
+            datatype = match datatype {
+                DataType::POINTER(inner) => *inner,
+                _ => panic!("Datatype {:?} should be a pointer!", datatype)
+            };
             self.builder.emit_op(OP::STK_READ);
         }
-
-        self.generate_node(expression);
-        self.builder.emit_op(OP::STK_WRITE);
-        /*
-        if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
-            match symbol.symbol_type() {
-                SymbolType::Variable(datatype) => {
-                    match datatype {
-                        DataType::ARRAY(_,_) => {
-                            match expression {
-                                ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                                _ => panic!("When assigning to an array, must use an array literal!")
-                            }
-                        },
-                        _ => {
-                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-
-                            self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
-                            self.generate_local_var_address(local_var_id);
-                            for _ in 0..pointer_level {
-                                self.builder.emit_op(OP::STK_READ);
-                            }
-                            self.generate_node(expression);
-                            self.builder.emit_op(OP::STK_WRITE);
-                        }
-                    }
-                }
-                SymbolType::Parameter(_) => {
-                    let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
-
-                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
-                    self.generate_parameter_address(local_param_id);
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
-                }
-                SymbolType::Function { .. } => {
-                    panic!("Cannot reassign a value to function '{}'", identifier_name);
-                }
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                self.generate_array_assignment_statement(array_index, expression, identifier_name, datatype);
             }
-        } else {
-            panic!("Assignment identifier '{}' not recognised", identifier_name);
+            _ => {
+                self.generate_node(expression);
+                self.builder.emit_op(OP::STK_WRITE);
+            }
         }
-        */
     }
 
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {
