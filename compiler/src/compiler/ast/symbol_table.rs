@@ -76,7 +76,7 @@ impl Symbol {
     pub fn array_length(&self) -> usize {
         match &self.symbol_type {
             SymbolType::Variable(datatype) => match datatype {
-                DataType::ARRAY(datatype, size) => *size,
+                DataType::ARRAY(_, _) => DataType::get_array_length(datatype),
                 _ => 0
             },
             _ => 0

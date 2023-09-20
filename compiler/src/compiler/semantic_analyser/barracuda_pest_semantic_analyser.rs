@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::PrimitiveDataType;
 use crate::compiler::ast::symbol_table::SymbolType;
-use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId, datatype, environment_symbol_context};
+use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId};
 use crate::compiler::ast::datatype::DataType;
 
 use super::scope_tracker::ScopeTracker;
