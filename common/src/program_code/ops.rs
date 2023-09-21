@@ -441,24 +441,24 @@ pub enum FixedBarracudaOperators {
     #[assoc(produce=1)]
     LDNT    = 0x1301 ,
 
-    #[assoc(consume=0)]
+    #[assoc(consume=1)]
     #[assoc(produce=1)]
     LDNX    = 0x1302 ,
 
-    #[assoc(consume=1)]
+    #[assoc(consume=2)]
     #[assoc(produce=0)]
     RCNX    = 0x1303 ,
 
-    #[assoc(consume=1)]
-    #[assoc(produce=0)]
+    #[assoc(consume=0)]
+    #[assoc(produce=1)]
     LDUSPTR    = 0x1304 ,
 
     #[assoc(consume=1)]
-    #[assoc(produce=0)]
+    #[assoc(produce=1)]
     LONGLONGTODOUBLE = 0x16C8 ,
 
     #[assoc(consume=1)]
-    #[assoc(produce=0)]
+    #[assoc(produce=1)]
     DOUBLETOLONGLONG = 0x16C9 ,
 
     
