@@ -810,7 +810,7 @@ mod tests {
     #[test]
     fn create_array() {
         let stack = compile_and_merge("let a = [1];");
-        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE))], stack);
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE)), Val(ptr(0))], stack);
     }
 
     #[test]
@@ -823,7 +823,8 @@ mod tests {
             let end = (i+1) * stack_length;
             assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
         }
-        assert_eq!(stack.len(), stack_length * array_elements);
+        assert_eq!(Val(ptr(0)), stack[stack.len()-1]);
+        assert_eq!(stack.len(), stack_length * array_elements + 1);
     }
 
     #[test]
@@ -834,7 +835,7 @@ mod tests {
         for i in 0..array_elements {
             let start = i * stack_length;
             let end = (i+1) * stack_length;
-            assert_eq!(vec![Val(ptr(i)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
+            assert_eq!(vec![Val(ptr(i)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE)), Val(ptr(i))], stack[start..end]);
         }
         assert_eq!(stack.len(), stack_length * array_elements);
     }

@@ -128,7 +128,9 @@ impl ScopeTracker {
                     let unique_id = symbol.unique_id();
                     let array_count = self.array_count;
                     self.array_count += symbol.array_length();
-                    self.array_ids.insert(unique_id, array_count);
+                    self.array_ids.insert(unique_id.clone(), array_count);
+                    self.local_var_ids.insert(unique_id, self.local_var_count);
+                    self.local_var_count += 1;
                 } else {
                     let unique_id = symbol.unique_id();
                     self.local_var_ids.insert(unique_id, self.local_var_count);

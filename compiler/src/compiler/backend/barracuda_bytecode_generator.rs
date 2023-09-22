@@ -298,11 +298,8 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(datatype) => {
-                match datatype {
-                    DataType::ARRAY(_,_) => self.generate_array_id(name),
-                    _ => self.generate_identifier_id(name)
-                }
+            SymbolType::Variable(_) => {
+                self.generate_identifier_id(name)
             }
             SymbolType::EnvironmentVariable( global_id, _, qualifier) => {
                 let ptr_depth = qualifier.matches("*").count();
@@ -355,6 +352,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
         self.generate_subarray(items, address, 0);
+        self.builder.emit_array(address, true);
     }
 
     fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
@@ -444,9 +442,9 @@ impl BarracudaByteCodeGenerator {
                 match expression.as_ref() {
                     ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                         ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
-                        _ => panic!("When assigning to an array, must use an array literal!")
+                        _ => self.generate_node(expression)
                     }
-                    _ => panic!("When assigning to an array, must use an array literal!")
+                    _ => self.generate_node(expression)
                 }
             },
             _ => {
@@ -474,17 +472,14 @@ impl BarracudaByteCodeGenerator {
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
                 SymbolType::Variable(datatype) => {
+                    let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
+                    self.generate_local_var_address(local_var_id);
                     match datatype {
                         DataType::ARRAY(_,_) => {
-                            let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
-                            self.builder.emit_array(address, true);
-                            self.generate_array_assignment_statement(array_index, expression, datatype);
-                        }
-                        _ => {
-                            let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-                            self.generate_local_var_address(local_var_id);
-                            self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level);
-                        }
+                            self.builder.emit_op(OP::STK_READ);
+                            self.generate_array_assignment_statement(array_index, expression, datatype)
+                        },
+                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level)
                     }
                 }
                 SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
