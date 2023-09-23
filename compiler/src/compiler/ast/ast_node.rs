@@ -95,6 +95,22 @@ pub enum ASTNode {
         expression: Box<ASTNode>
     },
 
+    /// Empty construct statement is a construct statement that does not provide any value to the cons
+    ///
+    /// # Syntax:
+    ///     let <identifier> (: <datatype>)? = <expression>;
+    ///
+    /// # Example:
+    ///     let x = 36;
+    ///     ^^^^^^^^^^^ -> Construction Statement
+    ///
+    ///     let y: u32 = 42;
+    ///
+    EMPTY_CONSTRUCT {
+        identifier: Box<ASTNode>,
+        datatype: Box<ASTNode>
+    },
+
     /// External statement defines a external variable for use in future statements in scope.
     EXTERN {
         identifier: Box<ASTNode>
@@ -332,6 +348,10 @@ impl ASTNode {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }
                 output.push(expression.as_mut());
+            }
+            ASTNode::EMPTY_CONSTRUCT { identifier, datatype } => {
+                output.push(identifier.as_mut());
+                output.push(datatype.as_mut());
             }
             ASTNode::EXTERN {identifier} => {
                 output.push(identifier.as_mut());

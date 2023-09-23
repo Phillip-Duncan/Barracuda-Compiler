@@ -239,6 +239,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::CONSTRUCT { identifier, expression, .. } => {
                 self.generate_construct_statement(identifier, expression);
             }
+            ASTNode::EMPTY_CONSTRUCT { identifier, .. } => {
+                self.generate_empty_construct_statement(identifier);
+            }
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
             }
@@ -279,13 +282,6 @@ impl BarracudaByteCodeGenerator {
                 panic!("Malformed AST! Node {:?} should not be directly generated.", node);
             }
         };
-    }
-
-    fn generate_array_id(&mut self, name: &String) {
-        let array_id = self.symbol_tracker.get_array_id(name).unwrap();
-        self.builder.emit_array(array_id, true);
-        //self.generate_local_var_address(array_id);
-        //self.builder.emit_op(OP::STK_READ);
     }
 
     fn generate_identifier_id(&mut self, name: &String) {
@@ -434,11 +430,12 @@ impl BarracudaByteCodeGenerator {
     fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
 
         let identifier_name = identifier.identifier_name().unwrap();
+        self.add_symbol(identifier_name.clone());
+
         let datatype = identifier.get_type();
     
         match datatype {
             DataType::ARRAY(_, _) => {
-                self.add_symbol(identifier_name.clone());
                 match expression.as_ref() {
                     ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                         ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
@@ -451,13 +448,25 @@ impl BarracudaByteCodeGenerator {
                 // Leave result of expression at top of stack as this is the allocated
                 // region for the local variable
                 self.generate_node(expression);
-                self.add_symbol(identifier_name.clone());
-                // Comment local var id
-                let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-                self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
             }
         }
 
+    }
+
+    fn generate_empty_construct_statement(&mut self, identifier: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        self.add_symbol(identifier_name.clone());
+
+        let datatype = identifier.get_type();
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
+                self.builder.emit_array(address, true);
+            },
+            _ => {
+                self.builder.emit_value(0.0);
+            }
+        }
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {

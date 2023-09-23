@@ -52,6 +52,9 @@ impl BarracudaSemanticAnalyser {
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 self.analyse_construct_statement(identifier, datatype, expression)
             }
+            ASTNode::EMPTY_CONSTRUCT { identifier, datatype } => {
+                self.analyse_empty_construct_statement(identifier, datatype)
+            }
             ASTNode::EXTERN { identifier } => {
                 self.analyse_extern_statement(identifier)
             }
@@ -263,6 +266,21 @@ impl BarracudaSemanticAnalyser {
                 let datatype = Box::new(Some(ASTNode::DATATYPE(expression_datatype)));
                 ASTNode::CONSTRUCT { identifier, datatype, expression: expression.clone() }   
             }
+        } else {
+            panic!("Malformed AST! Construct statement should always start with an identifier")
+        }
+    }
+
+    fn analyse_empty_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<ASTNode>) -> ASTNode {
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            let datatype = match datatype.as_ref() {
+                ASTNode::DATATYPE(datatype) => datatype,
+                _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
+            };
+            self.mark_identifier(name, SymbolType::Variable(datatype.clone()));
+            let identifier = Box::new(self.analyse_node(identifier));
+            let datatype = Box::new(ASTNode::DATATYPE(datatype.clone()));
+            ASTNode::EMPTY_CONSTRUCT { identifier, datatype }
         } else {
             panic!("Malformed AST! Construct statement should always start with an identifier")
         }

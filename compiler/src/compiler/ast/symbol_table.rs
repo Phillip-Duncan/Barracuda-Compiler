@@ -371,6 +371,16 @@ impl SymbolTable {
                     None => panic!("") // AST Malformed
                 };
             }
+            ASTNode::EMPTY_CONSTRUCT{ identifier, datatype } => {
+                let identifier = match identifier.as_ref() {
+                    ASTNode::TYPED_NODE { inner, .. } => inner,
+                    _ => identifier
+                };
+                match Self::process_variable(identifier.as_ref(), &Some(datatype.as_ref().clone())) {
+                    Some(symbol) => symbol_scope.add_symbol(symbol),
+                    None => panic!("") // AST Malformed
+                };
+            }
             ASTNode::EXTERN { identifier} => {
                 let identifier_name = identifier.identifier_name().unwrap();
 

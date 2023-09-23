@@ -68,7 +68,9 @@ impl PestBarracudaParser {
             Rule::index =>              { Self::parse_pair_array_index(pair) },
             Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
-            Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
+            Rule::full_construct_statement => { Self::parse_pair_full_construct_statement(pair) },
+            Rule::inferred_construct_statement => { Self::parse_pair_inferred_construct_statement(pair) },
+            Rule::empty_construct_statement => { Self::parse_pair_empty_construct_statement(pair) },
             Rule::external_statement => { Self::parse_pair_external_statement(pair) },
             Rule::assign_statement =>   { Self::parse_pair_assignment_statement(pair) },
             Rule::if_statement =>       { Self::parse_pair_if_statement(pair) },
@@ -208,30 +210,42 @@ impl PestBarracudaParser {
         )
     }
 
-    /// Parses a pest token pair into an AST construct statement
-    fn parse_pair_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+    /// Parses a pest token pair into an AST construct statement, with datatype
+    fn parse_pair_full_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
-
         let identifier = Self::parse_pair_node(pair.next().unwrap());
-
-        let mut datatype = None;
-
-        // qualifier, datatype or expression
-        let datatype_or_expression = Self::parse_pair_node(pair.next().unwrap());
-        
-        // Datatype match
-        let expression = match pair.next() {
-            Some(expression_pair) => {
-                datatype = Some(datatype_or_expression);
-                Self::parse_pair_node(expression_pair)
-            }
-            None => datatype_or_expression
-        };
+        let datatype = Self::parse_pair_node(pair.next().unwrap());
+        let expression = Self::parse_pair_node(pair.next().unwrap());
 
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
-            datatype: Box::new(datatype),
+            datatype: Box::new(Some(datatype)),
             expression: Box::new(expression)
+        }
+    }
+
+    /// Parses a pest token pair into an AST construct statement, without datatype
+    fn parse_pair_inferred_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+        let expression = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(None),
+            expression: Box::new(expression)
+        }
+    }
+
+    /// Parses a pest token pair into an AST construct statement, without expression
+    fn parse_pair_empty_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+        let datatype = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::EMPTY_CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(datatype),
         }
     }
 
