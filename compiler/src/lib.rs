@@ -620,6 +620,12 @@ mod tests {
         assert_eq!(vec![Val(3.0)], stack);
     }
 
+    #[test]
+    fn empty_construct() {
+        let stack = compile_and_merge("let a: bool;");
+        assert_eq!(vec![Val(0.0)], stack);
+    }
+
     // Tests using a variable.
     #[test]
     fn use_variable() {
@@ -814,6 +820,12 @@ mod tests {
     }
 
     #[test]
+    fn create_empty_array() {
+        let stack = compile_and_merge("let a: [i64; 1];");
+        assert_eq!(vec![Val(ptr(0))], stack);
+    }
+
+    #[test]
     fn create_long_array() {
         let stack = compile_and_merge("let a = [1,2,3,4,5,6,7,8,9,10];");
         let stack_length = 6;
@@ -958,5 +970,28 @@ mod tests {
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
             Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+    }
+
+    // Tests for arrays
+    #[test]
+    fn assign_2d_array() {
+        let old_stack = compile_and_merge("let a = [[1]];");
+        let stack = compile_and_merge("let a = [[1]]; a[0][0] = 2;");
+
+        assert_eq!(old_stack, stack[..old_stack.len()]);
+        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+            Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
+            Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+    }
+
+    // Tests for arrays
+    #[test]
+    fn assign_2d_array_half() {
+        let old_stack = compile_and_merge("let a = [[1]];");
+        let stack = compile_and_merge("let a = [[1]]; a[0] = [2];");
+
+        assert_eq!(old_stack, stack[..old_stack.len()]);
+        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
+            Op(FIXED(DUP)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
     }
 }
