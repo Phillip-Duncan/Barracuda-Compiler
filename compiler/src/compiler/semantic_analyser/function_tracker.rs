@@ -1,5 +1,5 @@
 
-use crate::compiler::ast::ASTNode;
+use crate::compiler::ast::{ASTNode, datatype::DataType};
 
 pub(crate) struct FunctionTracker {
     name: String,
@@ -18,5 +18,9 @@ impl FunctionTracker {
             body,
             implementations: Vec::new()
         }
+    }
+
+    pub fn match_or_create(self, arguments: &Vec<ASTNode>) -> (String, DataType) {
+        (String::from(""), DataType::NONE)
     }
 }

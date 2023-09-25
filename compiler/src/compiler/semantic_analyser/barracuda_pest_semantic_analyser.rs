@@ -430,7 +430,22 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
-        panic!("Still need to do this!");
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            if self.functions.contains_key(name) {
+                let (implementation_name, datatype) = self.functions.get(name).unwrap().match_or_create(arguments);
+                ASTNode::TYPED_NODE { 
+                    datatype, 
+                    inner: Box::new(ASTNode::FUNC_CALL {
+                        identifier: Box::new(ASTNode::IDENTIFIER(implementation_name)),
+                        arguments: arguments.clone(),
+                    })
+                }
+            } else {
+                panic!("Function {} doesn't exist!", name)
+            }
+        } else {
+            panic!("Malformed AST! Function names should be identifiers!")
+        }
     }
 
     fn analyse_naked_function_call(&mut self, func_call: &Box<ASTNode>) -> ASTNode {
