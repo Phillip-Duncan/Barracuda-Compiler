@@ -430,14 +430,22 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
+        let mut typed_arguments: Vec<ASTNode> = vec![];
+        for argument in arguments {
+            typed_arguments.push(self.analyse_node(argument))
+        }
+        let mut argument_types: Vec<DataType> = vec![];
+        for argument in typed_arguments {
+            argument_types.push(argument.get_type())
+        }
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if self.functions.contains_key(name) {
-                let (implementation_name, datatype) = self.functions.get(name).unwrap().match_or_create(arguments);
+                let (implementation_name, datatype) = self.functions.get(name).unwrap().match_or_create(argument_types);
                 ASTNode::TYPED_NODE { 
                     datatype, 
                     inner: Box::new(ASTNode::FUNC_CALL {
                         identifier: Box::new(ASTNode::IDENTIFIER(implementation_name)),
-                        arguments: arguments.clone(),
+                        arguments: typed_arguments,
                     })
                 }
             } else {
