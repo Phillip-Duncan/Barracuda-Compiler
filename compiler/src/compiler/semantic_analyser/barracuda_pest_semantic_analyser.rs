@@ -393,17 +393,21 @@ impl BarracudaSemanticAnalyser {
 
     fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            self.functions.insert(name.clone(), FunctionTracker::new(
-                name.clone(), 
-                parameters.clone(), 
-                return_type.as_ref().clone(), 
-                body.as_ref().clone()
-            ));
-            ASTNode::FUNCTION {
-                identifier: identifier.clone(),
-                parameters: parameters.clone(),
-                return_type: return_type.clone(),
-                body: body.clone()
+            if !self.functions.contains_key(name) {
+                self.functions.insert(name.clone(), FunctionTracker::new(
+                    name.clone(), 
+                    parameters.clone(), 
+                    return_type.as_ref().clone(), 
+                    body.as_ref().clone()
+                ));
+                ASTNode::FUNCTION {
+                    identifier: identifier.clone(),
+                    parameters: parameters.clone(),
+                    return_type: return_type.clone(),
+                    body: body.clone()
+                }
+            } else {
+                panic!("Function {} already exisits!", name)
             }
         } else {
             panic!("Malformed AST! Function names should be identifiers!")

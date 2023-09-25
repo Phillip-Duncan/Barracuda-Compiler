@@ -9,6 +9,13 @@ pub(crate) struct FunctionTracker {
     implementations: Vec<FunctionImplementation>,
 }
 
+/*
+    Tracks a specific function when doing semantic analysis.
+    When a function definition is found during semantic analysis, 
+        it should be added to the functions in the semantic analyser using FunctionTracker::new().
+    When a function call is found during semantic analysis, 
+        it should be checked against the relevant FunctionTracker using match_or_create().
+*/
 impl FunctionTracker {
     pub fn new(name: String, parameters: Vec<ASTNode>, return_type: ASTNode, body: ASTNode) -> Self {
         FunctionTracker { 
