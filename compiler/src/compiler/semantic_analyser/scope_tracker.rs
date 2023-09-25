@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::compiler::ast::symbol_table::SymbolType;
+use crate::compiler::ast::{symbol_table::SymbolType, datatype::DataType};
 
 pub(crate) struct ScopeTracker {
     scopes: Vec<HashMap<String, SymbolType>>,
@@ -37,11 +37,19 @@ impl ScopeTracker {
     }
 
     pub fn find_symbol(&self, identifier: &String) -> Option<&SymbolType> {
-        for (scope_index, scope) in self.scopes.iter().rev().enumerate() {
+        for (_, scope) in self.scopes.iter().rev().enumerate() {
             if scope.contains_key(identifier) {
                 return scope.get(identifier)
             }
         }
         None
+    }
+
+    pub fn add_return_type(&mut self, identifier: &String, symbol_type: SymbolType) {
+        
+    }
+
+    pub fn get_return_type(&self) -> &DataType {
+        &DataType::NONE
     }
 }

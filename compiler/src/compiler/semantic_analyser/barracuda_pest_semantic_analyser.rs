@@ -414,6 +414,33 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
+    pub fn analyse_function_implementation(&mut self, parameters: &Vec<ASTNode>, return_type: &Option<DataType>, body: &ASTNode) -> (ASTNode, DataType) {
+        // Enter scope
+        self.symbol_tracker.enter_scope();
+        // Load params
+        for parameter in parameters { //TODO match datatypes properly
+            match parameter {
+                ASTNode::PARAMETER { identifier, datatype } => {
+                    self.analyse_parameter(identifier, datatype);
+                },
+                _ => panic!("Malformed AST! Function parameters should be parameters! (This was a {:?})", parameter)
+            }
+        }
+        // Generate body
+        let body = self.analyse_node(body);
+        // Exit scope
+        self.symbol_tracker.exit_scope();
+        // If applicable, check return type
+        let real_return_type = self.symbol_tracker.get_return_type();
+        if let Some(return_type) = return_type {
+            if return_type != real_return_type {
+                panic!("Return type of function did not match declared type! ({:?} vs {:?})", return_type, real_return_type)
+            }
+        }
+        // Return new body + return type
+        return (body, real_return_type.clone())
+    }
+
     fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) -> ASTNode {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if let Some(datatype) = datatype.as_ref() {
@@ -439,12 +466,12 @@ impl BarracudaSemanticAnalyser {
             typed_arguments.push(self.analyse_node(argument))
         }
         let mut argument_types: Vec<DataType> = vec![];
-        for argument in typed_arguments {
+        for argument in &typed_arguments {
             argument_types.push(argument.get_type())
         }
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if self.functions.contains_key(name) {
-                let (implementation_name, datatype) = self.functions.get(name).unwrap().match_or_create(argument_types);
+                let (implementation_name, datatype) = self.functions.get_mut(name).unwrap().match_or_create(argument_types, self);
                 ASTNode::TYPED_NODE { 
                     datatype, 
                     inner: Box::new(ASTNode::FUNC_CALL {

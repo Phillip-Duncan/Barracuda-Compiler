@@ -1,6 +1,8 @@
 
 use crate::compiler::ast::{ASTNode, datatype::DataType};
 
+use super::BarracudaSemanticAnalyser;
+
 pub(crate) struct FunctionTracker {
     name: String,
     parameters: Vec<Option<DataType>>,
@@ -46,15 +48,22 @@ impl FunctionTracker {
         }
     }
 
-    pub fn match_or_create(mut self, arguments: Vec<DataType>) -> (String, DataType) {
-        for implementation in self.implementations {
-            if implementation.matches_arguments(arguments) {
+    pub fn match_or_create(&mut self, arguments: Vec<DataType>, semantic_analyser: &mut BarracudaSemanticAnalyser) -> (String, DataType) {
+        for implementation in &self.implementations {
+            if implementation.matches_arguments(&arguments) {
                 return (implementation.name(), implementation.return_type())
             }
         }
-        let implementation = FunctionImplementation::new(self.name, self.parameters, arguments, self.return_type, self.body);
+        let implementation = FunctionImplementation::new(
+            &self.name, 
+            &self.parameters, 
+            &arguments, 
+            &self.return_type, 
+            &self.body,
+            semantic_analyser);
+        let return_val = (implementation.name(), implementation.return_type());
         self.implementations.push(implementation);
-        return (implementation.name(), implementation.return_type())
+        return return_val;
     }
 }
 
@@ -66,25 +75,42 @@ pub(crate) struct FunctionImplementation {
 }
 
 impl FunctionImplementation {
-    pub fn new(name: String, parameters: Vec<Option<DataType>>, arguments: Vec<DataType>, return_type: Option<DataType>, body: ASTNode) -> Self {
-        // TODO type check parameters
+    pub fn new(name: &String, parameters: &Vec<Option<DataType>>, arguments: &Vec<DataType>, return_type: &Option<DataType>, body: &ASTNode, semantic_analyser: &mut BarracudaSemanticAnalyser) -> Self {
+        if parameters.len() != arguments.len() {
+            panic!("When calling function {}, need to use {} parameters! (Used {})", name, parameters.len(), arguments.len())
+        }
+        let mut param_types = vec![];
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            let datatype = match parameter {
+                Some(parameter) => {
+                    if parameter == argument {
+                        parameter.clone()
+                    } else {
+                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameters.len(), arguments.len())
+                    }
+                }
+                None => argument.clone()
+            };
+            param_types.push(datatype);
+        }
+        let (body, return_type) = semantic_analyser.analyse_function_implementation(parameters, return_type, body);
         FunctionImplementation { 
-            name,
-            parameters: arguments, //TODO not accurate
-            return_type: return_type.unwrap(), //TODO not accurate
-            body, //TODO not accurate
+            name: name.to_string(),
+            parameters: param_types,
+            return_type,
+            body,
         }
     }
 
-    pub fn matches_arguments(self, arguments: Vec<DataType>) -> bool {
+    pub fn matches_arguments(&self, arguments: &Vec<DataType>) -> bool {
         self.parameters.iter().zip(arguments.iter()).all(|(a, b)| a == b)
     }
 
-    pub fn name(self) -> String {
+    pub fn name(&self) -> String {
         self.name.clone()
     }
 
-    pub fn return_type(self) -> DataType {
-        self.return_type.clone()
+    pub fn return_type(&self) -> DataType {
+        self.return_type
     }
 }
