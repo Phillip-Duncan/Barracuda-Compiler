@@ -5,6 +5,7 @@ use crate::compiler::ast::symbol_table::SymbolType;
 use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId};
 use crate::compiler::ast::datatype::DataType;
 
+use super::function_tracker::FunctionTracker;
 use super::scope_tracker::ScopeTracker;
 use super::{SemanticAnalyser, EnvironmentSymbolContext};
 use super::super::ast::{
@@ -17,7 +18,8 @@ use super::super::ast::{
 /// BarracudaSemanticAnalyser is a concrete SemanticAnalyser.
 pub struct BarracudaSemanticAnalyser {
     symbol_tracker: ScopeTracker,
-    env_vars: HashMap<String, (usize, PrimitiveDataType, String)>
+    env_vars: HashMap<String, (usize, PrimitiveDataType, String)>,
+    functions: HashMap<String, FunctionTracker>
 }
 
 impl BarracudaSemanticAnalyser {
@@ -389,8 +391,23 @@ impl BarracudaSemanticAnalyser {
         ASTNode::FOR_LOOP { initialization, condition, advancement, body }
     }
 
-    fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
-        panic!("Still need to do this!")
+    fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
+            self.functions.insert(name.clone(), FunctionTracker::new(
+                name.clone(), 
+                parameters.clone(), 
+                return_type.as_ref().clone(), 
+                body.as_ref().clone()
+            ));
+            ASTNode::FUNCTION {
+                identifier: identifier.clone(),
+                parameters: parameters.clone(),
+                return_type: return_type.clone(),
+                body: body.clone()
+            }
+        } else {
+            panic!("Malformed AST! Function names should be identifiers!")
+        }
     }
 
     fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) -> ASTNode {
@@ -443,7 +460,8 @@ impl SemanticAnalyser for BarracudaSemanticAnalyser {
     fn default() -> Self {
         Self {
             symbol_tracker: ScopeTracker::new(),
-            env_vars: HashMap::new()
+            env_vars: HashMap::new(),
+            functions: HashMap::new()
         }
     }
 
