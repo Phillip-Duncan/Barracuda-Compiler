@@ -1,6 +1,7 @@
 
 use crate::compiler::ast::{ASTNode, datatype::DataType};
 
+#[derive(Clone)]
 pub struct FunctionTracker {
     parameter_names: Vec<String>,
     parameters: Vec<Option<DataType>>,
@@ -59,7 +60,7 @@ impl FunctionTracker {
     pub fn match_function(&self, arguments: &Vec<DataType>) -> Option<(String, DataType)> {
         for implementation in &self.implementations {
             if implementation.matches_arguments(arguments) {
-                return Some((implementation.name(), implementation.return_type()))
+                return Some((implementation.get_name(), implementation.get_return_type()))
             }
         }
         return None
@@ -69,40 +70,50 @@ impl FunctionTracker {
         (&self.parameters, &self.parameter_names, &self.return_type, &self.body)
     }
 
-    pub fn get_implementations(&self) -> (&Vec<FunctionImplementation>) {
+    pub fn get_implementations(&self) -> &Vec<FunctionImplementation> {
         &self.implementations
     }
 
-    pub fn create_implementation(&mut self, name: String, parameters: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
+    pub fn create_implementation(&mut self, name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
         let name = format!("{}:{}", name, self.implementations.len());
-        let implementation = FunctionImplementation::new(name, parameters, return_type, body);
-        let implementation_name = implementation.name();
+        let implementation = FunctionImplementation::new(name, parameter_names, parameter_types, return_type, body);
+        let implementation_name = implementation.get_name();
         self.implementations.push(implementation);
         return implementation_name;
     }
 }
 
+#[derive(Clone)]
 pub struct FunctionImplementation {
     name: String,
-    parameters: Vec<DataType>,
+    parameter_names: Vec<String>,
+    parameter_types: Vec<DataType>,
     return_type: DataType,
     body: ASTNode
 }
 
 impl FunctionImplementation {
-    pub fn new(name: String, parameters: Vec<DataType>, return_type: DataType, body: ASTNode) -> Self {
-        FunctionImplementation { name, parameters, return_type, body }
+    pub fn new(name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, return_type: DataType, body: ASTNode) -> Self {
+        FunctionImplementation { name, parameter_names, parameter_types, return_type, body }
     }
 
     pub fn matches_arguments(&self, arguments: &Vec<DataType>) -> bool {
-        self.parameters.iter().zip(arguments.iter()).all(|(a, b)| a == b)
+        self.parameter_types.iter().zip(arguments.iter()).all(|(a, b)| a == b)
     }
 
-    pub fn name(&self) -> String {
+    pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
-    pub fn return_type(&self) -> DataType {
+    pub fn get_return_type(&self) -> DataType {
         self.return_type.clone()
+    }
+
+    pub fn get_body(&self) -> &ASTNode {
+        &self.body
+    }
+
+    pub fn get_parameters(&self) -> &Vec<String> {
+        &self.parameter_names
     }
 }

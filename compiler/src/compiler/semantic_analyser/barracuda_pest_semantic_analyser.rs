@@ -469,6 +469,7 @@ impl BarracudaSemanticAnalyser {
                     }
                     None => {
                         let (parameters, parameter_names, return_type, body) = function.get_innards();
+                        let parameter_names = parameter_names.clone();
                         let real_parameters = self.check_parameter_list(parameters, &argument_types, name);
                         let (body, return_type) = self.analyse_function_implementation(
                             &real_parameters.clone(),
@@ -477,7 +478,7 @@ impl BarracudaSemanticAnalyser {
                             &body.clone()
                         );
                         let function = self.functions.get_mut(name).unwrap();
-                        let implementation_name = function.create_implementation(name.clone(), real_parameters, return_type.clone(), body);
+                        let implementation_name = function.create_implementation(name.clone(), parameter_names, real_parameters, return_type.clone(), body);
                         ASTNode::TYPED_NODE {
                             datatype: return_type,
                             inner: Box::new(ASTNode::FUNC_CALL {

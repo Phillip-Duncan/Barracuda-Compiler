@@ -267,11 +267,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
                 self.generate_for_loop(initialization, condition, advancement, body)
             }
-            ASTNode::PARAMETER { identifier, datatype } => {
-                self.generate_parameter(identifier, datatype)
-            }
-            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
-                self.generate_function_definition(identifier, parameters, return_type, body)
+            ASTNode::FUNCTION { identifier, .. } => {
+                self.generate_function_definition(identifier)
             }
             ASTNode::NAKED_FUNC_CALL { func_call } => {
                 self.generate_naked_function_call(func_call)
@@ -746,14 +743,16 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<Option<ASTNode>>, body: &Box<ASTNode>) {
-        for implementation in self.functions.get(&identifier_name).unwrap().get_implementations() {
+    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        let implementations = self.functions.get(&identifier_name).unwrap().get_implementations().clone();
+        for implementation in implementations {
             self.generate_function_implementation(implementation)
         }
     }
     
-    fn generate_function_implementation(&mut self, implementation: &FunctionImplementation) {
-        let identifier_name = identifier.identifier_name().unwrap();
+    fn generate_function_implementation(&mut self, implementation: FunctionImplementation) {
+        let identifier_name = implementation.get_name();
         // Create labels and assign them
         let function_def_start = self.builder.create_label();
         let function_def_end = self.builder.create_label();
@@ -765,14 +764,16 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(format!("FN {} START", &identifier_name));
         self.builder.set_label(function_def_start);
 
+        let body = implementation.get_body();
+        let parameter_names = implementation.get_parameters();
         // Generate body
-        match body.as_ref() {
+        match body {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.symbol_tracker.enter_scope(scope.clone());
 
                 // Process parameters into scope
-                for parameter in parameters {
-                    self.generate_node(parameter);
+                for identifier in parameter_names {
+                    self.generate_parameter(identifier.clone());
                 }
 
                 // Generate function body
@@ -797,9 +798,8 @@ impl BarracudaByteCodeGenerator {
 
     }
 
-    fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let identifier_name = identifier.identifier_name().unwrap();
-        self.add_symbol(identifier_name);
+    fn generate_parameter(&mut self, identifier: String) {
+        self.add_symbol(identifier);
     }
 
     fn generate_builtin_functions(&mut self)
