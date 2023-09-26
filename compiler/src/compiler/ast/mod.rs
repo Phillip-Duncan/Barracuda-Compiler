@@ -40,7 +40,7 @@ pub struct AbstractSyntaxTree {
 impl AbstractSyntaxTree {
     pub fn new(root: ASTNode, env_vars: EnvironmentSymbolContext, functions: HashMap<String, FunctionTracker>) -> Self {
         let mut root = root;
-        let symbol_table = SymbolTable::from(&mut root, env_vars.into());
+        let symbol_table = SymbolTable::from(&mut root, env_vars.into(), functions.clone());
 
         Self {
             root,

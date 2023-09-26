@@ -1,7 +1,7 @@
 
 use crate::compiler::ast::{ASTNode, datatype::DataType};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionTracker {
     parameter_names: Vec<String>,
     parameters: Vec<Option<DataType>>,
@@ -83,7 +83,7 @@ impl FunctionTracker {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionImplementation {
     name: String,
     parameter_names: Vec<String>,
@@ -115,5 +115,9 @@ impl FunctionImplementation {
 
     pub fn get_parameters(&self) -> &Vec<String> {
         &self.parameter_names
+    }
+
+    pub fn get_parameter_types(&self) -> &Vec<DataType> {
+        &self.parameter_types
     }
 }

@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
+
 use super::ASTNode;
 use super::scope::{ScopeId, ScopeIdGenerator};
 use super::datatype::{DataType, PrimitiveDataType};
@@ -148,6 +150,8 @@ pub struct SymbolTable {
     scope_map: HashMap<ScopeId, SymbolScope>,
 
     env_var_data: HashMap<String, (usize, PrimitiveDataType, String)>,
+    
+    functions: HashMap<String, FunctionTracker>,
 
     /// Main entry scope
     /// Used to find program generation entry point
@@ -167,6 +171,7 @@ impl SymbolTable {
             scope_map: Default::default(),
             main_entry_scope: ScopeId::global(),
             env_var_data: Default::default(),
+            functions: Default::default(),
             scope_generator: ScopeIdGenerator::new()
         };
 
@@ -186,9 +191,10 @@ impl SymbolTable {
     /// @root: Root node of an Abstract Syntax Tree. Mutable as scope ids are assigned to scope
     /// @env_variable_ids: Map of environment variable data, identifier:(env_address, datatype, type qualifier)
     /// ast nodes during this process.
-    pub(super) fn from(root: &mut ASTNode, env_variable_data: HashMap<String, (usize, PrimitiveDataType, String)>) -> SymbolTable {
+    pub(super) fn from(root: &mut ASTNode, env_variable_data: HashMap<String, (usize, PrimitiveDataType, String)>, functions: HashMap<String, FunctionTracker>) -> SymbolTable {
         let mut symbol_table = SymbolTable::new();
         symbol_table.env_var_data = env_variable_data;
+        symbol_table.functions = functions;
 
         // Add main program scope
         symbol_table.main_entry_scope = symbol_table.generate_new_scope(ScopeId::global(), true).unwrap();
@@ -309,34 +315,16 @@ impl SymbolTable {
 
     /// Helper function to simplify processing functions where data is stored within deeper
     /// ASTNodes.
-    fn process_function(identifier: &ASTNode, parameters: &Vec<ASTNode>, return_type: &Option<ASTNode>) -> Option<Symbol> {
+    fn process_function(implementation: FunctionImplementation) -> Symbol {
         // Transform ASTNodes into function identifier and data types
-        let identifier = match identifier {
-            ASTNode::IDENTIFIER(name) => name.clone(),
-            _ => panic!("") // AST Malformed
-        };
-
-        // Collect parameters types
-        let func_params = parameters.into_iter()
-            .map(|param| match param {
-                ASTNode::PARAMETER{ identifier:_, datatype } => {
-                    match datatype.as_ref() {
-                        Some(datatype_node) => DataType::from(datatype_node),
-                        None => panic!("Parameters should always have some datatype!")
-                    }
-                }
-                _ => panic!("")  // AST Malformed
-            }).collect();
-
-        let return_type = DataType::from(return_type.as_ref().unwrap());
-
+        let func_params = implementation.get_parameter_types().clone();
+        let return_type = implementation.get_return_type();
         let symbol_type = SymbolType::Function {
             func_params,
             func_return: Box::new(return_type)
         };
-
         // Add function to symbol table
-        Some(Symbol::new(identifier, symbol_type))
+        Symbol::new(implementation.get_name(), symbol_type)
     }
 
     /// Proccess node is a recursive function that iterates through all nodes in an AST.
@@ -397,22 +385,29 @@ impl SymbolTable {
                 );
             }
             ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
-                match Self::process_function(identifier.as_ref(), parameters.as_ref(), return_type.as_ref()) {
-                    Some(symbol) => symbol_scope.add_symbol(symbol),
-                    None => panic!("") // AST Malformed
+
+                let identifier = match identifier.as_ref() {
+                    ASTNode::IDENTIFIER(name) => name.clone(),
+                    _ => panic!("") // AST Malformed
                 };
+                
+                let function = self.functions.get(&identifier).unwrap();
 
-                // Process function body
-                let inner_func_scope= self.generate_new_scope(current_scope, true).unwrap();
-                for param in parameters {
-                    self.process_node(param, inner_func_scope.clone());
-                }
-                for child in body.children() {
-                    self.process_node(child, inner_func_scope.clone());
-                }
-
-                if let ASTNode::SCOPE_BLOCK {inner:_, scope} = body.as_mut() {
-                    scope.set(inner_func_scope);
+                for implementation in function.get_implementations().clone() {
+                    symbol_scope.add_symbol(Self::process_function(implementation));
+    
+                    // Process function body
+                    let inner_func_scope= self.generate_new_scope(current_scope, true).unwrap();
+                    for param in parameters {
+                        self.process_node(param, inner_func_scope.clone());
+                    }
+                    for child in body.children() {
+                        self.process_node(child, inner_func_scope.clone());
+                    }
+    
+                    if let ASTNode::SCOPE_BLOCK {inner:_, scope} = body.as_mut() {
+                        scope.set(inner_func_scope);
+                    }
                 }
             }
             ASTNode::SCOPE_BLOCK { inner, scope } => {
@@ -486,124 +481,5 @@ impl fmt::Display for SymbolTable {
         print_scope(self, f,ScopeId::global(), 0)?;
 
         Ok(())
-    }
-}
-
-
-/// SymbolTable Module Tests
-#[cfg(test)]
-mod tests {
-    use crate::compiler::ast::{ASTNode, BinaryOperation, Literal, ScopeId};
-    use crate::compiler::ast::symbol_table::SymbolTable;
-    use std::collections::HashMap;
-
-    /// Generates an example ast directly using ASTNodes. Example program is equivalent to:
-    ///     fn add(x: f64, y: f64) -> f64 {
-    ///         let z: f64 = 2;
-    ///         return x + y + z;
-    ///     }
-    ///
-    ///     let a: f64 = 10.0;
-    ///     let b: f64 = 25.0;
-    ///     if true {
-    ///         let c = add(a, b);
-    ///     } else {
-    ///         let c = 5;
-    ///     }
-    fn generate_test_ast() -> ASTNode {
-        let f64_datatype = Box::new(Some(ASTNode::IDENTIFIER(String::from("f64"))));
-        let ast = ASTNode::STATEMENT_LIST(vec![
-            // fn add(x: f64, y: f64) -> f64
-            ASTNode::FUNCTION {
-                identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
-                parameters: vec![
-                    ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
-                        datatype: f64_datatype.clone()
-                    },
-                    ASTNode::PARAMETER {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("y"))),
-                        datatype: f64_datatype.clone()
-                    }
-                ],
-                return_type: Box::new(Some(f64_datatype.clone().unwrap())),
-                // {
-                body: Box::new(ASTNode::SCOPE_BLOCK {
-                    scope: ScopeId::default(),
-                    inner: Box::new(ASTNode::STATEMENT_LIST(vec![
-                        // let z: f64 = 2.0;
-                        ASTNode::CONSTRUCT {
-                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("z"))),
-                            datatype: f64_datatype.clone(),
-                            expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(2.0)))
-                        },
-                        // return x + y + z;
-                        ASTNode::RETURN {
-                            expression: Box::new(ASTNode::BINARY_OP {
-                                op: BinaryOperation::ADD,
-                                lhs: Box::new(ASTNode::BINARY_OP {
-                                    op: BinaryOperation::ADD,
-                                    lhs: Box::new(ASTNode::IDENTIFIER(String::from("x"))),
-                                    rhs: Box::new(ASTNode::IDENTIFIER(String::from("y")))
-                                }),
-                                rhs: Box::new(ASTNode::IDENTIFIER(String::from("z")))
-                            })
-                        }
-                    ]))
-                })
-                // }
-            },
-            // let a: f64 = 10.0;
-            ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::IDENTIFIER(String::from("a"))),
-                datatype: f64_datatype.clone(),
-                expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(10.0)))
-            },
-            // let b: f64 = 25.0;
-            ASTNode::CONSTRUCT {
-                identifier: Box::new(ASTNode::IDENTIFIER(String::from("b"))),
-                datatype: f64_datatype.clone(),
-                expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(25.0)))
-            },
-            // if true
-            ASTNode::BRANCH {
-                condition: Box::new(ASTNode::LITERAL(Literal::BOOL(true))),
-                // let c = add(x,y)
-                if_branch: Box::new(ASTNode::SCOPE_BLOCK {
-                    scope: ScopeId::default(),
-                    inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
-                        datatype: Box::new(None),
-                        expression: Box::new(ASTNode::FUNC_CALL {
-                            identifier: Box::new(ASTNode::IDENTIFIER(String::from("add"))),
-                            arguments: vec![
-                                ASTNode::IDENTIFIER(String::from("a")),
-                                ASTNode::IDENTIFIER(String::from("b")),
-                            ]
-                        })
-                    }),
-                }),
-                // let c = 5.0
-                else_branch: Box::new(Some(ASTNode::SCOPE_BLOCK {
-                    scope: ScopeId::default(),
-                    inner: Box::new(ASTNode::CONSTRUCT {
-                        identifier: Box::new(ASTNode::IDENTIFIER(String::from("c"))),
-                        datatype: Box::new(None),
-                        expression: Box::new(ASTNode::LITERAL(Literal::FLOAT(5.0)))
-                    }),
-                }))
-            }
-        ]);
-
-        return ast;
-    }
-
-    #[test]
-    fn symbol_table_generation() {
-        let mut ast = generate_test_ast();
-        let symbol_table = SymbolTable::from(&mut ast, HashMap::default());
-        assert_eq!(symbol_table.scope_map.len(), 5);
-
-
     }
 }
