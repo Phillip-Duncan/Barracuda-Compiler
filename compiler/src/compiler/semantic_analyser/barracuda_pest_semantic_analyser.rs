@@ -551,6 +551,8 @@ impl SemanticAnalyser for BarracudaSemanticAnalyser {
     /// Parse processes a source string into an abstract syntax tree
     fn analyse(mut self, root_node: ASTNode, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
         self.env_vars = env_vars.copy_addresses();
-        AbstractSyntaxTree::new(BarracudaSemanticAnalyser::analyse_node(&mut self, &root_node), env_vars)
+        let root = self.analyse_node(&root_node);
+        let functions = self.functions;
+        AbstractSyntaxTree::new(root, env_vars, functions)
     }
 }

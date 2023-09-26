@@ -1,7 +1,7 @@
 
 use crate::compiler::ast::{ASTNode, datatype::DataType};
 
-pub(crate) struct FunctionTracker {
+pub struct FunctionTracker {
     parameter_names: Vec<String>,
     parameters: Vec<Option<DataType>>,
     return_type: Option<DataType>,
@@ -69,6 +69,10 @@ impl FunctionTracker {
         (&self.parameters, &self.parameter_names, &self.return_type, &self.body)
     }
 
+    pub fn get_implementations(&self) -> (&Vec<FunctionImplementation>) {
+        &self.implementations
+    }
+
     pub fn create_implementation(&mut self, name: String, parameters: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
         let name = format!("{}:{}", name, self.implementations.len());
         let implementation = FunctionImplementation::new(name, parameters, return_type, body);
@@ -78,7 +82,7 @@ impl FunctionTracker {
     }
 }
 
-pub(crate) struct FunctionImplementation {
+pub struct FunctionImplementation {
     name: String,
     parameters: Vec<DataType>,
     return_type: DataType,

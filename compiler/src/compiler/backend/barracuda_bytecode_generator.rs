@@ -23,6 +23,7 @@ use crate::compiler::ast::{
 };
 use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
+use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
 
 /// BarracudaByteCodeGenerator is a Backend for Barracuda
 /// It generates program code from an Abstract Syntax Tree
@@ -41,6 +42,7 @@ pub struct BarracudaByteCodeGenerator {
     symbol_tracker: ScopeTracker,
 
     function_labels: HashMap<String, Vec<u64>>,
+    functions: HashMap<String, FunctionTracker>,
 
     // Max analysis branching depth
     // used for estimating the stack depth of a program
@@ -54,6 +56,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
             builder: BarracudaProgramCodeBuilder::new(),
             symbol_tracker: ScopeTracker::default(),
             function_labels: HashMap::default(),
+            functions: HashMap::default(),
             max_analysis_branch_depth: 512,
         }
     }
@@ -62,6 +65,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
     fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
         // Create symbol tracker
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
+        self.functions = tree.get_functions();
 
         // Generate built-in functions
         self.generate_builtin_functions();
@@ -743,9 +747,13 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<Option<ASTNode>>, body: &Box<ASTNode>) {
-
+        for implementation in self.functions.get(&identifier_name).unwrap().get_implementations() {
+            self.generate_function_implementation(implementation)
+        }
+    }
+    
+    fn generate_function_implementation(&mut self, implementation: &FunctionImplementation) {
         let identifier_name = identifier.identifier_name().unwrap();
-
         // Create labels and assign them
         let function_def_start = self.builder.create_label();
         let function_def_end = self.builder.create_label();
