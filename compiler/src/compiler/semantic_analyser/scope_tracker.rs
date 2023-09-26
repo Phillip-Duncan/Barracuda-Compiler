@@ -4,6 +4,7 @@ use crate::compiler::ast::{symbol_table::SymbolType, datatype::DataType};
 
 pub(crate) struct ScopeTracker {
     scopes: Vec<HashMap<String, SymbolType>>,
+    return_types: Vec<Option<DataType>>,
 }
 
 // A lightweight scope tracker made for semantic analysis.
@@ -12,16 +13,18 @@ pub(crate) struct ScopeTracker {
 // I'm not quite sure how to do that, though.
 impl ScopeTracker {
     pub fn new() -> Self {
-        ScopeTracker { scopes: vec![HashMap::new()] }
+        ScopeTracker { scopes: vec![HashMap::new()], return_types: vec![] }
     }
 
     pub fn enter_scope(&mut self) {
         self.scopes.push(HashMap::new());
+        self.return_types.push(None);
     }
 
     pub fn exit_scope(&mut self) {
         if self.scopes.len() > 1 {
             self.scopes.pop();
+            self.return_types.pop();
         }
     }
 
@@ -45,11 +48,24 @@ impl ScopeTracker {
         None
     }
 
-    pub fn add_return_type(&mut self, identifier: &String, symbol_type: SymbolType) {
-        
+    pub fn add_return_type(&mut self, identifier: &String, datatype: &DataType) {
+        let new_type = match self.return_types.last().unwrap() {
+            Some(return_type) => {
+                if return_type == datatype {
+                    datatype.clone()
+                } else {
+                    panic!("Return types shoudl always be equal in a function! (currently {:?} vs {:?})", return_type, datatype);
+                }
+            },
+            None => datatype.clone()
+        };
+        self.return_types[self.return_types.len() - 1] = Some(new_type);
     }
 
     pub fn get_return_type(&self) -> &DataType {
-        &DataType::NONE
+        match self.return_types.last().unwrap() {
+            Some(datatype) => datatype,
+            None => &DataType::NONE
+        }
     }
 }
