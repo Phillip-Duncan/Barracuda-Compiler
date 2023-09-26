@@ -78,8 +78,8 @@ impl BarracudaSemanticAnalyser {
             ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
                 self.analyse_for_loop(initialization, condition, advancement, body)
             }
-            ASTNode::PARAMETER { identifier, datatype } => {
-                self.analyse_parameter(identifier, datatype)
+            ASTNode::PARAMETER { .. } => {
+                panic!("Malformed AST! Parameters should not be directly inspected during semantic analysis!")
             }
             ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
                 self.analyse_function_definition(identifier, parameters, return_type, body)
@@ -395,7 +395,6 @@ impl BarracudaSemanticAnalyser {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if !self.functions.contains_key(name) {
                 self.functions.insert(name.clone(), FunctionTracker::new(
-                    name.clone(), 
                     parameters.clone(), 
                     return_type.as_ref().clone(), 
                     body.as_ref().clone()
@@ -414,17 +413,18 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    pub fn analyse_function_implementation(&mut self, parameters: &Vec<ASTNode>, return_type: &Option<DataType>, body: &ASTNode) -> (ASTNode, DataType) {
+    fn analyse_function_implementation(
+        &mut self, 
+        parameters: &Vec<DataType>, 
+        parameter_names: &Vec<String>, 
+        return_type: &Option<DataType>, 
+        body: &ASTNode
+    ) -> (ASTNode, DataType) {
         // Enter scope
         self.symbol_tracker.enter_scope();
         // Load params
-        for parameter in parameters { //TODO match datatypes properly
-            match parameter {
-                ASTNode::PARAMETER { identifier, datatype } => {
-                    self.analyse_parameter(identifier, datatype);
-                },
-                _ => panic!("Malformed AST! Function parameters should be parameters! (This was a {:?})", parameter)
-            }
+        for (identifier, datatype) in parameter_names.iter().zip(parameters.iter()) { 
+            self.mark_identifier(identifier, SymbolType::Parameter(datatype.clone()));
         }
         // Generate body
         let body = self.analyse_node(body);
@@ -441,25 +441,6 @@ impl BarracudaSemanticAnalyser {
         return (body, real_return_type.clone())
     }
 
-    fn analyse_parameter(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>) -> ASTNode {
-        if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            if let Some(datatype) = datatype.as_ref() {
-                let datatype = match datatype {
-                    ASTNode::DATATYPE(datatype) => datatype,
-                    _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
-                };
-                self.mark_identifier(name, SymbolType::Parameter(datatype.clone()));
-                let identifier = identifier.clone();
-                let datatype = Box::new(None);
-                ASTNode::PARAMETER { identifier, datatype }
-            } else {
-                panic!("Multiple dispatch is not implemented so function definitions must contain types!")
-            }
-        } else {
-            panic!("Malformed AST! Function parameters should be identifiers!")
-        }
-    }
-
     fn analyse_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
         let mut typed_arguments: Vec<ASTNode> = vec![];
         for argument in arguments {
@@ -471,13 +452,36 @@ impl BarracudaSemanticAnalyser {
         }
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if self.functions.contains_key(name) {
-                let (implementation_name, datatype) = self.functions.get_mut(name).unwrap().match_or_create(argument_types, self);
-                ASTNode::TYPED_NODE { 
-                    datatype, 
-                    inner: Box::new(ASTNode::FUNC_CALL {
-                        identifier: Box::new(ASTNode::IDENTIFIER(implementation_name)),
-                        arguments: typed_arguments,
-                    })
+                let function = self.functions.get(name).unwrap();
+                match function.match_function(&argument_types) {
+                    Some((implementation_name, datatype)) => {
+                        ASTNode::TYPED_NODE {
+                            datatype,
+                            inner: Box::new(ASTNode::FUNC_CALL {
+                                identifier: Box::new(ASTNode::IDENTIFIER(implementation_name)),
+                                arguments: typed_arguments,
+                            })
+                        }
+                    }
+                    None => {
+                        let (parameters, parameter_names, return_type, body) = function.get_innards();
+                        let real_parameters = self.check_parameter_list(parameters, &argument_types, name);
+                        let (body, return_type) = self.analyse_function_implementation(
+                            &real_parameters.clone(),
+                            &parameter_names.clone(),
+                            &return_type.clone(),
+                            &body.clone()
+                        );
+                        let function = self.functions.get_mut(name).unwrap();
+                        let implementation_name = function.create_implementation(name.clone(), real_parameters, return_type.clone(), body);
+                        ASTNode::TYPED_NODE {
+                            datatype: return_type,
+                            inner: Box::new(ASTNode::FUNC_CALL {
+                                identifier: Box::new(ASTNode::IDENTIFIER(implementation_name)),
+                                arguments: typed_arguments,
+                            })
+                        }
+                    }
                 }
             } else {
                 panic!("Function {} doesn't exist!", name)
@@ -485,6 +489,27 @@ impl BarracudaSemanticAnalyser {
         } else {
             panic!("Malformed AST! Function names should be identifiers!")
         }
+    }
+
+    fn check_parameter_list(&self, parameters: &Vec<Option<DataType>>, arguments: &Vec<DataType>, name: &String) -> Vec<DataType> {
+        if parameters.len() != arguments.len() {
+            panic!("When calling function {}, need to use {} parameters! (Used {})", name, parameters.len(), arguments.len())
+        }
+        let mut real_types = vec![];
+        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+            let datatype = match parameter {
+                Some(parameter) => {
+                    if parameter == argument {
+                        parameter.clone()
+                    } else {
+                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameters.len(), arguments.len())
+                    }
+                }
+                None => argument.clone()
+            };
+            real_types.push(datatype);
+        }
+        real_types
     }
 
     fn analyse_naked_function_call(&mut self, func_call: &Box<ASTNode>) -> ASTNode {

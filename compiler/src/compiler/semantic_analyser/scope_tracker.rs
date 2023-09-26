@@ -48,7 +48,7 @@ impl ScopeTracker {
         None
     }
 
-    pub fn add_return_type(&mut self, identifier: &String, datatype: &DataType) {
+    pub fn add_return_type(&mut self, datatype: &DataType) {
         let new_type = match self.return_types.last().unwrap() {
             Some(return_type) => {
                 if return_type == datatype {
@@ -59,7 +59,8 @@ impl ScopeTracker {
             },
             None => datatype.clone()
         };
-        self.return_types[self.return_types.len() - 1] = Some(new_type);
+        let x = self.return_types.len() - 1;
+        self.return_types[x] = Some(new_type);
     }
 
     pub fn get_return_type(&self) -> &DataType {

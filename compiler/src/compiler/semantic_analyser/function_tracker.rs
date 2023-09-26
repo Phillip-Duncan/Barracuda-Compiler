@@ -1,10 +1,8 @@
 
 use crate::compiler::ast::{ASTNode, datatype::DataType};
 
-use super::BarracudaSemanticAnalyser;
-
 pub(crate) struct FunctionTracker {
-    name: String,
+    parameter_names: Vec<String>,
     parameters: Vec<Option<DataType>>,
     return_type: Option<DataType>,
     body: ASTNode,
@@ -19,28 +17,36 @@ pub(crate) struct FunctionTracker {
         it should be checked against the relevant FunctionTracker using match_or_create().
 */
 impl FunctionTracker {
-    pub fn new(name: String, parameters: Vec<ASTNode>, return_type: ASTNode, body: ASTNode) -> Self {
+    pub fn new(parameters: Vec<ASTNode>, return_type: ASTNode, body: ASTNode) -> Self {
+        let mut parameter_names = vec![];
         let mut parameter_types = vec![];
         for parameter in parameters {
-            let datatype = match parameter {
-                ASTNode::PARAMETER { datatype, .. } => match datatype.as_ref() {
-                    Some(datatype) => match datatype {
-                        ASTNode::DATATYPE(datatype) => Some(datatype.clone()),
+            match parameter {
+                ASTNode::PARAMETER { datatype, identifier } => {
+                    let datatype = match datatype.as_ref() {
+                        Some(datatype) => match datatype {
+                            ASTNode::DATATYPE(datatype) => Some(datatype.clone()),
+                            _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
+                        },
+                        None => None
+                    };
+                    let identifier = match identifier.as_ref() {
+                        ASTNode::IDENTIFIER(name) => name.clone(),
                         _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
-                    },
-                    None => None
+                    };
+                    parameter_names.push(identifier);
+                    parameter_types.push(datatype);
                 },
                 _ => panic!("Malformed AST! Parameter wasn't a parameter, instead it was {:?}", parameter)
             };
-            parameter_types.push(datatype);
         }
         // TODO optional return types
         let return_type = match return_type {
             ASTNode::DATATYPE(datatype) => Some(datatype),
-            _ => panic!("Malformed AST! Return type wasn't a datatype, instead it was {:?}", return_type)
+            _ => panic!("Malformed AST! Return type wasn't a datatype, instead it was {:?}", return_type) 
         };
-        FunctionTracker { 
-            name,
+        FunctionTracker {
+            parameter_names,
             parameters: parameter_types,
             return_type,
             body,
@@ -48,22 +54,25 @@ impl FunctionTracker {
         }
     }
 
-    pub fn match_or_create(&mut self, arguments: Vec<DataType>, semantic_analyser: &mut BarracudaSemanticAnalyser) -> (String, DataType) {
+    pub fn match_function(&self, arguments: &Vec<DataType>) -> Option<(String, DataType)> {
         for implementation in &self.implementations {
-            if implementation.matches_arguments(&arguments) {
-                return (implementation.name(), implementation.return_type())
+            if implementation.matches_arguments(arguments) {
+                return Some((implementation.name(), implementation.return_type()))
             }
         }
-        let implementation = FunctionImplementation::new(
-            &self.name, 
-            &self.parameters, 
-            &arguments, 
-            &self.return_type, 
-            &self.body,
-            semantic_analyser);
-        let return_val = (implementation.name(), implementation.return_type());
+        return None
+    }
+
+    pub fn get_innards(&self) -> (&Vec<Option<DataType>>, &Vec<String>, &Option<DataType>, &ASTNode) {
+        (&self.parameters, &self.parameter_names, &self.return_type, &self.body)
+    }
+
+    pub fn create_implementation(&mut self, name: String, parameters: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
+        let name = format!("{}:{}", name, self.implementations.len());
+        let implementation = FunctionImplementation::new(name, parameters, return_type, body);
+        let implementation_name = implementation.name();
         self.implementations.push(implementation);
-        return return_val;
+        return implementation_name;
     }
 }
 
@@ -75,31 +84,8 @@ pub(crate) struct FunctionImplementation {
 }
 
 impl FunctionImplementation {
-    pub fn new(name: &String, parameters: &Vec<Option<DataType>>, arguments: &Vec<DataType>, return_type: &Option<DataType>, body: &ASTNode, semantic_analyser: &mut BarracudaSemanticAnalyser) -> Self {
-        if parameters.len() != arguments.len() {
-            panic!("When calling function {}, need to use {} parameters! (Used {})", name, parameters.len(), arguments.len())
-        }
-        let mut param_types = vec![];
-        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-            let datatype = match parameter {
-                Some(parameter) => {
-                    if parameter == argument {
-                        parameter.clone()
-                    } else {
-                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameters.len(), arguments.len())
-                    }
-                }
-                None => argument.clone()
-            };
-            param_types.push(datatype);
-        }
-        let (body, return_type) = semantic_analyser.analyse_function_implementation(parameters, return_type, body);
-        FunctionImplementation { 
-            name: name.to_string(),
-            parameters: param_types,
-            return_type,
-            body,
-        }
+    pub fn new(name: String, parameters: Vec<DataType>, return_type: DataType, body: ASTNode) -> Self {
+        FunctionImplementation { name, parameters, return_type, body }
     }
 
     pub fn matches_arguments(&self, arguments: &Vec<DataType>) -> bool {
@@ -111,6 +97,6 @@ impl FunctionImplementation {
     }
 
     pub fn return_type(&self) -> DataType {
-        self.return_type
+        self.return_type.clone()
     }
 }
