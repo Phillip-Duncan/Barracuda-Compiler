@@ -346,9 +346,9 @@ impl PestBarracudaParser {
         }
 
         let return_type = if pair.peek().unwrap().as_rule() == Rule::identifier {
-            Self::parse_pair_node(pair.next().unwrap())
+            Some(Self::parse_pair_node(pair.next().unwrap()))
         } else {
-            ASTNode::IDENTIFIER(String::from("void"))
+            None
         };
 
         let body = Self::parse_pair_node(pair.next().unwrap());

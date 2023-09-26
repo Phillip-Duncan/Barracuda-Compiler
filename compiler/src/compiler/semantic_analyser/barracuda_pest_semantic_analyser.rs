@@ -346,7 +346,9 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_return_statement(&mut self, expression: &Box<ASTNode>) -> ASTNode {
-        panic!("Still need to do this!");
+        let expression = Box::new(self.analyse_node(expression));
+        self.symbol_tracker.add_return_type(&expression.get_type());
+        ASTNode::RETURN { expression }
     }
 
     fn analyse_branch_statement(&mut self, condition: &Box<ASTNode>, if_branch: &Box<ASTNode>, else_branch: &Box<Option<ASTNode>>) -> ASTNode {
@@ -391,7 +393,9 @@ impl BarracudaSemanticAnalyser {
         ASTNode::FOR_LOOP { initialization, condition, advancement, body }
     }
 
-    fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<ASTNode>, body: &Box<ASTNode>) -> ASTNode {
+    fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<Option<ASTNode>>, body: &Box<ASTNode>) -> ASTNode {
+        println!("fn body: {:?}", body);
+        println!("return type: {:?}", return_type);
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if !self.functions.contains_key(name) {
                 self.functions.insert(name.clone(), FunctionTracker::new(

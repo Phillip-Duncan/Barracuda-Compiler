@@ -742,7 +742,7 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
+    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<Option<ASTNode>>, body: &Box<ASTNode>) {
 
         let identifier_name = identifier.identifier_name().unwrap();
 

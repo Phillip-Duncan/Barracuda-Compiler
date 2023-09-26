@@ -251,7 +251,7 @@ pub enum ASTNode {
     FUNCTION {
         identifier: Box<ASTNode>,
         parameters: Vec<ASTNode>,
-        return_type: Box<ASTNode>,
+        return_type: Box<Option<ASTNode>>,
         body: Box<ASTNode>
     },
 
@@ -397,7 +397,9 @@ impl ASTNode {
                 for param in parameters {
                     output.push(param.borrow_mut());
                 }
-                output.push(return_type.as_mut());
+                if return_type.is_some() {
+                    output.push(return_type.as_mut().as_mut().unwrap());
+                }
                 output.push(body.as_mut())
             }
             ASTNode::FUNC_CALL { identifier, arguments } => {

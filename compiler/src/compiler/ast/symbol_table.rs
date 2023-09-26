@@ -13,7 +13,7 @@ pub enum SymbolType {
     Parameter(DataType),
     Function {
         func_params: Vec<DataType>,
-        func_return: Box<PrimitiveDataType> // Cannot be mutable, const or unknown as defaults to void
+        func_return: Box<DataType>
     },
 }
 
@@ -309,7 +309,7 @@ impl SymbolTable {
 
     /// Helper function to simplify processing functions where data is stored within deeper
     /// ASTNodes.
-    fn process_function(identifier: &ASTNode, parameters: &Vec<ASTNode>, return_type: &ASTNode) -> Option<Symbol> {
+    fn process_function(identifier: &ASTNode, parameters: &Vec<ASTNode>, return_type: &Option<ASTNode>) -> Option<Symbol> {
         // Transform ASTNodes into function identifier and data types
         let identifier = match identifier {
             ASTNode::IDENTIFIER(name) => name.clone(),
@@ -322,19 +322,13 @@ impl SymbolTable {
                 ASTNode::PARAMETER{ identifier:_, datatype } => {
                     match datatype.as_ref() {
                         Some(datatype_node) => DataType::from(datatype_node),
-                        None => panic!("Parameters should always have some datatype!") // TODO does this need to be here?
+                        None => panic!("Parameters should always have some datatype!")
                     }
                 }
                 _ => panic!("")  // AST Malformed
             }).collect();
 
-        let return_type = match DataType::from(return_type) {
-            // Strip datatype as return type can only be primitive
-            DataType::MUTABLE(primitive_type) => primitive_type,
-
-            // Unknown return type
-            _ => panic!("")
-        };
+        let return_type = DataType::from(return_type.as_ref().unwrap());
 
         let symbol_type = SymbolType::Function {
             func_params,
@@ -532,7 +526,7 @@ mod tests {
                         datatype: f64_datatype.clone()
                     }
                 ],
-                return_type: Box::new(f64_datatype.clone().unwrap()),
+                return_type: Box::new(Some(f64_datatype.clone().unwrap())),
                 // {
                 body: Box::new(ASTNode::SCOPE_BLOCK {
                     scope: ScopeId::default(),

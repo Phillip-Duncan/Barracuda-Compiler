@@ -17,7 +17,7 @@ pub(crate) struct FunctionTracker {
         it should be checked against the relevant FunctionTracker using match_or_create().
 */
 impl FunctionTracker {
-    pub fn new(parameters: Vec<ASTNode>, return_type: ASTNode, body: ASTNode) -> Self {
+    pub fn new(parameters: Vec<ASTNode>, return_type: Option<ASTNode>, body: ASTNode) -> Self {
         let mut parameter_names = vec![];
         let mut parameter_types = vec![];
         for parameter in parameters {
@@ -40,10 +40,12 @@ impl FunctionTracker {
                 _ => panic!("Malformed AST! Parameter wasn't a parameter, instead it was {:?}", parameter)
             };
         }
-        // TODO optional return types
         let return_type = match return_type {
-            ASTNode::DATATYPE(datatype) => Some(datatype),
-            _ => panic!("Malformed AST! Return type wasn't a datatype, instead it was {:?}", return_type) 
+            Some(return_type) => match return_type {
+                ASTNode::DATATYPE(datatype) => Some(datatype),
+                _ => panic!("Malformed AST! Return type wasn't a datatype, instead it was {:?}", return_type)
+            },
+            None => None
         };
         FunctionTracker {
             parameter_names,
