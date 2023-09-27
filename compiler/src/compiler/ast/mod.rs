@@ -33,8 +33,7 @@ use super::semantic_analyser::function_tracker::FunctionTracker;
 /// involved in the construction of a program.
 pub struct AbstractSyntaxTree {
     root: ASTNode,
-    symbol_table: SymbolTable,
-    functions: HashMap<String, FunctionTracker>
+    symbol_table: SymbolTable
 }
 
 impl AbstractSyntaxTree {
@@ -44,8 +43,7 @@ impl AbstractSyntaxTree {
 
         Self {
             root,
-            symbol_table,
-            functions
+            symbol_table
         }
     }
 
