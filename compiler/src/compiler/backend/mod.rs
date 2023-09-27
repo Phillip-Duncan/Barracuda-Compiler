@@ -1,6 +1,7 @@
 mod barracuda_bytecode_generator;
 mod program_code_builder;
 pub mod analysis;
+pub mod builtin_functions;
 
 use super::ast::AbstractSyntaxTree;
 use barracuda_common::ProgramCode;

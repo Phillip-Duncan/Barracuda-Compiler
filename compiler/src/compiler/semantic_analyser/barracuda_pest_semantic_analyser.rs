@@ -4,6 +4,7 @@ use crate::compiler::PrimitiveDataType;
 use crate::compiler::ast::symbol_table::SymbolType;
 use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId};
 use crate::compiler::ast::datatype::DataType;
+use crate::compiler::backend::builtin_functions::BARRACUDA_BUILT_IN_FUNCTIONS;
 
 use super::function_tracker::FunctionTracker;
 use super::scope_tracker::ScopeTracker;
@@ -483,6 +484,19 @@ impl BarracudaSemanticAnalyser {
                     }
                 }
             } else {
+                for function in BARRACUDA_BUILT_IN_FUNCTIONS {
+                    if name == &String::from(format!("__{}", function.to_string().to_lowercase())) {
+                        if argument_types == vec![DataType::CONST(PrimitiveDataType::F64); function.consume() as usize] {
+                            return ASTNode::TYPED_NODE {
+                                datatype: DataType::CONST(PrimitiveDataType::F64),
+                                inner: Box::new(ASTNode::FUNC_CALL {
+                                    identifier: Box::new(ASTNode::IDENTIFIER(name.clone())),
+                                    arguments: typed_arguments,
+                                })
+                            }
+                        }
+                    }
+                }
                 panic!("Function {} doesn't exist!", name)
             }
         } else {
