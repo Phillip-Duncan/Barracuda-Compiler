@@ -300,6 +300,11 @@ pub enum ASTNode {
         scope: ScopeId
     },
 
+    /// Scope Block Shell is the same as a scope block, but does not deal with scopes at all.
+    SCOPE_BLOCK_SHELL {
+        inner: Box<ASTNode>
+    },
+
     /// Print statement will display the result of an expression to stdout of interpreter
     ///
     /// # Syntax:
@@ -417,6 +422,9 @@ impl ASTNode {
                 }
             }
             ASTNode::SCOPE_BLOCK { inner, scope: _ } => {
+                output.push(inner.as_mut());
+            }
+            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
                 output.push(inner.as_mut());
             }
             ASTNode::TYPED_NODE { inner, .. } => {

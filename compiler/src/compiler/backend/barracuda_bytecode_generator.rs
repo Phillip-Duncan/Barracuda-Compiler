@@ -280,6 +280,9 @@ impl BarracudaByteCodeGenerator {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.generate_scope_block(inner, scope);
             }
+            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
+                self.generate_scope_block_shell(inner);
+            }
             _ => {
                 panic!("Malformed AST! Node {:?} should not be directly generated.", node);
             }
@@ -703,8 +706,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
         // Generate body
         match body.as_ref() {
-            ASTNode::SCOPE_BLOCK { inner, scope } => {
-                self.symbol_tracker.enter_scope(scope.clone());
+            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
 
                 let for_start = self.builder.create_label();
                 let for_exit = self.builder.create_label();
@@ -734,9 +736,6 @@ impl BarracudaByteCodeGenerator {
                 // Exit
                 self.builder.set_label(for_exit);
                 self.builder.comment(String::from("FOR END"));
-
-
-                self.symbol_tracker.exit_scope();
 
                 self.builder.emit_op(OP::DROP);
             }
@@ -895,6 +894,10 @@ impl BarracudaByteCodeGenerator {
         for _ in 0..symbols_dropped {
             self.builder.emit_op(OP::DROP);
         }
+    }
+
+    fn generate_scope_block_shell(&mut self, inner: &Box<ASTNode>) {
+        self.generate_node(inner);
     }
 
 }
