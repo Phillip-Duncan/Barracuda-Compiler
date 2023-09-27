@@ -437,8 +437,7 @@ mod tests {
     fn empty_function() {
         let stack = compile_and_merge(
             "fn test_func() {}");
-        let (function_def, _, _) = generate_empty_function_definition(0);
-        assert_eq!(function_def, stack);
+        assert_eq!(0, stack.len());
     }
 
     // Tests calling functions works
@@ -511,29 +510,13 @@ mod tests {
     fn function_with_contents() {
         let function_contents = "let a = 3+4;";
         let stack = compile_and_merge(
-            &format!("fn test_func() {{{}}}", function_contents));
-        let (function_def, _, _) 
+            &format!("fn test_func() {{{}}} let a = test_func();", function_contents));
+        let (function_def, test_func_location, position) 
             = generate_function_definition(0, function_contents);
-        assert_eq!(function_def, stack);
-    }
-
-    // Checks defining a function with a parameter is the same as defining an empty function
-    // (as parameters don't add anything to the function definition)
-    #[test]
-    fn function_with_parameter() {
-        let stack = compile_and_merge("fn test_func(a) {}");
-        let (function_def, _, _) = generate_empty_function_definition(0);
-        assert_eq!(function_def, stack);
-    }
-
-    // Checks defining a function with a parameter and then using that parameter
-    #[test]
-    fn function_with_parameter_used() {
-        let stack = compile_and_merge("fn test_func(a) {let b = a;}");
-        let (function_def, _, _) 
-            = generate_function_def_precompiled(0, 
-                vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ))]);
-        assert_eq!(function_def, stack);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, position_2) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..position_2]);
     }
 
     // Checks calling a parameterized function
@@ -542,6 +525,21 @@ mod tests {
         let stack = compile_and_merge("fn test_func(a) {} let a = test_func(4);");
         let (function_def, test_func_location, position) 
             = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        assert_eq!(Val(4.0), stack[position]);
+        let position = position + 1;
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location, 1);
+        assert_eq!(function_call, stack[position..]);
+    }
+
+    // Checks defining a function with a parameter and then using that parameter
+    #[test]
+    fn function_with_parameter_used() {
+        let stack = compile_and_merge("fn test_func(a) {let b = a;} let a = test_func(4);");
+        let (function_def, test_func_location, position) 
+            = generate_function_def_precompiled(0, 
+                vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ))]);
         assert_eq!(function_def, stack[..position]);
         assert_eq!(Val(4.0), stack[position]);
         let position = position + 1;
@@ -567,12 +565,17 @@ mod tests {
     // Checks that function parameters can be assigned to
     #[test]
     fn function_with_parameter_assigned() {
-        let stack = compile_and_merge("fn test_func(a) {a = 3;}");
-        let (function_def, _, _) 
+        let stack = compile_and_merge("fn test_func(a) {a = 3;} let b = test_func(4);");
+        let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), // get pointer to parameter
                     Val(3.0), Op(FIXED(STK_WRITE))]); // read parameter
-        assert_eq!(function_def, stack);
+        assert_eq!(function_def, stack[..position]);
+        assert_eq!(Val(4.0), stack[position]);
+        let position = position + 1;
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location, 1);
+        assert_eq!(function_call, stack[position..]);
     }
 
     // Tests that if and else work
@@ -804,12 +807,17 @@ mod tests {
     //Check that parameters can also use pointer assign syntax
     #[test]
     fn parameter_pointer_assign() {
-        let stack = compile_and_merge("fn test_func(*a) {*a = 3;}");
-        let (function_def, _, _) 
+        let stack = compile_and_merge("fn test_func(a: *i64) {*a = 3;} let b = 1; let c = test_func(&b);");
+        let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ)), // get pointer
                     Val(3.0), Op(FIXED(STK_WRITE))]); // write to pointer
-        assert_eq!(function_def, stack);
+        assert_eq!(function_def, stack[..position]);
+        assert_eq!(vec![Val(1.0), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack[position..position+5]);
+        let position = position + 5;
+        let (function_call, _) 
+            = generate_function_call(position, test_func_location, 1);
+        assert_eq!(function_call, stack[position..]);
     }
 
     // Tests for arrays

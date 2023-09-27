@@ -109,7 +109,9 @@ impl BarracudaSemanticAnalyser {
     fn type_from_identifier(&mut self, name: &String) -> DataType {
         match self.symbol_tracker.find_symbol(name) {
             Some(symbol) => match symbol {
-                SymbolType::Variable(datatype) | SymbolType::EnvironmentVariable(_, datatype, _) => datatype.clone(),
+                SymbolType::Variable(datatype) 
+                | SymbolType::EnvironmentVariable(_, datatype, _) 
+                | SymbolType::Parameter(datatype) => datatype.clone(),
                 _ => panic!("Identifier {} isn't a variable!", name)
             },
             None => panic!("Identifier {} doesn't exist!", name)

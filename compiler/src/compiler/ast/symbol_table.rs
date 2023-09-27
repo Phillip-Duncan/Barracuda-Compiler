@@ -404,7 +404,7 @@ impl SymbolTable {
     
                     // Process function body
                     let inner_func_scope = self.generate_new_scope(current_scope.clone(), true).unwrap();
-                    let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
+                    let symbol_scope = self.scope_map.get_mut(&inner_func_scope).unwrap();
                     for (identifier, datatype) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()) {
                         symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone())));
                     }

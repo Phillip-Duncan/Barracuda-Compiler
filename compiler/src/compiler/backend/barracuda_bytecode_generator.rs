@@ -898,7 +898,7 @@ impl BarracudaByteCodeGenerator {
 
 }
 
-static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
+pub static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
     OP::ACOS,
     OP::ACOSH,
     OP::ASIN,
