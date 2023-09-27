@@ -56,7 +56,7 @@ impl AbstractSyntaxTree {
 
     /// Return copy of functions
     pub fn get_functions(&self) -> HashMap<String, FunctionTracker> {
-        self.functions.clone()
+        self.symbol_table.get_functions()
     }
 
     /// Convert AST into ASTNode

@@ -17,13 +17,11 @@ impl ScopeTracker {
     }
 
     pub fn enter_scope(&mut self) {
-        println!("enter scope....");
         self.scopes.push(HashMap::new());
         self.return_types.push(None);
     }
 
     pub fn exit_scope(&mut self) {
-        println!("exit scope....");
         if self.scopes.len() > 1 {
             self.scopes.pop();
             self.return_types.pop();
@@ -51,7 +49,6 @@ impl ScopeTracker {
     }
 
     pub fn add_return_type(&mut self, datatype: &DataType) {
-        println!("add return...");
         let new_type = match self.return_types.last().unwrap() {
             Some(return_type) => {
                 if return_type == datatype {
@@ -67,7 +64,6 @@ impl ScopeTracker {
     }
 
     pub fn get_return_type(&self) -> &DataType {
-        println!("get return...");
         match self.return_types.last().unwrap() {
             Some(datatype) => datatype,
             None => &DataType::NONE

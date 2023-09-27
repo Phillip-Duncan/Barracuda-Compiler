@@ -394,8 +394,6 @@ impl BarracudaSemanticAnalyser {
     }
 
     fn analyse_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, return_type: &Box<Option<ASTNode>>, body: &Box<ASTNode>) -> ASTNode {
-        println!("fn body: {:?}", body);
-        println!("return type: {:?}", return_type);
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if !self.functions.contains_key(name) {
                 self.functions.insert(name.clone(), FunctionTracker::new(

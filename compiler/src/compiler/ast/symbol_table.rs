@@ -206,6 +206,11 @@ impl SymbolTable {
         self.main_entry_scope.clone()
     }
 
+    /// Return copy of functions
+    pub fn get_functions(&self) -> HashMap<String, FunctionTracker> {
+        self.functions.clone()
+    }
+
     /// Find a symbol in the symbol table given the scope within.
     /// Identifiers are only valid for finding symbols with context to the scope at which asking from.
     /// This is because scopes allow for identifiers to be reused so an identifier may map to different
@@ -398,7 +403,7 @@ impl SymbolTable {
                     symbol_scope.add_symbol(Self::process_function(&implementation));
     
                     // Process function body
-                    let inner_func_scope= self.generate_new_scope(current_scope.clone(), true).unwrap();
+                    let inner_func_scope = self.generate_new_scope(current_scope.clone(), true).unwrap();
                     let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
                     for (identifier, datatype) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()) {
                         symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone())));
