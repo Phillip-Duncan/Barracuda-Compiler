@@ -424,25 +424,19 @@ impl BarracudaSemanticAnalyser {
         return_type: &Option<DataType>, 
         body: &ASTNode
     ) -> (ASTNode, DataType) {
-        // Enter scope
         self.symbol_tracker.enter_scope();
-        // Load params
         for (identifier, datatype) in parameter_names.iter().zip(parameters.iter()) { 
             self.mark_identifier(identifier, SymbolType::Parameter(datatype.clone()));
         }
-        // Generate body
         let body = self.analyse_node(body);
-        // Exit scope
+        let real_return_type = self.symbol_tracker.get_return_type().clone();
         self.symbol_tracker.exit_scope();
-        // If applicable, check return type
-        let real_return_type = self.symbol_tracker.get_return_type();
         if let Some(return_type) = return_type {
-            if return_type != real_return_type {
+            if return_type != &real_return_type {
                 panic!("Return type of function did not match declared type! ({:?} vs {:?})", return_type, real_return_type)
             }
         }
-        // Return new body + return type
-        return (body, real_return_type.clone())
+        return (body, real_return_type)
     }
 
     fn analyse_function_call(&mut self, identifier: &Box<ASTNode>, arguments: &Vec<ASTNode>) -> ASTNode {
