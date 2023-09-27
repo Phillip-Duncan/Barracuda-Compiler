@@ -198,7 +198,7 @@ impl BarracudaSemanticAnalyser {
         let lhs_datatype = lhs.get_type();
         let rhs_datatype = rhs.get_type();
         if lhs_datatype != rhs_datatype {
-            panic!("Cannot perform operation {:?} with mismatched types!", op)
+            panic!("Cannot perform operation {:?} with mismatched types! ({:?} vs {:?})", op, lhs_datatype, rhs_datatype)
         }
         let datatype = lhs_datatype;
         
@@ -538,10 +538,10 @@ impl BarracudaSemanticAnalyser {
         ASTNode::STATEMENT_LIST(new_statements)
     }
 
+    // Currently functions are the only use of scope blocks. If this changes, the method should have enter_scope and exit_scope calls added,
+    // and functions should bypass this function with a match statement. It was done this way to prevent functions causing two scopes from being created.
     fn analyse_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
-        self.symbol_tracker.enter_scope();
         let inner = Box::new(self.analyse_node(inner));
-        self.symbol_tracker.exit_scope();
         ASTNode::SCOPE_BLOCK { inner, scope: scope.clone() }
     }
 

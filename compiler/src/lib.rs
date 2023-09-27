@@ -562,6 +562,21 @@ mod tests {
         assert_eq!(function_call, stack[position..]);
     }
 
+    // Checks return types work
+    #[test]
+    fn function_with_return_used() {
+        let stack = compile_and_merge("fn test_func() {return 3;} let a = test_func() * 3;");
+        let (function_def, test_func_location, position) = generate_function_def_precompiled(0, 
+            vec![Val(0.0), Val(3.0), Op(FIXED(STK_WRITE)), // write variable to stack
+            Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(1)), Op(FIXED(ADD_PTR)), // return from function
+            Op(FIXED(RCSTK_PTR)), Val(ptr(1)), Op(FIXED(SWAP)), Op(FIXED(STK_WRITE)), Instr(GOTO)]);
+        assert_eq!(function_def, stack[..position]);
+        let (function_call, position_2) 
+            = generate_default_function_call(position, test_func_location);
+        assert_eq!(function_call, stack[position..position_2]);
+        assert_eq!(vec![Val(3.0), Op(FIXED(MUL))], stack[position_2..]);
+    }
+
     // Checks that function parameters can be assigned to
     #[test]
     fn function_with_parameter_assigned() {
