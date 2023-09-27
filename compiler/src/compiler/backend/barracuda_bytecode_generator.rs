@@ -744,6 +744,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_function_definition(&mut self, identifier: &Box<ASTNode>) {
+        println!("Gen function def: {:?}", identifier);
         let identifier_name = identifier.identifier_name().unwrap();
         let implementations = self.functions.get(&identifier_name).unwrap().get_implementations().clone();
         for implementation in implementations {

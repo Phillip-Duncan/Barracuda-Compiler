@@ -74,6 +74,10 @@ impl FunctionTracker {
         &self.implementations
     }
 
+    pub fn get_mut_implementations(&mut self) -> &mut Vec<FunctionImplementation> {
+        &mut self.implementations
+    }
+
     pub fn create_implementation(&mut self, name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
         let name = format!("{}:{}", name, self.implementations.len());
         let implementation = FunctionImplementation::new(name, parameter_names, parameter_types, return_type, body);
@@ -111,6 +115,10 @@ impl FunctionImplementation {
 
     pub fn get_body(&self) -> &ASTNode {
         &self.body
+    }
+
+    pub fn get_mut_body(&mut self) -> &mut ASTNode {
+        &mut self.body
     }
 
     pub fn get_parameters(&self) -> &Vec<String> {

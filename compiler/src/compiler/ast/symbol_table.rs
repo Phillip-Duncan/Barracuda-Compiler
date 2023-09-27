@@ -315,7 +315,7 @@ impl SymbolTable {
 
     /// Helper function to simplify processing functions where data is stored within deeper
     /// ASTNodes.
-    fn process_function(implementation: FunctionImplementation) -> Symbol {
+    fn process_function(implementation: &FunctionImplementation) -> Symbol {
         // Transform ASTNodes into function identifier and data types
         let func_params = implementation.get_parameter_types().clone();
         let return_type = implementation.get_return_type();
@@ -384,29 +384,34 @@ impl SymbolTable {
                     )
                 );
             }
-            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
+            ASTNode::FUNCTION { identifier, .. } => {
 
                 let identifier = match identifier.as_ref() {
                     ASTNode::IDENTIFIER(name) => name.clone(),
                     _ => panic!("") // AST Malformed
                 };
                 
-                let function = self.functions.get(&identifier).unwrap();
-
-                for implementation in function.get_implementations().clone() {
-                    symbol_scope.add_symbol(Self::process_function(implementation));
+                let function = self.functions.get(&identifier).unwrap().clone();
+                let mut new_scopes = vec![];
+                for implementation in function.get_implementations() {
+                    let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
+                    symbol_scope.add_symbol(Self::process_function(&implementation));
     
                     // Process function body
-                    let inner_func_scope= self.generate_new_scope(current_scope, true).unwrap();
-                    for param in parameters {
-                        self.process_node(param, inner_func_scope.clone());
+                    let inner_func_scope= self.generate_new_scope(current_scope.clone(), true).unwrap();
+                    let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
+                    for (identifier, datatype) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()) {
+                        symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone())));
                     }
-                    for child in body.children() {
+                    for child in implementation.get_body().clone().children() {
                         self.process_node(child, inner_func_scope.clone());
                     }
-    
-                    if let ASTNode::SCOPE_BLOCK {inner:_, scope} = body.as_mut() {
-                        scope.set(inner_func_scope);
+                    new_scopes.push(inner_func_scope.clone());
+                }
+                let function = self.functions.get_mut(&identifier).unwrap();
+                for (implementation, new_scope) in function.get_mut_implementations().iter_mut().zip(new_scopes.iter()) {
+                    if let ASTNode::SCOPE_BLOCK {inner:_, scope} = implementation.get_mut_body() {
+                        scope.set(new_scope.clone());
                     }
                 }
             }

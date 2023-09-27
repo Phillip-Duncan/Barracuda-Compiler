@@ -434,6 +434,7 @@ impl ASTNode {
                 ASTNode::IDENTIFIER(name) => Some(name.clone()),
                 _ => None
             }
+            ASTNode::IDENTIFIER(name) => Some(name.clone()),
             _ => None
         }
     }
