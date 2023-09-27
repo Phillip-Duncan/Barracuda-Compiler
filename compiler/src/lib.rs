@@ -578,6 +578,28 @@ mod tests {
         assert_eq!(function_call, stack[position..]);
     }
 
+    // Checks calling the same function twice with differently typed parameters results in two seperate function calls
+    #[test]
+    fn function_with_multiple_dispatch() {
+        let stack = compile_and_merge("fn test_func(a) {} let b = test_func(4); let c = test_func(&b);");
+        let (function_def, test_func_location, position) 
+            = generate_empty_function_definition(0);
+        assert_eq!(function_def, stack[..position]);
+        let (function_def, test_func_2_location, position_2) 
+            = generate_empty_function_definition(position);
+            assert_eq!(function_def, stack[position..position_2]);
+        assert_eq!(Val(4.0), stack[position_2]);
+        let position_3 = position_2 + 1;
+        let (function_call, position_4) 
+            = generate_function_call(position_3, test_func_location, 1);
+        assert_eq!(function_call, stack[position_3..position_4]);
+        let position_5 = position_4 + 4;
+        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR))], stack[position_4..position_5]);
+        let (function_call, _) 
+            = generate_function_call(position_5, test_func_2_location, 1);
+        assert_eq!(function_call, stack[position_5..]);
+    }
+
     // Tests that if and else work
     #[test]
     fn if_and_else() {
