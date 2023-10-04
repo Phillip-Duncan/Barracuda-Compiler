@@ -65,6 +65,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
     /// Generates ProgramCode from an Abstract Syntax Tree
     fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
         // Create symbol tracker
+        println!("symbol table: {:#?}", tree.get_symbol_table());
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
         self.functions = tree.get_functions();
 
@@ -279,9 +280,6 @@ impl BarracudaByteCodeGenerator {
             }
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.generate_scope_block(inner, scope);
-            }
-            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
-                self.generate_scope_block_shell(inner);
             }
             _ => {
                 panic!("Malformed AST! Node {:?} should not be directly generated.", node);
@@ -706,7 +704,8 @@ impl BarracudaByteCodeGenerator {
     fn generate_for_loop(&mut self, initialization: &Box<ASTNode>, condition: &Box<ASTNode>, advancement: &Box<ASTNode>, body: &Box<ASTNode>) {
         // Generate body
         match body.as_ref() {
-            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
+            ASTNode::SCOPE_BLOCK { inner, scope } => {
+                self.symbol_tracker.enter_scope(scope.clone());
 
                 let for_start = self.builder.create_label();
                 let for_exit = self.builder.create_label();
@@ -738,6 +737,8 @@ impl BarracudaByteCodeGenerator {
                 self.builder.comment(String::from("FOR END"));
 
                 self.builder.emit_op(OP::DROP);
+
+                self.symbol_tracker.exit_scope();
             }
             _ => panic!("Malformed for loop node!")
         };
@@ -894,10 +895,6 @@ impl BarracudaByteCodeGenerator {
         for _ in 0..symbols_dropped {
             self.builder.emit_op(OP::DROP);
         }
-    }
-
-    fn generate_scope_block_shell(&mut self, inner: &Box<ASTNode>) {
-        self.generate_node(inner);
     }
 
 }

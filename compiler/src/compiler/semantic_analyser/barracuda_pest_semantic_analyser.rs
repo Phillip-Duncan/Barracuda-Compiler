@@ -97,9 +97,6 @@ impl BarracudaSemanticAnalyser {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.analyse_scope_block(inner, scope)
             }
-            ASTNode::SCOPE_BLOCK_SHELL { inner } => {
-                self.analyse_scope_block_shell(inner)
-            }
             ASTNode::TYPED_NODE { .. } => {
                 panic!("Typed nodes shouldn't be in the AST yet!");
             }
@@ -546,11 +543,6 @@ impl BarracudaSemanticAnalyser {
     fn analyse_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
         let inner = Box::new(self.analyse_node(inner));
         ASTNode::SCOPE_BLOCK { inner, scope: scope.clone() }
-    }
-
-    fn analyse_scope_block_shell(&mut self, inner: &Box<ASTNode>) -> ASTNode {
-        let inner = Box::new(self.analyse_node(inner));
-        ASTNode::SCOPE_BLOCK_SHELL { inner }
     }
 
 }
