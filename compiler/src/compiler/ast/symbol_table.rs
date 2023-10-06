@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
 
 use super::ASTNode;
-use super::scope::{ScopeId, ScopeIdGenerator};
+use super::scope::ScopeId;
 use super::datatype::{DataType, PrimitiveDataType};
 use std::fmt;
 
@@ -155,10 +155,7 @@ pub struct SymbolTable {
 
     /// Main entry scope
     /// Used to find program generation entry point
-    main_entry_scope: ScopeId,
-
-    /// Generator will generate unique ScopeId for the SymbolTable
-    scope_generator: ScopeIdGenerator
+    main_entry_scope: ScopeId
 }
 
 
@@ -171,8 +168,7 @@ impl SymbolTable {
             scope_map: Default::default(),
             main_entry_scope: ScopeId::global(),
             env_var_data: Default::default(),
-            functions: Default::default(),
-            scope_generator: ScopeIdGenerator::new()
+            functions: Default::default()
         };
 
         // Add root global scope
@@ -196,9 +192,9 @@ impl SymbolTable {
         symbol_table.env_var_data = env_variable_data;
         symbol_table.functions = functions;
 
-        // Add main program scope
-        symbol_table.main_entry_scope = symbol_table.generate_new_scope(ScopeId::global(), true).unwrap();
-        symbol_table.process_node(root, symbol_table.main_entry_scope.clone());
+        symbol_table.main_entry_scope = ScopeId::new(1);
+        symbol_table.generate_new_scope(ScopeId::global(), symbol_table.main_entry_scope.clone(), true);
+        symbol_table.process_node(root, symbol_table.main_entry_scope.clone()); 
         symbol_table
     }
 
@@ -267,19 +263,15 @@ impl SymbolTable {
     /// Create and add a new scope with a valid parent.
     /// @parent: valid parent scope id
     /// @return: new scope id if parent exists otherwise None
-    fn generate_new_scope(&mut self, parent: ScopeId, is_subroutine: bool) -> Option<ScopeId> {
+    fn generate_new_scope(&mut self, parent: ScopeId, current: ScopeId, is_subroutine: bool) {
         if self.scope_map.contains_key(&parent) {
-            let id = self.scope_generator.next().unwrap(); // Generator always valid
+            let id = current;
             self.scope_map.insert(id.clone(),SymbolScope {
                 id: id.clone(),
                 parent: Some(parent),
                 subroutine: is_subroutine,
                 symbols: Default::default()
             });
-
-            Some(id)
-        } else {
-            None
         }
     }
 
@@ -397,13 +389,16 @@ impl SymbolTable {
                 };
                 
                 let function = self.functions.get(&identifier).unwrap().clone();
-                let mut new_scopes = vec![];
                 for implementation in function.get_implementations() {
                     let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
                     symbol_scope.add_symbol(Self::process_function(&implementation));
     
                     // Process function body
-                    let inner_func_scope = self.generate_new_scope(current_scope.clone(), true).unwrap();
+                    let inner_func_scope = match implementation.get_body() {
+                        ASTNode::SCOPE_BLOCK { scope, .. } => scope,
+                        _ => panic!("Malformed AST! Function body should be a scope block! Full body: {:?}", implementation.get_body())
+                    };
+                    self.generate_new_scope(current_scope.clone(), inner_func_scope.clone(), true);
                     let symbol_scope = self.scope_map.get_mut(&inner_func_scope).unwrap();
                     for (identifier, datatype) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()) {
                         symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone())));
@@ -411,19 +406,11 @@ impl SymbolTable {
                     for child in implementation.get_body().clone().children() {
                         self.process_node(child, inner_func_scope.clone());
                     }
-                    new_scopes.push(inner_func_scope.clone());
-                }
-                let function = self.functions.get_mut(&identifier).unwrap();
-                for (implementation, new_scope) in function.get_mut_implementations().iter_mut().zip(new_scopes.iter()) {
-                    if let ASTNode::SCOPE_BLOCK {inner:_, scope} = implementation.get_mut_body() {
-                        scope.set(new_scope.clone());
-                    }
                 }
             }
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 // Assign next scope id
-                let assigned_id = self.generate_new_scope(current_scope, false).unwrap();
-                scope.set(assigned_id);
+                self.generate_new_scope(current_scope, scope.clone(), false);
 
                 // Process inner node with new scope
                 self.process_node(inner, scope.clone());

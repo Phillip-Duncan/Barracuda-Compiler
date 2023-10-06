@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::compiler::PrimitiveDataType;
+use crate::compiler::ast::scope::ScopeIdGenerator;
 use crate::compiler::ast::symbol_table::SymbolType;
-use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation, ScopeId};
+use crate::compiler::ast::{Literal, UnaryOperation, BinaryOperation};
 use crate::compiler::ast::datatype::DataType;
 use crate::compiler::backend::builtin_functions::BARRACUDA_BUILT_IN_FUNCTIONS;
 
@@ -19,6 +20,7 @@ use super::super::ast::{
 /// BarracudaSemanticAnalyser is a concrete SemanticAnalyser.
 pub struct BarracudaSemanticAnalyser {
     symbol_tracker: ScopeTracker,
+    scope_counter: ScopeIdGenerator,
     env_vars: HashMap<String, (usize, PrimitiveDataType, String)>,
     functions: HashMap<String, FunctionTracker>
 }
@@ -94,8 +96,8 @@ impl BarracudaSemanticAnalyser {
             ASTNode::STATEMENT_LIST(statement_list) => {
                 self.analyse_statement_list(statement_list)
             }
-            ASTNode::SCOPE_BLOCK { inner, scope } => {
-                self.analyse_scope_block(inner, scope)
+            ASTNode::SCOPE_BLOCK { inner, .. } => {
+                self.analyse_scope_block(inner)
             }
             ASTNode::TYPED_NODE { .. } => {
                 panic!("Typed nodes shouldn't be in the AST yet!");
@@ -540,9 +542,10 @@ impl BarracudaSemanticAnalyser {
 
     // Currently functions are the only use of scope blocks. If this changes, the method should have enter_scope and exit_scope calls added,
     // and functions should bypass this function with a match statement. It was done this way to prevent functions causing two scopes from being created.
-    fn analyse_scope_block(&mut self, inner: &Box<ASTNode>, scope: &ScopeId) -> ASTNode {
+    fn analyse_scope_block(&mut self, inner: &Box<ASTNode>) -> ASTNode {
+        let scope = self.scope_counter.next().unwrap();
         let inner = Box::new(self.analyse_node(inner));
-        ASTNode::SCOPE_BLOCK { inner, scope: scope.clone() }
+        ASTNode::SCOPE_BLOCK { inner, scope }
     }
 
 }
@@ -552,6 +555,7 @@ impl SemanticAnalyser for BarracudaSemanticAnalyser {
     fn default() -> Self {
         Self {
             symbol_tracker: ScopeTracker::new(),
+            scope_counter: ScopeIdGenerator::new(),
             env_vars: HashMap::new(),
             functions: HashMap::new()
         }
@@ -559,6 +563,7 @@ impl SemanticAnalyser for BarracudaSemanticAnalyser {
 
     /// Parse processes a source string into an abstract syntax tree
     fn analyse(mut self, root_node: ASTNode, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
+        self.scope_counter.next();
         self.env_vars = env_vars.copy_addresses();
         let root = self.analyse_node(&root_node);
         let functions = self.functions;

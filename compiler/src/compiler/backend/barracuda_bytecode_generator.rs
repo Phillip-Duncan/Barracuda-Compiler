@@ -65,7 +65,6 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
     /// Generates ProgramCode from an Abstract Syntax Tree
     fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
         // Create symbol tracker
-        println!("symbol table: {:#?}", tree.get_symbol_table());
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
         self.functions = tree.get_functions();
 
