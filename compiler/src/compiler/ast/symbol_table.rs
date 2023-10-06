@@ -54,13 +54,9 @@ impl Symbol {
         self.symbol_type.clone()
     }
 
-    pub fn is_mutable(&self) -> bool {
+    pub fn is_variable(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(datatype) => match datatype {
-                DataType::MUTABLE(_) => true,
-                DataType::ARRAY(_,_) => true,
-                _ => false
-            },
+            SymbolType::Variable(_) => true,
             _ => false
         }
     }

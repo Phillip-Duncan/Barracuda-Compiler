@@ -99,7 +99,7 @@ impl ScopeTracker {
         // Remove tracked symbols that only exist in current scope
         let localvars_removed = self.symbols_in_scope.iter()
             .filter(|(scope, identifier)|
-                self.find_symbol(identifier).and_then(|symbol| Some(symbol.is_mutable()))
+                self.find_symbol(identifier).and_then(|symbol| Some(symbol.is_variable()))
                     .unwrap_or(false)
                 && scope.eq(&self.current_scope)
             ).count();
