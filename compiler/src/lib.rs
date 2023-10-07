@@ -210,6 +210,10 @@ mod tests {
         compile_and_merge_with_env_vars(text, EnvironmentSymbolContext::new())
     }
 
+    fn compile_and_assert_equal(x: &str, y: &str) {
+        assert_eq!(compile_and_merge(x), compile_and_merge(y))
+    }
+
     // Tests an empty program.
     #[test]
     fn empty() {
@@ -1038,5 +1042,61 @@ mod tests {
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Op(FIXED(DUP)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+    }
+
+    // Tests for the type system.
+    #[test]
+    fn literal_types() {
+        let datatypes = vec![
+            "f128",
+            "f64",
+            "f32",
+            "f16",
+            "f8",
+            "i128",
+            "i64",
+            "i32",
+            "i16",
+            "i8",
+            "bool",
+        ];
+        for datatype in datatypes {
+            compile_and_assert_equal(&format!("let a = 0;"), &format!("let a : {} = 0;", datatype));
+        }
+    }
+
+    #[test]
+    fn binary_operator_types() {
+        compile_and_assert_equal("let a = 0; let b = 1; let c = a+b;", "let a:i8 = 0; let b:i16 = 1; let c:i32 = a+b;"); //currently, all literal types are equal.
+    }
+
+    #[test]
+    fn binary_operator_equality_types() {
+        compile_and_assert_equal("let a = [1]; let b = [2]; let c = a==b;", "let a: [i64; 1] = [1]; let b: [i64; 1] = [2]; let c: bool = a==b;");
+    }
+
+    #[test]
+    fn unary_operator_types() {
+        compile_and_assert_equal("let a = 0; let b = -a;", "let a = 0; let b: i64 = -a;");
+    }
+
+    #[test]
+    fn builtin_function_types() {
+        let functions = vec![ACOS,ACOSH,ASIN,ASINH,ATAN,ATAN2,ATANH,CBRT,CEIL,CPYSGN,COS,COSH,
+        COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
+        ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
+        NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        for function in &functions {
+            let input = vec!["3"; function.consume() as usize].join(",");
+            let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);
+            let typed_text = &format!("let a: f64 = __{}({});", function.to_string().to_lowercase(), input);
+            compile_and_assert_equal(text, typed_text);
+        }
+    }
+
+    #[test]
+    fn parentheses_types() {
+        compile_and_assert_equal("let a = ((1+2)/(3-4));", "let a: i64 = ((1+2)/(3-4));");
     }
 }
