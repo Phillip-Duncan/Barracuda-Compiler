@@ -1099,4 +1099,108 @@ mod tests {
     fn parentheses_types() {
         compile_and_assert_equal("let a = ((1+2)/(3-4));", "let a: i64 = ((1+2)/(3-4));");
     }
+
+    #[test]
+    fn empty_function_type() {
+        compile_and_assert_equal("fn func() {} let a = func();", "fn func() {} let a: none = func();");
+    }
+
+    #[test]
+    fn empty_function_return_type() {
+        compile_and_assert_equal("fn func() {} let a = func();", "fn func() -> none {} let a = func();");
+    }
+
+    #[test]
+    fn type_in_function() {
+        compile_and_assert_equal("fn func() {let a = [1,2,3];} func();", "fn func() {let a: [i64; 3] = [1,2,3];} func();");
+    }
+
+    #[test]
+    fn parameter_type() {
+        compile_and_assert_equal("fn func(a) {a = 2;} func(1);", "fn func(a: i64) {a = 2;} func(1);");
+    }
+
+    #[test]
+    fn return_type() {
+        compile_and_assert_equal("fn func() {return 3;} let a = func();", "fn func() -> i64 {return 3;} let a: i64 = func();");
+    }
+
+    #[test]
+    fn multiple_dispatch_type() {
+        compile_and_assert_equal(
+            "fn func(a) {
+                return a;
+            } 
+            let a = 3;
+            let b = func(a);
+            let c = func(&a);", 
+            "fn func(a) {
+                return a;
+            }
+            let a = 3;
+            let b: i64 = func(a);
+            let c: *i64 = func(&a);");
+    }
+
+    #[test]
+    fn variable_assignment_type() {
+        compile_and_assert_equal("let a = 3; a = 4;", "let a: i64 = 3; a = 4;");
+    }
+
+    #[test]
+    fn while_loop_type() {
+        compile_and_assert_equal("let a = 3; while true { a = 4; }", "let a: i64 = 3; while true { a = 4; }");
+    }
+
+    #[test]
+    fn for_loop_type() {
+        compile_and_assert_equal(
+            "let a = 3; for (let i = 4; i < 50; i = i + 1) { a = a + 1; }", 
+            "let a: i64 = 3; for (let i: i8 = 4; i < 50; i = i + 1) { a = a + 1; }");
+    }
+
+    #[test]
+    fn external_variable_type() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let typed_stack = compile_and_merge_with_env_vars("extern a; let b: i64 = a;", env_vars);
+        assert_eq!(stack, typed_stack);
+    }
+
+    #[test]
+    fn external_variable_type_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        let typed_stack = compile_and_merge_with_env_vars("extern a; let b: i64 = a;", env_vars);
+        assert_eq!(stack, typed_stack);
+    }
+
+    #[test]
+    fn reference_type() {
+        compile_and_assert_equal("let a = 3; let b = &a;", "let a: i64 = 3; let b: *i64 = &a;");
+    }
+
+    #[test]
+    fn dereference_type() {
+        compile_and_assert_equal("let a = 3; let b = &a; let c = *b;", "let a: i64 = 3; let b: *i64 = &a; let c: i64 = *b;");
+    }
+
+    #[test]
+    fn double_dereference_type() {
+        compile_and_assert_equal(
+            "let a = 3; let b = &a; let c = &b; let d = **c;", 
+            "let a: i64 = 3; let b: *i64 = &a; let c: **i64 = &b; let d: i64 = **c;");
+    }
+
+    #[test]
+    fn pointer_assign_type() {
+        compile_and_assert_equal("let a = 3; let b = &a; *b = 4;", "let a: i64 = 3; let b: *i64 = &a; *b = 4;");
+    }
+    
 }
