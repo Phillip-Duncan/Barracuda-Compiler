@@ -54,7 +54,11 @@ impl DataType {
     }
 
     pub fn from_str(datatype: String) -> Self {
-        DataType::MUTABLE(PrimitiveDataType::parse(datatype).unwrap())
+        if datatype == "none" {
+            DataType::NONE
+        } else {
+            DataType::MUTABLE(PrimitiveDataType::parse(datatype).unwrap())
+        }
     }
 
     pub fn get_array_length(datatype: &Self) -> usize {
@@ -80,6 +84,7 @@ impl PartialEq for DataType {
             (DataType::ARRAY(this_inner, this_size), DataType::ARRAY(other_inner, other_size)) => {
                 this_inner == other_inner && this_size == other_size
             },
+            (DataType::NONE, DataType::NONE) => true,
             (_, _) => false,
         }
     }

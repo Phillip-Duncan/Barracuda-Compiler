@@ -101,7 +101,7 @@ external_statement = {"extern " ~ identifier}
 assign_pointers =  @{ "*"* }
 assign_statement = {assign_pointers ~ identifier ~ ("[" ~ expression ~ "]")* ~ "=" ~ expression}
 
-primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool"}
+primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool" | "none"}
 pointer_datatype = {"*" ~ datatype}
 array_datatype = {"[" ~ datatype ~ ";" ~ integer ~ "]"}
 datatype = _{primitive_datatype | pointer_datatype | array_datatype}

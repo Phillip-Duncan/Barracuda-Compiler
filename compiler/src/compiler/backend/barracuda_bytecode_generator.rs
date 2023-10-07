@@ -777,7 +777,7 @@ impl BarracudaByteCodeGenerator {
                 }
 
                 // Generate function body
-                self.generate_node(inner);
+                self.generate_node(&inner);
 
                 self.symbol_tracker.exit_scope();
             }
