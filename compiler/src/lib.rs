@@ -1202,5 +1202,40 @@ mod tests {
     fn pointer_assign_type() {
         compile_and_assert_equal("let a = 3; let b = &a; *b = 4;", "let a: i64 = 3; let b: *i64 = &a; *b = 4;");
     }
-    
+
+    #[test]
+    fn array_type() {
+        compile_and_assert_equal("let a = [1.0, 2.0];", "let a: [f64; 2] = [1.0, 2.0];");
+    }
+
+    #[test]
+    fn array_type_2d() {
+        compile_and_assert_equal("let a = [[1,2,3],[4,5,6],[7,8,9]];", "let a: [[i64; 3]; 3] = [[1,2,3],[4,5,6],[7,8,9]];");
+    }
+
+    #[test]
+    fn array_access_type() {
+        compile_and_assert_equal("let a = [1]; let b = a[0];", "let a: [i64; 1] = [1]; let b: i64 = a[0];");
+    }
+
+    #[test]
+    fn array_access_type_2d() {
+        compile_and_assert_equal("let a = [[1]]; let b = a[0][0];", "let a: [[i64; 1]; 1] = [[1]]; let b: i64 = a[0][0];");
+    }
+
+    #[test]
+    fn array_assign_type() {
+        compile_and_assert_equal("let a = [1]; a[0] = 2;", "let a: [i64; 1] = [1]; a[0] = 2;");
+    }
+
+    #[test]
+    fn array_assign_type_2d() {
+        compile_and_assert_equal("let a = [[1]]; a[0][0] = 2;", "let a: [[i64; 1]; 1] = [[1]]; a[0][0] = 2;");
+    }
+
+    #[test]
+    fn array_assign_type_2d_half() {
+        compile_and_assert_equal("let a = [[1]]; a[0] = [2];", "let a: [[i64; 1]; 1] = [[1]]; a[0] = [2];");
+    }
+
 }
