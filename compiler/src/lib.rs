@@ -1238,4 +1238,203 @@ mod tests {
         compile_and_assert_equal("let a = [[1]]; a[0] = [2];", "let a: [[i64; 1]; 1] = [[1]]; a[0] = [2];");
     }
 
+    #[test]
+    #[should_panic]
+    fn missing_semicolon() {
+        compile_and_merge("let a = 1");
+    }
+
+    #[test]
+    #[should_panic]
+    fn false_extern() {
+        compile_and_merge("extern a;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_array_literal() {
+        compile_and_merge("let a = [1,2,3] == [1,2,3];");
+    }
+
+    #[test]
+    #[should_panic]
+    fn nonexistent_identifier() {
+        compile_and_merge("let a = b;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn double_variable_assign() {
+        compile_and_merge("let a = 2; let a = 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn nonexistent_identifier_in_assign() {
+        compile_and_merge("a = 2;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn function_in_expression() {
+        compile_and_merge("fn testfunc() {} let a = testfunc;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn function_reassign() {
+        compile_and_merge("fn testfunc() {} testfunc = 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_extern_reference() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        compile_and_merge_with_env_vars("extern a; let b = &a;", env_vars);
+    }
+
+    #[test]
+    #[should_panic]
+    fn zero_length_array() {
+        compile_and_merge("let a = [];");
+    }
+
+    #[test]
+    #[should_panic]
+    fn index_non_array() {
+        compile_and_merge("let a = 3; let b = a[1];");
+    }
+
+    #[test]
+    #[should_panic]
+    fn index_with_non_literal() {
+        compile_and_merge("let a = [1,2,3]; let b = a[&a];");
+    }
+
+    #[test]
+    #[should_panic]
+    fn array_assign_non_array() {
+        compile_and_merge("let a = 3; a[1] = 2;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn array_assign_with_non_literal() {
+        compile_and_merge("let a = [1,2,3]; a[&a] = 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_array_unary_operation() {
+        compile_and_merge("let a = [1]; let b = !a;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn binary_operation_type_mismatch() {
+        compile_and_merge("let a = [1]; let b = a + 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_array_binary_operation() {
+        compile_and_merge("let a = [1]; let b = [2]; let c = a + b;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_array_assign() {
+        compile_and_merge("let a = [1,2,3]; a[0][0] = 1;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_full_array_assign() {
+        compile_and_merge("let a = [1,2,3]; a[0] = [1,2,3];");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_pointer_ref() {
+        compile_and_merge("let a = &3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_pointer_deref() {
+        compile_and_merge("let a = 3; let b = *a;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_pointer_assign() {
+        compile_and_merge("let a = 3; *a = 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn double_function_clash() {
+        compile_and_merge("fn testfunc() {} fn testfunc() {}");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_builtin_function() {
+        compile_and_merge("let a = __pow(3);");
+    }
+
+    #[test]
+    #[should_panic]
+    fn mismatched_type_in_construct() {
+        compile_and_merge("let a: *i64 = 3;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn mismatched_type_in_assign() {
+        compile_and_merge("let a = 3; a = &a;");
+    }
+
+    #[test]
+    #[should_panic]
+    fn non_literal_in_if_condition() {
+        compile_and_merge("let a = [1]; if a {}");
+    }
+
+    #[test]
+    #[should_panic]
+    fn non_literal_in_while_condition() {
+        compile_and_merge("let a = [1]; while a {}");
+    }
+
+    #[test]
+    #[should_panic]
+    fn non_literal_in_for_condition() {
+        compile_and_merge("let a = [1]; for (let i = 0; a; i = i + 1) {}");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_function_return_type() {
+        compile_and_merge("fn testfunc() -> *i64 {return 3;} testfunc();");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_function_parameter_type() {
+        compile_and_merge("fn testfunc(a: [i64; 3]) {} testfunc(1);");
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_function_parameter_count() {
+        compile_and_merge("fn testfunc(a) {} testfunc(1,2);");
+    }
+
+    #[test]
+    #[should_panic]
+    fn nonexistent_function() {
+        compile_and_merge("testfunc();");
+    }
 }

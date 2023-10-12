@@ -54,7 +54,7 @@ impl ScopeTracker {
                 if return_type == datatype {
                     datatype.clone()
                 } else {
-                    panic!("Return types shoudl always be equal in a function! (currently {:?} vs {:?})", return_type, datatype);
+                    panic!("Return types should always be equal in a function! (currently {:?} vs {:?})", return_type, datatype);
                 }
             },
             None => datatype.clone()

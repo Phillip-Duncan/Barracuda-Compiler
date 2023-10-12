@@ -345,7 +345,7 @@ impl PestBarracudaParser {
             parameters.push(Self::parse_pair_node(pair.next().unwrap()))
         }
 
-        let return_type = if pair.peek().unwrap().as_rule() == Rule::primitive_datatype {
+        let return_type = if pair.peek().unwrap().as_rule() != Rule::global_scope_block {
             Some(Self::parse_pair_node(pair.next().unwrap()))
         } else {
             None

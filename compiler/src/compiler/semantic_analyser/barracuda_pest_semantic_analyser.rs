@@ -100,7 +100,7 @@ impl BarracudaSemanticAnalyser {
                 self.analyse_scope_block(inner)
             }
             ASTNode::TYPED_NODE { .. } => {
-                panic!("Typed nodes shouldn't be in the AST yet!");
+                panic!("Malformed AST! Typed nodes shouldn't be in the AST yet!");
             }
         }
     }
@@ -517,7 +517,7 @@ impl BarracudaSemanticAnalyser {
                     if parameter == argument {
                         parameter.clone()
                     } else {
-                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameters.len(), arguments.len())
+                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameter, argument)
                     }
                 }
                 None => argument.clone()
