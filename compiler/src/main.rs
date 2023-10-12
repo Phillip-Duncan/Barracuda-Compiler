@@ -133,7 +133,6 @@ fn main() {
             std::process::exit(exitcode::OK);
         },
         Err(why) => {
-            // TODO(Connor): Differentiate between a compilation error and an internal error
             println!("Compile Error: {:?}", why);
             std::process::exit(exitcode::SOFTWARE);
         }

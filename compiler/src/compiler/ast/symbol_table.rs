@@ -300,7 +300,7 @@ impl SymbolTable {
         // Identify the variable type
         let datatype = match datatype {
             Some(datatype_node) => DataType::from(datatype_node),
-            None => panic!("Parameters should always have some datatype!") // TODO does this need to be here?
+            None => panic!("Parameters should always have some datatype!")
         };
 
         Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))

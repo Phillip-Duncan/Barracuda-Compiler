@@ -88,7 +88,8 @@ impl StackEstimator {
 
                 BarracudaInstructions::LOOP_ENTRY |
                 BarracudaInstructions::LOOP_END => {
-                    unimplemented!()    // TODO(Connor): Saving implementation for when backend uses loop_entry/exit
+                    unimplemented!()    // TODO: Saving implementation for when backend uses loop_entry/exit
+                    // Note from Luke: I don't really know what this is for, but I kept it in as it looks like it should be investigated
                 }
             }
 
