@@ -26,7 +26,7 @@ enum BarracudaIR {
 
     // Arrays are stored in a different memory section to normal variables. 
     // Generating the exact address of each array is only possible once the whole program is generated.
-    Array{address: usize, is_mutable: bool},
+    Array{address: usize},
 
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
@@ -105,10 +105,10 @@ impl BarracudaProgramCodeBuilder {
     }
 
     /// Emits an array.
-    /// Takes the preliminary address of the array and whether is it mutable or not.
+    /// Takes the preliminary address of the array.
     /// The exact memory address needs to be calculated later.
-    pub fn emit_array(&mut self, address: usize, is_mutable: bool) {
-        self.program_out.push(BarracudaIR::Array{address, is_mutable})
+    pub fn emit_array(&mut self, address: usize) {
+        self.program_out.push(BarracudaIR::Array{address})
     }
 
     /// Used to keep track of the number of enviornment variables so arrays can be correctly located.

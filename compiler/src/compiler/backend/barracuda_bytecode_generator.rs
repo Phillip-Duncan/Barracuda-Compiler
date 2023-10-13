@@ -350,7 +350,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
         self.generate_subarray(items, address, 0);
-        self.builder.emit_array(address, true);
+        self.builder.emit_array(address);
     }
 
     fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
@@ -359,12 +359,12 @@ impl BarracudaByteCodeGenerator {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
                     _ => position = {
-                        self.builder.emit_array(address, true);
+                        self.builder.emit_array(address);
                         self.generate_array_item(&item, position)
                     },
                 }
                 _ => position = {
-                    self.builder.emit_array(address, true);
+                    self.builder.emit_array(address);
                     self.generate_array_item(&item, position)
                 },
             }
@@ -463,7 +463,7 @@ impl BarracudaByteCodeGenerator {
         match datatype {
             DataType::ARRAY(_, _) => {
                 let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
-                self.builder.emit_array(address, true);
+                self.builder.emit_array(address);
             },
             _ => {
                 self.builder.emit_value(0.0);
