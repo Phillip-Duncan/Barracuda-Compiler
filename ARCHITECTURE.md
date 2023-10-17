@@ -55,6 +55,10 @@ implementation exists which is `barracuda_pest_parser.rs`. This implementation a
 pest library to tokenize the input source code. The definitions for this tokenization can be found in the `barracuda.pest` 
 file at the root of this crate. 
 
+### compiler/semantic_analyser
+This module defines the implementations for the `SemanticAnalyser` trait defined in `mod.rs`. Presently only one
+implementation exists which is `barracuda_pest_semantic_analyser.rs`. The semantic analyser adds types to the Abstract Syntax Tree created in the parser.
+
 ### compiler/backend
 This module defines the translation from an abstract syntax tree to executable `ProgramCode` through the trait
 `BackEndGenerator`. One implementation is written for this trait called `barracuda_bytecode_generator.rs`. 
