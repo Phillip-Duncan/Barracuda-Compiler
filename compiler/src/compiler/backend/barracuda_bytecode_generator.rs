@@ -413,9 +413,9 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_ternary_op(&mut self, condition: &Box<ASTNode>, true_branch: &Box<ASTNode>, false_branch: &Box<ASTNode>) {
+        self.generate_node(condition);
         self.generate_node(true_branch);
         self.generate_node(false_branch);
-        self.generate_node(condition);
         self.builder.emit_op(OP::TERNARY);
     }
 

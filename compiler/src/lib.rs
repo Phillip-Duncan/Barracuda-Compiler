@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn ternary_operator() {
         let stack = compile_and_merge("let a = true ? 2 : 3;");
-        assert_eq!(vec![Val(2.0), Val(3.0), Val(1.0), Op(FIXED(TERNARY))], stack);
+        assert_eq!(vec![Val(1.0), Val(2.0), Val(3.0), Op(FIXED(TERNARY))], stack);
     }
 
     // Tests that all unary operators compile properly.
