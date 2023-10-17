@@ -51,6 +51,9 @@ impl BarracudaSemanticAnalyser {
             ASTNode::BINARY_OP { op, lhs, rhs } => {
                 self.analyse_binary_op(op, lhs, rhs)
             }
+            ASTNode::TERNARY_OP { condition, true_branch, false_branch } => {
+                self.analyse_ternary_op(condition, true_branch, false_branch)
+            }
             ASTNode::ARRAY_INDEX { index, expression } => {
                 self.analyse_array_index(index, expression)
             }
@@ -229,6 +232,31 @@ impl BarracudaSemanticAnalyser {
                 op: op.clone(), 
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs)
+            })
+        }
+    }
+
+    fn analyse_ternary_op(&mut self, condition: &Box<ASTNode>, true_branch: &Box<ASTNode>, false_branch: &Box<ASTNode>) -> ASTNode {
+        let condition = self.analyse_node(condition);
+        let true_branch = self.analyse_node(true_branch);
+        let false_branch = self.analyse_node(false_branch);
+        let condition_datatype = condition.get_type();
+        let true_branch_datatype = true_branch.get_type();
+        let false_branch_datatype = false_branch.get_type();
+        if condition_datatype != DataType::CONST(PrimitiveDataType::Bool) {
+            panic!("Ternary conditions must be booleans! (currently {:?})", condition_datatype)
+        }
+        if true_branch_datatype != false_branch_datatype {
+            panic!("Branches of ternary operator must be the same type! ({:?} vs {:?})", true_branch_datatype, false_branch_datatype)
+        }
+        let datatype = true_branch_datatype;
+
+        ASTNode::TYPED_NODE { 
+            datatype,
+            inner: Box::new(ASTNode::TERNARY_OP { 
+                condition: Box::new(condition), 
+                true_branch: Box::new(true_branch),
+                false_branch: Box::new(false_branch) 
             })
         }
     }
