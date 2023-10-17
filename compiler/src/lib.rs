@@ -279,6 +279,13 @@ mod tests {
         }
     }
 
+    // Tests that the ternary operator compiles properly.
+    #[test]
+    fn ternary_operator() {
+        let stack = compile_and_merge("let a = true ? 2 : 3;");
+        assert_eq!(vec![Val(2.0), Val(3.0), Val(1.0), Op(FIXED(TERNARY))], stack);
+    }
+
     // Tests that all unary operators compile properly.
     // These are operators in the form OP a.
     #[test]
@@ -1068,6 +1075,12 @@ mod tests {
     #[test]
     fn binary_operator_types() {
         compile_and_assert_equal("let a = 0; let b = 1; let c = a+b;", "let a:i8 = 0; let b:i16 = 1; let c:i32 = a+b;"); //currently, all literal types are equal.
+    }
+
+    #[test]
+    fn ternary_operator_types() {
+        compile_and_assert_equal("let a = false; let b = 1; let c = 2; let d = a?b:c;", 
+            "let a : bool = false; let b : i64 = 1; let c : i64 = 2; let d : i64 = a?b:c;");
     }
 
     #[test]
