@@ -1,13 +1,12 @@
+use crate::compiler::ast::datatype::DataType;
 use crate::pest::Parser;
 use super::AstParser;
 use super::super::ast::{
-    AbstractSyntaxTree,
     ASTNode,
     Literal,
     BinaryOperation,
     UnaryOperation,
-    ScopeId,
-    environment_symbol_context::EnvironmentSymbolContext
+    ScopeId
 };
 
 
@@ -51,20 +50,27 @@ impl PestBarracudaParser {
     fn parse_pair_node(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         match pair.as_rule() {
             Rule::identifier =>         { Self::parse_pair_identifier(pair) },
-            Rule::reference =>         { Self::parse_pair_reference(pair) },
-            Rule::variable =>         { Self::parse_pair_variable(pair) },
+            Rule::reference =>          { Self::parse_pair_reference(pair) },
+            Rule::primitive_datatype => { Self::parse_pair_primitive_datatype(pair) },
+            Rule::pointer_datatype =>   { Self::parse_pair_pointer_datatype(pair) },
+            Rule::array_datatype =>     { Self::parse_pair_array_datatype(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { Self::parse_pair_literal(pair) },
+            Rule::array =>              { Self::parse_pair_array(pair) },
             Rule::equality |
             Rule::comparison |
             Rule::term |
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
-            Rule::unary =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::unary |
+            Rule::pointer =>              { Self::parse_pair_unary_expression(pair) },
+            Rule::index =>              { Self::parse_pair_array_index(pair) },
             Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
-            Rule::construct_statement =>{ Self::parse_pair_construct_statement(pair) },
+            Rule::full_construct_statement => { Self::parse_pair_full_construct_statement(pair) },
+            Rule::inferred_construct_statement => { Self::parse_pair_inferred_construct_statement(pair) },
+            Rule::empty_construct_statement => { Self::parse_pair_empty_construct_statement(pair) },
             Rule::external_statement => { Self::parse_pair_external_statement(pair) },
             Rule::assign_statement =>   { Self::parse_pair_assignment_statement(pair) },
             Rule::if_statement =>       { Self::parse_pair_if_statement(pair) },
@@ -75,7 +81,7 @@ impl PestBarracudaParser {
             Rule::func_param =>         { Self::parse_pair_function_parameter(pair) },
             Rule::return_statement =>   { Self::parse_pair_return_statement(pair) },
             Rule::func_call =>          { Self::parse_pair_function_call(pair) },
-            Rule::naked_func_call =>          { Self::parse_pair_naked_function_call(pair) },
+            Rule::naked_func_call =>    { Self::parse_pair_naked_function_call(pair) },
             Rule::func_arg =>           { Self::parse_pair_function_argument(pair) },
             Rule::global_scope_block |
             Rule::scope_block =>        { Self::parse_pair_scope_block(pair) },
@@ -99,6 +105,10 @@ impl PestBarracudaParser {
         }
     }
 
+    fn parse_pair_array(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::ARRAY(pair.into_inner().map(Self::parse_pair_node).collect())
+    }
+
     /// Parses a pest token pair into an AST identifier
     fn parse_pair_identifier(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::IDENTIFIER(String::from(pair.as_str()))
@@ -109,14 +119,33 @@ impl PestBarracudaParser {
         ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
     }
 
-    /// Parses a pest token pair into an AST variable
-    fn parse_pair_variable(pair: pest::iterators::Pair<Rule>) -> ASTNode {
-        let input = pair.as_str();
-        let references = input.chars().take_while(|&c| c == '*').count();
-        ASTNode::VARIABLE {
-            references,
-            identifier: input[references..].to_string()
-        }
+    fn parse_pair_primitive_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::DATATYPE(DataType::from_str(pair.as_str().to_owned()))
+    }
+
+    fn parse_pair_pointer_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let sub_datatype = pair.next().unwrap();
+        let sub_datatype = Self::parse_pair_node(sub_datatype);
+        let sub_datatype = match sub_datatype {
+            ASTNode::DATATYPE(datatype) => datatype,
+            _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
+        };
+        let sub_datatype = Box::new(sub_datatype);
+        ASTNode::DATATYPE(DataType::POINTER(sub_datatype))
+    }
+
+    fn parse_pair_array_datatype(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let sub_datatype = pair.next().unwrap();
+        let sub_datatype = Self::parse_pair_node(sub_datatype);
+        let sub_datatype = match sub_datatype {
+            ASTNode::DATATYPE(datatype) => datatype,
+            _ => panic!("Datatype not found in array (ASTNode: {:?})", sub_datatype)
+        };
+        let sub_datatype = Box::new(sub_datatype);
+        let size = pair.as_str().parse().unwrap();
+        ASTNode::DATATYPE(DataType::ARRAY(sub_datatype, size))
     }
 
     /// Parses a pest token pair into an AST binary expression
@@ -158,6 +187,22 @@ impl PestBarracudaParser {
         }
     }
 
+    fn parse_pair_array_index(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let primary = pair.next().unwrap();
+        let mut expression = Self::parse_pair_node(primary);
+        // Unary
+        while pair.peek().is_some() {
+            let index = Self::parse_pair_node(pair.next().unwrap());
+
+            expression = ASTNode::ARRAY_INDEX {
+                index: Box::new(index),
+                expression: Box::new(expression)
+            };
+        }
+        expression
+    }
+
     /// Parses a pest token pair into an AST statement list
     fn parse_pair_statement_list(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::STATEMENT_LIST(
@@ -165,30 +210,42 @@ impl PestBarracudaParser {
         )
     }
 
-    /// Parses a pest token pair into an AST construct statement
-    fn parse_pair_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+    /// Parses a pest token pair into an AST construct statement, with datatype
+    fn parse_pair_full_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
-
         let identifier = Self::parse_pair_node(pair.next().unwrap());
-
-        let mut datatype = None;
-
-        // qualifier, datatype or expression
-        let datatype_or_expression = Self::parse_pair_node(pair.next().unwrap());
-        
-        // Datatype match
-        let expression = match pair.next() {
-            Some(expression_pair) => {
-                datatype = Some(datatype_or_expression);
-                Self::parse_pair_node(expression_pair)
-            }
-            None => datatype_or_expression
-        };
+        let datatype = Self::parse_pair_node(pair.next().unwrap());
+        let expression = Self::parse_pair_node(pair.next().unwrap());
 
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
-            datatype: Box::new(datatype),
+            datatype: Box::new(Some(datatype)),
             expression: Box::new(expression)
+        }
+    }
+
+    /// Parses a pest token pair into an AST construct statement, without datatype
+    fn parse_pair_inferred_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+        let expression = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(None),
+            expression: Box::new(expression)
+        }
+    }
+
+    /// Parses a pest token pair into an AST construct statement, without expression
+    fn parse_pair_empty_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+        let datatype = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::EMPTY_CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(datatype),
         }
     }
 
@@ -205,9 +262,21 @@ impl PestBarracudaParser {
     /// Parses a pest token pair into an AST assignment statement
     fn parse_pair_assignment_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
+        let pointer_level = pair.next().unwrap().as_str().len();
+        let identifier = Box::new(Self::parse_pair_node(pair.next().unwrap()));
+        let mut array_index = Vec::new();
+        let mut expression = Self::parse_pair_node(pair.next().unwrap());
+        while let Some(_) = pair.peek() {
+            array_index.push(expression);
+            expression = Self::parse_pair_node(pair.next().unwrap());
+        };
+        let expression = Box::new(expression);
+
         ASTNode::ASSIGNMENT {
-            identifier: Box::new(Self::parse_pair_node(pair.next().unwrap())),
-            expression: Box::new(Self::parse_pair_node(pair.next().unwrap()))
+            identifier,
+            pointer_level,
+            array_index,
+            expression
         }
     }
 
@@ -276,10 +345,10 @@ impl PestBarracudaParser {
             parameters.push(Self::parse_pair_node(pair.next().unwrap()))
         }
 
-        let return_type = if pair.peek().unwrap().as_rule() == Rule::identifier {
-            Self::parse_pair_node(pair.next().unwrap())
+        let return_type = if pair.peek().unwrap().as_rule() != Rule::global_scope_block {
+            Some(Self::parse_pair_node(pair.next().unwrap()))
         } else {
-            ASTNode::IDENTIFIER(String::from("void"))
+            None
         };
 
         let body = Self::parse_pair_node(pair.next().unwrap());
@@ -368,6 +437,7 @@ impl PestBarracudaParser {
         match pair.as_rule() {
             Rule::unary_not => Some(UnaryOperation::NOT),
             Rule::unary_neg => Some(UnaryOperation::NEGATE),
+            Rule::dereference => Some(UnaryOperation::PTR_DEREF),
             _ => None
         }
     }
@@ -402,11 +472,8 @@ impl AstParser for PestBarracudaParser {
         Self {}
     }
 
-    /// Parse processes a source string into an abstract syntax tree
-    fn parse(self, source: &str, env_vars: EnvironmentSymbolContext) -> AbstractSyntaxTree {
-        AbstractSyntaxTree::new(
-            Self::parse_into_node_tree(source),
-            env_vars
-        )
+    /// Parse processes a source string into an  
+    fn parse(self, source: &str) -> ASTNode {
+        Self::parse_into_node_tree(source)
     }
 }

@@ -28,23 +28,10 @@ of the given variables. As an example of the usage see below.
 
 `barracuda_compiler <filename.bc> --env X:0 Y:1 Z:2 OUTPUT:3`
 
-### Emulator
-The emulator can be executed by giving a .bct file to run where output will be sent to stdout. This is given by 
-the following usage:
-
-`barracuda_emulator <filename.bct>`
-
-The emulator can be run as a visual debugger by attaching the debug flag `-d`. This will launch a TUI interface so that 
-you can step through instructions using SPACE and continue execution until finished with ENTER.
-
-Environment variables can be specified as existing in the target host environment via the `--env` command. Where each
-variable has the syntax of `identifier(:host_index)?(=init_value)?`. If no host index is specified one is given based on the order
-of the given variables. If no value is specified it is set as zero. As an example of the usage see below.
-
-`barracuda_emulator <filename.bct> --env X=1 Y=0.5 Z=1 OUTPUT`
-
 ## Examples
-Example programs can be found both in `compiler/examples/barracuda` and `vm_emulator/examples`.
+The best example programs can be found in the related barracuda-vm-testing repository.
+More can be found in the test suite in `compiler/lib.rs`
+Example programs can be found in `compiler/examples/barracuda`
 
 ## Tests
 All tests can be run out of the box using `cargo test`, this will run all integration and unit tests within the workspace.

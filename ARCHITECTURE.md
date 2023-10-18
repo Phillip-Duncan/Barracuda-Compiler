@@ -2,18 +2,14 @@
 The purpose of this file is to give an overview of the project structure and to provide as a jumping off point for 
 where to add modifications without reading the entire code base. Documentation in the codebase is thorough and so the
 code or the doc website should be used for further details. 
-This repo is a rust workspace of three rust crates. These crates are barracuda common, barracuda compiler, and barracuda cpu vm.
+This repo is a rust workspace of two rust crates. These crates are barracuda common and barracuda compiler. 
+The existence of the common crate is an artifact of when a third vm crate existed.
 
 + **[Barracuda Common](#barracuda-common)** 
 + **[Barracuda Compiler](#barracuda-compiler)**
-+ **[Barracuda CPU VM](#barracuda-cpu-vm)**
 
 # Barracuda Common
-Barracuda common acts as a utility library for the compiler and cpu vm of shared code. 
-For instance the definitions of operators is used by both the compiler for generation 
-and by the cpu vm for context therefore it is stored in the common library. 
-This provides a single point of truth and makes the project easier to maintain overall.
-
+Barracuda common acts as a utility library for the compiler.
 ### program_code
 Program code stores the internal definition of what a ready to be executed barracuda program contains. This is stored in the module file but requires other shared modules contained within such as operator and instruction definitions.
 These definitions do not describe computation of the operators this is done by the emulator.
@@ -25,8 +21,8 @@ loads barracuda code from .bct files which are plain text files. The format leav
 in the future using the same interface.
 
 ### cli_utility
-This module contains utility functions for loading some command line arguments. This is to allow the compiler
-and the vm to have a shared command interface style. The only modules here presently is `cli_env_var_descriptor` which
+This module contains utility functions for loading some command line arguments. 
+The only modules here presently is `cli_env_var_descriptor` which
 parses environment variable command arguments with their unique syntax.
 
 # Barracuda Compiler
@@ -68,25 +64,3 @@ program code. Utilities such as creating and referencing labels in an unknown si
 Additionally this module contains a sub module called analysis which contains stack_estimator that will guess the stack
 size required to execute a program in ProgramCode. This guess relies on some generation knowledge and is therefore stored
 at this level.
-
-# Barracuda CPU VM
-The cpu virtual machine starts in `main.rs`. This file contains the context for processing the cli configuration
-and using that context to run the emulator either in execution or visual debugging mode given the `-d` flag. 
-
-### emulator
-The emulator modules main class is stored in `main.rs` called `ThreadContext`. `ThreadContext` can be loaded with
-a program code and configured to run under different expected circumstances. The execution of program code relies on
-some external utility classes. To execute instructions and operations, `instuction_executor.rs` and 
-`operation_executor.rs` are used and contain definitions for interfacing with ThreadContext to execute a instruction. 
-These definitions centralise around four key steps.
-+ pop arguments to the instruction/operator
-+ cast arguments as relevant types
-+ apply operation in rust code
-+ push result(s) to the stack
-
-Additionally, in `emulator_heap.rs` is a manager class for giving an interface for allocating memory on the heap in a way
-that is transparent to the executing program code but is inspectable and safe for the emulator itself.
-
-### visualiser
-The visualiser is a wrapper around `ThreadContext` defined in the `emulator` sibling module. It contains defintions
-for different widgets used to control the TUI interface. 

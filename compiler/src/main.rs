@@ -19,6 +19,7 @@ use clap::Parser;
 
 // Basic Compiler Configuration
 type PARSER = compiler::PestBarracudaParser;
+type ANALYSER = compiler::BarracudaSemanticAnalyser;
 type GENERATOR = compiler::BarracudaByteCodeGenerator;
 
 
@@ -100,7 +101,7 @@ fn main() {
     // Parse Command line arguments
     let cli_args = CompilerCLIOptions::parse().derive_defaults();
 
-    let compiler: Compiler<PARSER, GENERATOR> = Compiler::default()
+    let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
         .set_environment_variables(cli_args.get_environment_variables());
     let source_path = cli_args.path.as_path();
 
@@ -132,7 +133,6 @@ fn main() {
             std::process::exit(exitcode::OK);
         },
         Err(why) => {
-            // TODO(Connor): Differentiate between a compilation error and an internal error
             println!("Compile Error: {:?}", why);
             std::process::exit(exitcode::SOFTWARE);
         }

@@ -1,3 +1,4 @@
+use super::datatype::DataType;
 use super::literals::Literal;
 use super::operators::{UnaryOperation, BinaryOperation};
 use super::scope::ScopeId;
@@ -23,18 +24,11 @@ pub enum ASTNode {
     ///                     ^^^^^^ -> Reference
     REFERENECE(String),
 
-    /// Variable represents an identifier with extra information about how many times it is referenced. 
-    /// In the example below, hello_ref points to the memory address of hello.
-    /// 
     /// # Example:
-    ///     let hello = 4;
-    ///     let hello_ref = &hello;
-    ///     let world = *hello_ref;
-    ///                 ^^^^^^^^^^ -> Variable
-    VARIABLE {
-        references: usize,
-        identifier: String
-    },
+    ///     let hello: i64 = 4;
+    ///                ^^^ -> Datatype
+    DATATYPE(DataType),
+
 
     /// Literal is a constant value used within an expression.
     /// # Example:
@@ -43,6 +37,12 @@ pub enum ASTNode {
     ///     let world = false;
     ///                 ^^^^^ -> Literal
     LITERAL(Literal),
+
+    /// Array is a list of expressions.
+    /// # Example:
+    ///     let array : [4] = [1, 2, 3+4, 5];
+    ///                       ^^^^^^^^^^^^^^ -> Array
+    ARRAY(Vec<ASTNode>),
 
     /// Unary operation is an expression operation with only one argument
     ///
@@ -68,6 +68,16 @@ pub enum ASTNode {
         rhs: Box<ASTNode>
     },
 
+    /// Array index allows a specific element to be accessed from an array.
+    /// # Example:
+    ///     let array : [4] = [5,8,11,14];
+    ///     let example = array[2]; // example will now hold 11
+    ///                        ^^^ -> Array index
+    ARRAY_INDEX {
+        index: Box<ASTNode>,
+        expression: Box<ASTNode>
+    },
+
     /// Construction statement defines a variable for use in future statements in scope.
     ///
     /// # Syntax:
@@ -83,6 +93,22 @@ pub enum ASTNode {
         identifier: Box<ASTNode>,
         datatype: Box<Option<ASTNode>>,
         expression: Box<ASTNode>
+    },
+
+    /// Empty construct statement is a construct statement that does not provide any value to the cons
+    ///
+    /// # Syntax:
+    ///     let <identifier> (: <datatype>)? = <expression>;
+    ///
+    /// # Example:
+    ///     let x = 36;
+    ///     ^^^^^^^^^^^ -> Construction Statement
+    ///
+    ///     let y: u32 = 42;
+    ///
+    EMPTY_CONSTRUCT {
+        identifier: Box<ASTNode>,
+        datatype: Box<ASTNode>
     },
 
     /// External statement defines a external variable for use in future statements in scope.
@@ -101,6 +127,8 @@ pub enum ASTNode {
     ///     ^^^^^^ -> Assignment
     ASSIGNMENT {
         identifier: Box<ASTNode>,
+        pointer_level: usize,
+        array_index: Vec<ASTNode>,
         expression: Box<ASTNode>
     },
 
@@ -223,7 +251,7 @@ pub enum ASTNode {
     FUNCTION {
         identifier: Box<ASTNode>,
         parameters: Vec<ASTNode>,
-        return_type: Box<ASTNode>,
+        return_type: Box<Option<ASTNode>>,
         body: Box<ASTNode>
     },
 
@@ -270,7 +298,20 @@ pub enum ASTNode {
     SCOPE_BLOCK {
         inner: Box<ASTNode>,
         scope: ScopeId
-    }
+    },
+
+    /// Print statement will display the result of an expression to stdout of interpreter
+    ///
+    /// # Syntax:
+    ///     print <expression>;
+    ///
+    /// # Example:
+    ///     print 12*12;    -> '144'
+    ///     ^^^^^^^^^^^ -> Print Statement
+    TYPED_NODE {
+        datatype: DataType,
+        inner: Box<ASTNode>
+    },
 }
 
 impl ASTNode {
@@ -283,14 +324,22 @@ impl ASTNode {
         match self {
             ASTNode::IDENTIFIER(_) => {}
             ASTNode::REFERENECE(_) => {}
-            ASTNode::VARIABLE {..} => {}
+            ASTNode::DATATYPE(_) => {}
             ASTNode::LITERAL(_) => {}
+            ASTNode::ARRAY(items) => {
+                for item in items {
+                    output.push(item.borrow_mut());
+                }
+            }
             ASTNode::UNARY_OP { op: _, expression } => {
                 output.push(expression.as_mut());
             }
             ASTNode::BINARY_OP { op: _, lhs, rhs } => {
                 output.push(lhs.as_mut());
                 output.push(rhs.as_mut());
+            }
+            ASTNode::ARRAY_INDEX { index: _, expression } => {
+                output.push(expression.as_mut());
             }
             ASTNode::CONSTRUCT { identifier, datatype, expression } => {
                 output.push(identifier.as_mut());
@@ -300,11 +349,18 @@ impl ASTNode {
                 }
                 output.push(expression.as_mut());
             }
+            ASTNode::EMPTY_CONSTRUCT { identifier, datatype } => {
+                output.push(identifier.as_mut());
+                output.push(datatype.as_mut());
+            }
             ASTNode::EXTERN {identifier} => {
                 output.push(identifier.as_mut());
             }
-            ASTNode::ASSIGNMENT { identifier, expression } => {
+            ASTNode::ASSIGNMENT { identifier, array_index, expression, .. } => {
                 output.push(identifier.as_mut());
+                for index in array_index {
+                    output.push(index);
+                }
                 output.push(expression.as_mut());
             }
             ASTNode::PRINT { expression } => {
@@ -341,7 +397,9 @@ impl ASTNode {
                 for param in parameters {
                     output.push(param.borrow_mut());
                 }
-                output.push(return_type.as_mut());
+                if return_type.is_some() {
+                    output.push(return_type.as_mut().as_mut().unwrap());
+                }
                 output.push(body.as_mut())
             }
             ASTNode::FUNC_CALL { identifier, arguments } => {
@@ -361,6 +419,9 @@ impl ASTNode {
             ASTNode::SCOPE_BLOCK { inner, scope: _ } => {
                 output.push(inner.as_mut());
             }
+            ASTNode::TYPED_NODE { inner, .. } => {
+                output.push(inner.as_mut());
+            }
         }
 
         output
@@ -369,16 +430,21 @@ impl ASTNode {
     /// Utility function for simplifying extracting string out of identifier node
     pub(crate) fn identifier_name(&self) -> Option<String> {
         match self {
+            ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                ASTNode::IDENTIFIER(name) => Some(name.clone()),
+                _ => None
+            }
             ASTNode::IDENTIFIER(name) => Some(name.clone()),
             _ => None
         }
     }
 
-    /// Utility function for simplifying extracting information out of variable node
-    pub(crate) fn get_variable(&self) -> Option<(usize, String)> {
+    /// Utility function for simplifying extracting type out of node
+    pub(crate) fn get_type(&self) -> DataType {
         match self {
-            ASTNode::VARIABLE{references, identifier} => Some((references.clone(), identifier.clone())),
-            _ => None
+            ASTNode::TYPED_NODE { datatype, .. } => datatype.clone(),
+            _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", self)
         }
     }
+
 }

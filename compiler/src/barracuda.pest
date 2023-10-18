@@ -18,22 +18,15 @@ boolean = @ {
     "false" | "true"
 }
 
-string = ${ "\"" ~ inner ~ "\"" }
-inner = @{ char* }
-char = {
-    !("\"" | "\\") ~ ANY
-    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
-}
-
 identifier_char = _{
     ASCII_ALPHANUMERIC | "_"
 }
 
+array = {"[" ~ (expression ~ ("," ~ expression)* )? ~ "]"}
+
 identifier = @{ (ASCII_ALPHA | "_") ~ identifier_char*}
 reference = @{ "&" ~ identifier }
-variable = @{ "*"* ~ identifier }
-literal = _{decimal | integer | boolean | string}
+literal = _{decimal | integer | boolean}
 
 func_arg = {expression}
 func_call = {identifier ~ "(" ~ ")" |
@@ -47,7 +40,9 @@ term_operator = _{add | sub}
 factor_operator = _{div | mul | modulus}
 exponent_operator = _{pow}
 unary_operator = _{unary_not | unary_neg}
+pointer_operator = _{dereference}
 
+dereference = {"*"}
 unary_not = {"!"}
 unary_neg = {"-"}
 
@@ -73,8 +68,10 @@ comparison = { term ~ ( comparison_operator ~ term )* }
 term       = { factor ~ ( term_operator ~ factor )* }
 factor     = { exponent ~ ( factor_operator ~ exponent )* }
 exponent   = { unary ~ (exponent_operator ~ unary)* }
-unary      = { unary_operator ~ unary | primary }
-primary    = _{ literal | func_call | reference | variable | "("~expression~")" }
+unary      = { unary_operator ~ unary | index }
+index      = { pointer ~ ( "[" ~ expression ~ "]" )* }
+pointer    = { pointer_operator ~ pointer | primary }
+primary    = _{ literal | array | func_call | reference | identifier | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement
@@ -91,17 +88,23 @@ statement = _{if_statement | for_statement | while_statement
 statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
-construct_statement = {"let " ~ variable ~ "=" ~ expression
-                       // | "let " ~ variable ~ ":" ~ datatype ~ "=" ~ expression //Currently datatypes are not functional.
-                       // | "let " ~ variable ~ ":" ~ datatype  //Currently the 'expression' part of a construct statement is required.
-                    }
+construct_statement = _{ full_construct_statement | inferred_construct_statement | empty_construct_statement }
+
+full_construct_statement = { "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression }
+inferred_construct_statement = { "let " ~ identifier ~ "=" ~ expression }
+empty_construct_statement = { "let " ~ identifier ~ ":" ~ datatype }
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
 
 
-assign_statement = {variable ~ "=" ~ expression}
-datatype = _{identifier}
+assign_pointers =  @{ "*"* }
+assign_statement = {assign_pointers ~ identifier ~ ("[" ~ expression ~ "]")* ~ "=" ~ expression}
+
+primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool" | "none"}
+pointer_datatype = {"*" ~ datatype}
+array_datatype = {"[" ~ datatype ~ ";" ~ integer ~ "]"}
+datatype = _{primitive_datatype | pointer_datatype | array_datatype}
 
 print_statement = {"print" ~ expression}
 
@@ -110,8 +113,8 @@ if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("e
 for_statement = {"for" ~ "(" ~ construct_statement ~ ";" ~ expression ~ ";" ~ assign_statement ~ ")" ~ scope_block}
 while_statement = {"while" ~ expression ~ scope_block}
 
-func_param = {variable} //{variable ~ ":" ~ datatype | variable} (datatype not yet functional)
-func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ (":" ~ datatype)? ~ global_scope_block }
+func_param = {identifier ~ ":" ~ datatype | identifier}
+func_statement = {"fn" ~ identifier ~ "("~ (func_param ~ ("," ~ func_param)* )? ~ ")" ~ ("->" ~ datatype)? ~ global_scope_block }
 return_statement = {"return" ~ expression}
 
 

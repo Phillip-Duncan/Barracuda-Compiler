@@ -1,6 +1,7 @@
 mod ast;
 pub mod backend;
 pub mod parser;
+pub mod semantic_analyser;
 use barracuda_common;
 
 use std::path::Path;
@@ -12,44 +13,51 @@ use std::error::Error;
 // Interface Definitions
 use self::parser::AstParser;
 use self::backend::BackEndGenerator;
+use self::semantic_analyser::SemanticAnalyser;
 use barracuda_common::ProgramCode;
 
 // Concrete Definitions Re-Export
 pub use self::backend::BarracudaByteCodeGenerator;
 pub use self::parser::PestBarracudaParser;
+pub use self::semantic_analyser::BarracudaSemanticAnalyser;
 pub use self::ast::EnvironmentSymbolContext;
 pub use self::ast::datatype::PrimitiveDataType;
 
 
 /// Compiler is a simple class that holds the configuration of a compilation configuration.
-/// Compiler takes two typed parameters defining the AstParser being used as well as the
-/// BackEndGenerator.
+/// Compiler takes three typed parameters defining:
+///  the AstParser being used,
+///  the SemanticAnalyser being used,
+///  and the BackEndGenerator being used.
 ///
 /// # Compilation Diagram
-/// barracuda_code -> AstParser -> AbstractSyntaxTree -> BackEndGenerator -> ProgramCode
-pub struct Compiler<P: AstParser, G: BackEndGenerator> {
+/// barracuda_code -> AstParser -> AbstractSyntaxTree -> SemanticAnalyser -> Annotated AbstractSyntaxTree -> BackEndGenerator -> ProgramCode
+pub struct Compiler<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> {
     parser: P,
+    semantic_analyser: A,
     generator: G,
     env_vars: EnvironmentSymbolContext
 }
 
 #[allow(dead_code)] // Many of the functions on compiler act as a library interface and are not used
-impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
+impl<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> Compiler<P, A, G> {
 
     /// Default generates a default compiler configuration. Default configuration is determined by
     /// the default methods of the parser and generator.
     pub fn default() -> Self {
         Compiler {
             parser: P::default(),
+            semantic_analyser: A::default(),
             generator: G::default(),
             env_vars: EnvironmentSymbolContext::new()
         }
     }
 
     /// Create new compiler using a preconfigured parser and generator.
-    pub fn new(parser: P, generator: G, env_vars: EnvironmentSymbolContext) -> Self {
+    pub fn new(parser: P, semantic_analyser: A, generator: G, env_vars: EnvironmentSymbolContext) -> Self {
         Compiler {
             parser,
+            semantic_analyser,
             generator,
             env_vars
         }
@@ -62,8 +70,9 @@ impl<P: AstParser, G: BackEndGenerator> Compiler<P, G> {
 
     /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
-        let ast = self.parser.parse(source, self.env_vars.clone());
-        let program_code = self.generator.generate(ast);
+        let ast = self.parser.parse(source);
+        let annotated_ast = self.semantic_analyser.analyse(ast, self.env_vars);
+        let program_code = self.generator.generate(annotated_ast);
 
         return program_code
     }

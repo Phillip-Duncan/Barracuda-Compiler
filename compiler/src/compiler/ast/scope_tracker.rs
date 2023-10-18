@@ -37,8 +37,10 @@ pub(crate) struct ScopeTracker {
     // Maps symbol.unqiue_id() -> localvar_id or param_id
     local_var_ids: HashMap<String, usize>,
     parameter_ids: HashMap<String, usize>,
+    array_ids: HashMap<String, usize>,
     local_var_count: usize,
     active_parameter_count: usize,
+    array_count: usize,
 }
 
 
@@ -52,8 +54,10 @@ impl ScopeTracker {
 
             local_var_ids: Default::default(),
             parameter_ids: Default::default(),
+            array_ids: Default::default(),
             local_var_count: 0,
-            active_parameter_count: 0
+            active_parameter_count: 0,
+            array_count: 0,
         }
     }
 
@@ -65,8 +69,10 @@ impl ScopeTracker {
 
             local_var_ids: Default::default(),
             parameter_ids: Default::default(),
+            array_ids: Default::default(),
             local_var_count: 0,
-            active_parameter_count: 0
+            active_parameter_count: 0,
+            array_count: 0,
         }
     }
 
@@ -93,7 +99,7 @@ impl ScopeTracker {
         // Remove tracked symbols that only exist in current scope
         let localvars_removed = self.symbols_in_scope.iter()
             .filter(|(scope, identifier)|
-                self.find_symbol(identifier).and_then(|symbol| Some(symbol.is_mutable()))
+                self.find_symbol(identifier).and_then(|symbol| Some(symbol.is_variable()))
                     .unwrap_or(false)
                 && scope.eq(&self.current_scope)
             ).count();
@@ -117,15 +123,22 @@ impl ScopeTracker {
         // Assign resource ids to symbols
         let symbol = self.find_symbol(&identifier).unwrap();
         match symbol.symbol_type() {
-            SymbolType::Variable(_,_) => {
-                if symbol.is_mutable() {
+            SymbolType::Variable(_) => {
+                if symbol.is_array() {
+                    let unique_id = symbol.unique_id();
+                    let array_count = self.array_count;
+                    self.array_count += symbol.array_length();
+                    self.array_ids.insert(unique_id.clone(), array_count);
+                    self.local_var_ids.insert(unique_id, self.local_var_count);
+                    self.local_var_count += 1;
+                } else {
                     let unique_id = symbol.unique_id();
                     self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
                 }
             }
             SymbolType::EnvironmentVariable(_, _, _) => {}
-            SymbolType::Parameter(_, _) => {
+            SymbolType::Parameter(_) => {
                 let unique_id = symbol.unique_id();
                 self.parameter_ids.insert(unique_id, self.active_parameter_count);
                 self.active_parameter_count += 1;
@@ -171,13 +184,26 @@ impl ScopeTracker {
     ///     let f = 64;     // localvar_id = 2
     pub(crate) fn get_local_id(&self, identifier: &String) -> Option<usize> {
         match self.find_symbol(&identifier) {
-            Some(symbol) => match self.local_var_ids.get(&symbol.unique_id()) {
+            Some(symbol) => {
+                match self.local_var_ids.get(&symbol.unique_id()) {
+                    Some(id) => Some(id.clone()),
+                    None => None
+                }
+            }
+            None => None
+        }
+    }
+
+    pub(crate) fn get_array_id(&self, identifier: &String) -> Option<usize> {
+        match self.find_symbol(&identifier) {
+            Some(symbol) => match self.array_ids.get(&symbol.unique_id()) {
                 Some(id) => Some(id.clone()),
                 None => None
             }
             None => None
         }
     }
+
 
     /// Returns a valid parameter resource id if a symbol with identifier exists and is a parameter.
     /// Similar to get_local_id however using a separate id generator

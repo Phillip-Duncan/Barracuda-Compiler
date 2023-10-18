@@ -24,6 +24,10 @@ enum BarracudaIR {
     /// jumps within code without knowing the exact generated size until finished.
     Reference(u64),
 
+    // Arrays are stored in a different memory section to normal variables. 
+    // Generating the exact address of each array is only possible once the whole program is generated.
+    Array{address: usize},
+
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
     Comment(String)
@@ -35,14 +39,16 @@ enum BarracudaIR {
 /// generation usage and referencing which greatly reduces the complexity of jump addresses.
 pub struct BarracudaProgramCodeBuilder {
     program_out: Vec<BarracudaIR>,
-    label_count: u64
+    label_count: u64,
+    env_var_count: usize
 }
 
 impl BarracudaProgramCodeBuilder {
     pub fn new() -> Self {
         Self {
             program_out: vec![],
-            label_count: 0
+            label_count: 0,
+            env_var_count: 0
         }
     }
 
@@ -96,6 +102,18 @@ impl BarracudaProgramCodeBuilder {
     /// @see create_label for more details
     pub fn reference(&mut self, label: u64) {
         self.program_out.push(BarracudaIR::Reference(label))
+    }
+
+    /// Emits an array.
+    /// Takes the preliminary address of the array.
+    /// The exact memory address needs to be calculated later.
+    pub fn emit_array(&mut self, address: usize) {
+        self.program_out.push(BarracudaIR::Array{address})
+    }
+
+    /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
+    pub fn add_environment_variable(&mut self) {
+        self.env_var_count += 1;
     }
 
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.
@@ -166,7 +184,10 @@ impl BarracudaProgramCodeBuilder {
                     output_program.push_value(value.clone());
                 }
                 BarracudaIR::Reference(id) => {
-                    output_program.push_value(f64::from_ne_bytes(locations[*id as usize].clone().to_ne_bytes()));
+                    output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
+                }
+                BarracudaIR::Array{address, ..} => {
+                    output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {

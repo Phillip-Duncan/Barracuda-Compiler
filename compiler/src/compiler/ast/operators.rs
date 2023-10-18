@@ -1,8 +1,10 @@
 /// Unary Operations are mathematical symbolic functions with one argument.
 #[derive(Debug, Clone)]
+#[allow(non_camel_case_types)]
 pub enum UnaryOperation {
     NOT,        // ! <rhs>
     NEGATE,     // - <rhs>
+    PTR_DEREF,  // * <rhs>
 }
 
 /// Binary Operations are mathematical symbolic functions with two arguments.
@@ -23,5 +25,3 @@ pub enum BinaryOperation {
     GREATER_EQUAL,  // <lhs> >= <rhs>
     LESS_EQUAL      // <lhs> <= <rhs>
 }
-
-pub const LEGAL_POINTER_OPERATIONS: &[BinaryOperation] = &[BinaryOperation::EQUAL, BinaryOperation::NOT_EQUAL];

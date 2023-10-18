@@ -7,6 +7,7 @@ use super::super::ast::{
     BinaryOperation,
     UnaryOperation
 };
+use super::builtin_functions::BARRACUDA_BUILT_IN_FUNCTIONS;
 
 use barracuda_common::{
     ProgramCode,
@@ -15,7 +16,7 @@ use barracuda_common::{
 };
 
 use std::collections::HashMap;
-use crate::compiler::ast::operators::LEGAL_POINTER_OPERATIONS;
+use crate::compiler::ast::datatype::DataType;
 use crate::compiler::ast::{
     ScopeId,
     ScopeTracker,
@@ -23,6 +24,7 @@ use crate::compiler::ast::{
 };
 use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
+use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
 
 /// BarracudaByteCodeGenerator is a Backend for Barracuda
 /// It generates program code from an Abstract Syntax Tree
@@ -41,6 +43,7 @@ pub struct BarracudaByteCodeGenerator {
     symbol_tracker: ScopeTracker,
 
     function_labels: HashMap<String, Vec<u64>>,
+    functions: HashMap<String, FunctionTracker>,
 
     // Max analysis branching depth
     // used for estimating the stack depth of a program
@@ -54,6 +57,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
             builder: BarracudaProgramCodeBuilder::new(),
             symbol_tracker: ScopeTracker::default(),
             function_labels: HashMap::default(),
+            functions: HashMap::default(),
             max_analysis_branch_depth: 512,
         }
     }
@@ -62,6 +66,7 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
     fn generate(mut self, tree: AbstractSyntaxTree) -> ProgramCode {
         // Create symbol tracker
         self.symbol_tracker = ScopeTracker::new(tree.get_symbol_table());
+        self.functions = tree.get_functions();
 
         // Generate built-in functions
         self.generate_builtin_functions();
@@ -209,32 +214,44 @@ impl BarracudaByteCodeGenerator {
 impl BarracudaByteCodeGenerator {
     fn generate_node(&mut self, node: &ASTNode) {
         match node {
-            ASTNode::IDENTIFIER(identifier_name) => {
-                self.generate_identifier(identifier_name)
+            ASTNode::TYPED_NODE { datatype, inner } => match inner.as_ref() {
+                ASTNode::IDENTIFIER(identifier_name) => {
+                    self.generate_identifier(identifier_name)
+                }
+                ASTNode::REFERENECE(identifier_name) => {
+                    self.generate_reference(identifier_name)
+                }
+                ASTNode::LITERAL(literal) => {
+                    self.generate_literal(literal)
+                }
+                ASTNode::ARRAY(_) => {
+                    panic!("Arrays literals can only be used for direct assignment!");
+                }
+                ASTNode::UNARY_OP { op, expression } => {
+                    self.generate_unary_op(op, expression)
+                }
+                ASTNode::BINARY_OP { op, lhs, rhs } => {
+                    self.generate_binary_op(op, lhs, rhs)
+                }
+                ASTNode::ARRAY_INDEX { index, expression } => {
+                    self.generate_array_index(index, expression, datatype)
+                }
+                ASTNode::FUNC_CALL { identifier, arguments } => {
+                    self.generate_function_call(identifier, arguments)
+                }
+                _ => panic!("Malformed AST! Node {:?} should not be inside a typed node.", node)
             }
-            ASTNode::REFERENECE(identifier_name) => {
-                self.generate_reference(identifier_name)
+            ASTNode::CONSTRUCT { identifier, expression, .. } => {
+                self.generate_construct_statement(identifier, expression);
             }
-            ASTNode::VARIABLE { references, identifier } => {
-                self.generate_variable(references, identifier)
-            }
-            ASTNode::LITERAL(literal) => {
-                self.generate_literal(literal)
-            }
-            ASTNode::UNARY_OP { op, expression } => {
-                self.generate_unary_op(op, expression)
-            }
-            ASTNode::BINARY_OP { op, lhs, rhs } => {
-                self.generate_binary_op(op, lhs, rhs)
-            }
-            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
-                self.generate_construct_statement(identifier, datatype, expression);
+            ASTNode::EMPTY_CONSTRUCT { identifier, .. } => {
+                self.generate_empty_construct_statement(identifier);
             }
             ASTNode::EXTERN { identifier } => {
                 self.generate_extern_statement(identifier);
             }
-            ASTNode::ASSIGNMENT { identifier, expression } => {
-                self.generate_assignment_statement(identifier, expression)
+            ASTNode::ASSIGNMENT { identifier, pointer_level, array_index, expression } => {
+                self.generate_assignment_statement(identifier, pointer_level.clone(), array_index, expression)
             }
             ASTNode::PRINT { expression } => {
                 self.generate_print_statement(expression)
@@ -251,14 +268,8 @@ impl BarracudaByteCodeGenerator {
             ASTNode::FOR_LOOP { initialization, condition, advancement, body } => {
                 self.generate_for_loop(initialization, condition, advancement, body)
             }
-            ASTNode::PARAMETER { identifier, datatype } => {
-                self.generate_parameter(identifier, datatype)
-            }
-            ASTNode::FUNCTION { identifier, parameters, return_type, body } => {
-                self.generate_function_definition(identifier, parameters, return_type, body)
-            }
-            ASTNode::FUNC_CALL { identifier, arguments } => {
-                self.generate_function_call(identifier, arguments)
+            ASTNode::FUNCTION { identifier, .. } => {
+                self.generate_function_definition(identifier)
             }
             ASTNode::NAKED_FUNC_CALL { func_call } => {
                 self.generate_naked_function_call(func_call)
@@ -269,20 +280,26 @@ impl BarracudaByteCodeGenerator {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.generate_scope_block(inner, scope);
             }
+            _ => {
+                panic!("Malformed AST! Node {:?} should not be directly generated.", node);
+            }
         };
+    }
+
+    fn generate_identifier_id(&mut self, name: &String) {
+        let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
+        self.generate_local_var_address(localvar_id);
+        self.builder.emit_op(OP::STK_READ);
     }
 
     fn generate_identifier(&mut self, name: &String) {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, _) => {
-                let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
-
-                self.generate_local_var_address(localvar_id);
-                self.builder.emit_op(OP::STK_READ);
+            SymbolType::Variable(_) => {
+                self.generate_identifier_id(name)
             }
-            SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+            SymbolType::EnvironmentVariable( global_id, _, qualifier) => {
                 let ptr_depth = qualifier.matches("*").count();
                 self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
                 self.builder.emit_op(OP::LDNX);
@@ -295,7 +312,7 @@ impl BarracudaByteCodeGenerator {
                     }
                 }
             }
-            SymbolType::Parameter(_datatype, _) => {
+            SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -308,11 +325,11 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype, _) => {
+            SymbolType::Variable(_datatype) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
                 self.generate_local_var_address(localvar_id);
             }
-            SymbolType::Parameter(_datatype, _) => {
+            SymbolType::Parameter(_datatype) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
             }
@@ -320,50 +337,60 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_variable(&mut self, references: &usize, identifier: &String) {
-        self.generate_identifier(identifier);
-        for _ in 0..*references {
-            self.builder.emit_op(OP::STK_READ);
-        }
-    }
-
     fn generate_literal(&mut self, literal: &Literal) {
         let literal_value = match *literal {
             Literal::FLOAT(value) => { value }
             Literal::INTEGER(value) => { value as f64 }
-            //Literal::STRING(_) => {
-            //    unimplemented!()
-            //    This would likely involve allocation on the heap
-            //}
             Literal::BOOL(value) => { value as i64 as f64 }
         };
 
         self.builder.emit_value(literal_value);
     }
 
-    fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
-        let pointer_level = self.get_pointer_level(&expression);
-        if pointer_level != 0 {
-            panic!("Pointers cannot be used with the operation '{:?}' !", op);
+    fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
+        let address = self.symbol_tracker.get_array_id(identifier).unwrap();
+        self.generate_subarray(items, address, 0);
+        self.builder.emit_array(address);
+    }
+
+    fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
+        for item in items {
+            match item {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
+                    _ => position = {
+                        self.builder.emit_array(address);
+                        self.generate_array_item(&item, position)
+                    },
+                }
+                _ => position = {
+                    self.builder.emit_array(address);
+                    self.generate_array_item(&item, position)
+                },
+            }
         }
+        position
+    }
+
+    fn generate_array_item(&mut self, item: &ASTNode, position: usize) -> usize {
+        self.builder.emit_value(f64::from_be_bytes(position.to_be_bytes()));
+        self.builder.emit_op(OP::ADD_PTR);
+        self.builder.emit_op(OP::LDNXPTR);
+        self.generate_node(item);
+        self.builder.emit_op(OP::WRITE);
+        position + 1
+    }
+
+    fn generate_unary_op(&mut self, op: &UnaryOperation, expression: &Box<ASTNode>) {
         self.generate_node(expression);
         match op {
             UnaryOperation::NOT => { self.builder.emit_op(OP::NOT) }
             UnaryOperation::NEGATE => { self.builder.emit_op(OP::NEGATE) }
+            UnaryOperation::PTR_DEREF => { self.builder.emit_op(OP::STK_READ) }
         };
     }
 
     fn generate_binary_op(&mut self, op: &BinaryOperation, lhs: &Box<ASTNode>, rhs: &Box<ASTNode>) {
-        let lhs_pointer_level = self.get_pointer_level(&lhs);
-        let rhs_pointer_level = self.get_pointer_level(&rhs);
-        if lhs_pointer_level != 0 || rhs_pointer_level != 0 {
-            if !LEGAL_POINTER_OPERATIONS.contains(&op) {
-                panic!("Operation {:?} cannot be used with pointers!", op);
-            }
-        }
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in a binary operation! ({} vs {})", lhs_pointer_level, rhs_pointer_level);
-        }
         self.generate_node(lhs);
         self.generate_node(rhs);
         match op {
@@ -382,47 +409,89 @@ impl BarracudaByteCodeGenerator {
         };
     }
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) {
-        let (identifier_pointer_level, identifier_name) = identifier.get_variable().unwrap();
-        
-        let expression_pointer_level = self.get_pointer_level(&expression);
-        if identifier_pointer_level != expression_pointer_level {
-            panic!("Pointer level of '{}' is different from pointer level of expression! ({} vs {})", identifier_name, identifier_pointer_level, expression_pointer_level);
-        }
-        // Leave result of expression at top of stack as this is the allocated
-        // region for the local variable
+    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>, datatype: &DataType) {
         self.generate_node(expression);
+        self.generate_node(index);
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                let array_length = DataType::get_array_length(&datatype);
+                self.builder.emit_value(array_length as f64);
+                self.builder.emit_op(OP::MUL);
+                self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                self.builder.emit_op(OP::ADD_PTR);
+            },
+            _ => {
+                self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                self.builder.emit_op(OP::ADD_PTR);
+                self.builder.emit_op(OP::LDNXPTR);
+                self.builder.emit_op(OP::READ);
+            }
+        }
+    }
+
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
+
+        let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name.clone());
 
-        // Comment local var id
-        let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-        self.builder.comment(format!("CONSTRUCT {}:{}", &identifier_name, local_var_id));
+        let datatype = identifier.get_type();
+    
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                match expression.as_ref() {
+                    ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                        ASTNode::ARRAY(items) => self.generate_array(&items, &identifier_name),
+                        _ => self.generate_node(expression)
+                    }
+                    _ => self.generate_node(expression)
+                }
+            },
+            _ => {
+                // Leave result of expression at top of stack as this is the allocated
+                // region for the local variable
+                self.generate_node(expression);
+            }
+        }
+
+    }
+
+    fn generate_empty_construct_statement(&mut self, identifier: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+        self.add_symbol(identifier_name.clone());
+
+        let datatype = identifier.get_type();
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
+                self.builder.emit_array(address);
+            },
+            _ => {
+                self.builder.emit_value(0.0);
+            }
+        }
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
+        self.builder.add_environment_variable();
         let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name.clone())
     }
 
-    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
-        let (references, identifier_name) = identifier.get_variable().unwrap();
-        let lhs_pointer_level = self.get_pointer_level(&identifier);
-        let rhs_pointer_level = self.get_pointer_level(&expression);
-        if lhs_pointer_level != rhs_pointer_level {
-            panic!("Pointer levels cannot be different in an assignment statement! Assigning to {} ({} vs {})", identifier_name, lhs_pointer_level, rhs_pointer_level);
-        }
+    fn generate_assignment_statement(&mut self, identifier: &Box<ASTNode>, pointer_level: usize, array_index: &Vec<ASTNode>, expression: &Box<ASTNode>) {
+        let identifier_name = identifier.identifier_name().unwrap();
+
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(_, _) => {
+                SymbolType::Variable(datatype) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
-
-                    self.builder.comment(format!("ASSIGNMENT {}:{}", &identifier_name, local_var_id));
                     self.generate_local_var_address(local_var_id);
-                    for _ in 0..references {
-                        self.builder.emit_op(OP::STK_READ);
+                    match datatype {
+                        DataType::ARRAY(_,_) => {
+                            self.builder.emit_op(OP::STK_READ);
+                            self.generate_array_assignment_statement(array_index, expression, datatype)
+                        },
+                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level)
                     }
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
                 }
                 SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
@@ -433,7 +502,6 @@ impl BarracudaByteCodeGenerator {
                         let ptr_depth = qualifier.matches("*").count();
                         for _n in 0..ptr_depth {
                             if _n == ptr_depth - 1 {
-                                //self.builder.emit_op(OP::READ);
                                 continue;
                             }
                             else {
@@ -448,16 +516,10 @@ impl BarracudaByteCodeGenerator {
                         self.builder.emit_op(OP::RCNX);
                     }
                 }
-                SymbolType::Parameter(_, _) => {
+                SymbolType::Parameter(datatype) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
-
-                    self.builder.comment(format!("ASSIGNMENT {}:P{}", &identifier_name, local_param_id));
                     self.generate_parameter_address(local_param_id);
-                    for _ in 0..references {
-                        self.builder.emit_op(OP::STK_READ);
-                    }
-                    self.generate_node(expression);
-                    self.builder.emit_op(OP::STK_WRITE);
+                    self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level);
                 }
                 SymbolType::Function { .. } => {
                     panic!("Cannot reassign a value to function '{}'", identifier_name);
@@ -466,7 +528,79 @@ impl BarracudaByteCodeGenerator {
         } else {
             panic!("Assignment identifier '{}' not recognised", identifier_name);
         }
+    }
 
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, mut datatype: DataType) {
+        //we have pointer as usize on the stack
+        for index in array_index {
+            datatype = match datatype {
+                DataType::ARRAY(inner, _) => {
+                    self.generate_node(index);
+                    let array_length = DataType::get_array_length(&inner);
+                    if array_length > 1 {
+                        self.builder.emit_value(array_length as f64);
+                        self.builder.emit_op(OP::MUL);
+                    }
+                    self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                    self.builder.emit_op(OP::ADD_PTR);
+                    *inner
+                },
+                _ => panic!("Datatype {:?} should be an array!", datatype)
+            }
+        }
+
+        match datatype {
+            DataType::ARRAY(_, _) => match expression {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => {self.generate_array_assignment(items, 0);},
+                    _ => panic!("Expected an array! Found {:?}", expression)
+                },
+                _ => panic!("Expected an array! Found {:?}", expression)
+            }
+            _ => {
+                self.builder.emit_op(OP::LDNXPTR);
+                self.generate_node(expression);
+                self.builder.emit_op(OP::WRITE);
+            }
+        }
+    }
+
+    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, mut position: usize) -> usize {
+        for item in items {
+            match item {
+                ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                    ASTNode::ARRAY(items) => position = self.generate_array_assignment(&items, position),
+                    _ => {
+                        self.builder.emit_op(OP::DUP);
+                        position = self.generate_array_item(&item, position);
+                    },
+                }
+                _ => {
+                    self.builder.emit_op(OP::DUP);
+                    position = self.generate_array_item(&item, position);
+                },
+            }
+        }
+        position
+    }
+
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, mut datatype: DataType, pointer_level: usize) {
+        for _ in 0..pointer_level {
+            datatype = match datatype {
+                DataType::POINTER(inner) => *inner,
+                _ => panic!("Datatype {:?} should be a pointer!", datatype)
+            };
+            self.builder.emit_op(OP::STK_READ);
+        }
+        match datatype {
+            DataType::ARRAY(_, _) => {
+                self.generate_array_assignment_statement(array_index, expression, datatype);
+            }
+            _ => {
+                self.generate_node(expression);
+                self.builder.emit_op(OP::STK_WRITE);
+            }
+        }
     }
 
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {
@@ -601,19 +735,24 @@ impl BarracudaByteCodeGenerator {
                 self.builder.set_label(for_exit);
                 self.builder.comment(String::from("FOR END"));
 
+                self.builder.emit_op(OP::DROP);
 
                 self.symbol_tracker.exit_scope();
-
-                self.builder.emit_op(OP::DROP);
             }
             _ => panic!("Malformed for loop node!")
         };
     }
 
-    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>, parameters: &Vec<ASTNode>, _return_type: &Box<ASTNode>, body: &Box<ASTNode>) {
-
+    fn generate_function_definition(&mut self, identifier: &Box<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
-
+        let implementations = self.functions.get(&identifier_name).unwrap().get_implementations().clone();
+        for implementation in implementations {
+            self.generate_function_implementation(implementation)
+        }
+    }
+    
+    fn generate_function_implementation(&mut self, implementation: FunctionImplementation) {
+        let identifier_name = implementation.get_name();
         // Create labels and assign them
         let function_def_start = self.builder.create_label();
         let function_def_end = self.builder.create_label();
@@ -625,18 +764,20 @@ impl BarracudaByteCodeGenerator {
         self.builder.comment(format!("FN {} START", &identifier_name));
         self.builder.set_label(function_def_start);
 
+        let body = implementation.get_body();
+        let parameter_names = implementation.get_parameters();
         // Generate body
-        match body.as_ref() {
+        match body {
             ASTNode::SCOPE_BLOCK { inner, scope } => {
                 self.symbol_tracker.enter_scope(scope.clone());
 
                 // Process parameters into scope
-                for parameter in parameters {
-                    self.generate_node(parameter);
+                for identifier in parameter_names {
+                    self.generate_parameter(identifier.clone());
                 }
 
                 // Generate function body
-                self.generate_node(inner);
+                self.generate_node(&inner);
 
                 self.symbol_tracker.exit_scope();
             }
@@ -657,9 +798,8 @@ impl BarracudaByteCodeGenerator {
 
     }
 
-    fn generate_parameter(&mut self, identifier: &Box<ASTNode>, _datatype: &Box<Option<ASTNode>>) {
-        let (_references, identifier_name) = identifier.get_variable().unwrap();
-        self.add_symbol(identifier_name);
+    fn generate_parameter(&mut self, identifier: String) {
+        self.add_symbol(identifier);
     }
 
     fn generate_builtin_functions(&mut self)
@@ -756,117 +896,4 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn get_pointer_level(&mut self, node: &Box<ASTNode>) -> usize {
-        match node.as_ref() {
-            ASTNode::VARIABLE{references, identifier} => {
-                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => {
-                        if references.clone() > ptr_level {
-                            panic!("Can't dereference a non-pointer!")
-                        }
-                        ptr_level - (references.clone())
-                    },
-                    _ => 0
-                }
-            },
-            ASTNode::REFERENECE(identifier) => {
-                match self.symbol_tracker.find_symbol(identifier).unwrap().symbol_type() {
-                    SymbolType::Variable (_, ptr_level) | SymbolType::Parameter (_, ptr_level) => ptr_level + 1,
-                    _ => 0
-                }
-            },
-            _ => 0
-        }
-    }
-
 }
-
-static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
-    OP::ACOS,
-    OP::ACOSH,
-    OP::ASIN,
-    OP::ASINH,
-    OP::ATAN,
-    OP::ATAN2,
-    OP::ATANH,
-    OP::CBRT,
-    OP::CEIL,
-    OP::CPYSGN,
-    OP::COS,
-    OP::COSH,
-    OP::COSPI,
-    OP::BESI0,
-    OP::BESI1,
-    OP::ERF,
-    OP::ERFC,
-    OP::ERFCI,
-    OP::ERFCX,
-    OP::ERFI,
-    OP::EXP,
-    OP::EXP10,
-    OP::EXP2,
-    OP::EXPM1,
-    OP::FABS,
-    OP::FDIM,
-    OP::FLOOR,
-    OP::FMA,
-    OP::FMAX,
-    OP::FMIN,
-    OP::FMOD,
-    OP::FREXP,
-    OP::HYPOT,
-    OP::ILOGB,
-    OP::ISFIN,
-    OP::ISINF,
-    OP::ISNAN,
-    OP::BESJ0,
-    OP::BESJ1,
-    OP::BESJN,
-    OP::LDEXP,
-    OP::LGAMMA,
-    OP::LLRINT,
-    OP::LLROUND,
-    OP::LOG,
-    OP::LOG10,
-    OP::LOG1P,
-    OP::LOG2,
-    OP::LOGB,
-    OP::LRINT,
-    OP::LROUND,
-    OP::MAX,
-    OP::MIN,
-    OP::MODF,
-    OP::NAN,
-    OP::NEARINT,
-    OP::NXTAFT,
-    OP::NORM,
-    OP::NORM3D,
-    OP::NORM4D,
-    OP::NORMCDF,
-    OP::NORMCDFINV,
-    OP::POW,
-    OP::RCBRT,
-    OP::REM,
-    OP::REMQUO,
-    OP::RHYPOT,
-    OP::RINT,
-    OP::RNORM,
-    OP::RNORM3D,
-    OP::RNORM4D,
-    OP::ROUND,
-    OP::RSQRT,
-    OP::SCALBLN,
-    OP::SCALBN,
-    OP::SGNBIT,
-    OP::SIN,
-    OP::SINH,
-    OP::SINPI,
-    OP::SQRT,
-    OP::TAN,
-    OP::TANH,
-    OP::TGAMMA,
-    OP::TRUNC,
-    OP::BESY0,
-    OP::BESY1,
-    OP::BESYN,
-];
