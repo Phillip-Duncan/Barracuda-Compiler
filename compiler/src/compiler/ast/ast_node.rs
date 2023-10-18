@@ -68,6 +68,20 @@ pub enum ASTNode {
         rhs: Box<ASTNode>
     },
 
+    /// Ternary operation is an expression operation with three arguments.
+    ///
+    /// # Syntax:
+    ///     <condition> ? <true_branch> : <false_branch>
+    ///
+    /// # Example:
+    ///     let x = boolean ? 1.0 : 2.0;
+    ///                     ^     ^     -> Ternary Operator
+    TERNARY_OP {
+        condition: Box<ASTNode>,
+        true_branch: Box<ASTNode>,
+        false_branch: Box<ASTNode>
+    },
+
     /// Array index allows a specific element to be accessed from an array.
     /// # Example:
     ///     let array : [4] = [5,8,11,14];
@@ -337,6 +351,11 @@ impl ASTNode {
             ASTNode::BINARY_OP { op: _, lhs, rhs } => {
                 output.push(lhs.as_mut());
                 output.push(rhs.as_mut());
+            }
+            ASTNode::TERNARY_OP { condition, true_branch, false_branch } => {
+                output.push(condition.as_mut());
+                output.push(true_branch.as_mut());
+                output.push(false_branch.as_mut());
             }
             ASTNode::ARRAY_INDEX { index: _, expression } => {
                 output.push(expression.as_mut());

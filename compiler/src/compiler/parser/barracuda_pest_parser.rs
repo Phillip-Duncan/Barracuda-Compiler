@@ -63,6 +63,7 @@ impl PestBarracudaParser {
             Rule::term |
             Rule::factor |
             Rule::exponent =>           { Self::parse_pair_binary_expression(pair) },
+            Rule::ternary =>           { Self::parse_pair_ternary_expression(pair) },
             Rule::unary |
             Rule::pointer =>              { Self::parse_pair_unary_expression(pair) },
             Rule::index =>              { Self::parse_pair_array_index(pair) },
@@ -166,6 +167,19 @@ impl PestBarracudaParser {
         }
 
         return lhs
+    }
+
+    /// Parses a pest token pair into an AST ternary expression
+    fn parse_pair_ternary_expression(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let condition = Self::parse_pair_node(pair.next().unwrap());
+        let true_branch = Self::parse_pair_node(pair.next().unwrap());
+        let false_branch = Self::parse_pair_node(pair.next().unwrap());
+        return ASTNode::TERNARY_OP {
+            condition: Box::new(condition),
+            true_branch: Box::new(true_branch),
+            false_branch: Box::new(false_branch)
+        }
     }
 
     /// Parses a pest token pair into an AST unary expression

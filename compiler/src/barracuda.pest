@@ -62,16 +62,17 @@ greater_equal = {">="}
 less_equal = {"<="}
 
 // Operator precedence expression flow
-expression = _{ equality }
-equality   = { comparison ~ ( equality_operator ~ comparison )* }
-comparison = { term ~ ( comparison_operator ~ term )* }
-term       = { factor ~ ( term_operator ~ factor )* }
-factor     = { exponent ~ ( factor_operator ~ exponent )* }
-exponent   = { unary ~ (exponent_operator ~ unary)* }
-unary      = { unary_operator ~ unary | index }
-index      = { pointer ~ ( "[" ~ expression ~ "]" )* }
-pointer    = { pointer_operator ~ pointer | primary }
-primary    = _{ literal | array | func_call | reference | identifier | "("~expression~")" }
+expression  = _{ ternary | equality }
+ternary     = { equality ~ "?" ~ equality ~ ":" ~ equality }
+equality    = { comparison ~ ( equality_operator ~ comparison )* }
+comparison  = { term ~ ( comparison_operator ~ term )* }
+term        = { factor ~ ( term_operator ~ factor )* }
+factor      = { exponent ~ ( factor_operator ~ exponent )* }
+exponent    = { unary ~ (exponent_operator ~ unary)* }
+unary       = { unary_operator ~ unary | index }
+index       = { pointer ~ ( "[" ~ expression ~ "]" )* }
+pointer     = { pointer_operator ~ pointer | primary }
+primary     = _{ literal | array | func_call | reference | identifier | "("~expression~")" }
 
 // Statements that can be in global scope (or function scope)
 global_statement = _{func_statement | if_statement | for_statement | while_statement

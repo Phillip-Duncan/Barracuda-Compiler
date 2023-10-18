@@ -5,6 +5,8 @@ code or the doc website should be used for further details.
 This repo is a rust workspace of two rust crates. These crates are barracuda common and barracuda compiler. 
 The existence of the common crate is an artifact of when a third vm crate existed.
 
+Also see compiler_flow.png for a visual aid.
+
 + **[Barracuda Common](#barracuda-common)** 
 + **[Barracuda Compiler](#barracuda-compiler)**
 
@@ -54,6 +56,10 @@ This module defines the implementations for the `AstParser` trait defined in `mo
 implementation exists which is `barracuda_pest_parser.rs`. This implementation as the name states relies on the
 pest library to tokenize the input source code. The definitions for this tokenization can be found in the `barracuda.pest` 
 file at the root of this crate. 
+
+### compiler/semantic_analyser
+This module defines the implementations for the `SemanticAnalyser` trait defined in `mod.rs`. Presently only one
+implementation exists which is `barracuda_pest_semantic_analyser.rs`. The semantic analyser adds types to the Abstract Syntax Tree created in the parser.
 
 ### compiler/backend
 This module defines the translation from an abstract syntax tree to executable `ProgramCode` through the trait
