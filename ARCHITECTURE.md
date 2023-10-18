@@ -5,6 +5,8 @@ code or the doc website should be used for further details.
 This repo is a rust workspace of two rust crates. These crates are barracuda common and barracuda compiler. 
 The existence of the common crate is an artifact of when a third vm crate existed.
 
+Also see compiler_flow.png for a visual aid.
+
 + **[Barracuda Common](#barracuda-common)** 
 + **[Barracuda Compiler](#barracuda-compiler)**
 
