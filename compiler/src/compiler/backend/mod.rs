@@ -15,6 +15,8 @@ pub trait BackEndGenerator {
 
     /// Generate program code from an abstract syntax tree
     fn generate(self, tree: AbstractSyntaxTree) -> ProgramCode;
+
+    fn add_environment_variable(&mut self);
 }
 
 // Concrete Definition Export

@@ -88,4 +88,12 @@ pub static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
     OP::BESY0,
     OP::BESY1,
     OP::BESYN,
+    OP::LDTID,
+    OP::LDNT,
+    OP::LONGLONGTODOUBLE,
+    OP::DOUBLETOLONGLONG,
+    OP::MALLOC,
+    OP::FREE,
+    OP::MEMCPY,
+    OP::MEMSET,
 ];

@@ -100,6 +100,10 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
         return code;
     }
+
+    fn add_environment_variable(&mut self) {
+        self.builder.add_environment_variable();
+    }
 }
 
 /// # Description
@@ -353,7 +357,7 @@ impl BarracudaByteCodeGenerator {
     fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
         self.generate_subarray(items, address, 0);
-        self.builder.emit_array(address);
+        self.builder.emit_array(address, items.len());
     }
 
     fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
@@ -362,12 +366,12 @@ impl BarracudaByteCodeGenerator {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
                     _ => position = {
-                        self.builder.emit_array(address);
+                        self.builder.emit_array(address, 1);
                         self.generate_array_item(&item, position)
                     },
                 }
                 _ => position = {
-                    self.builder.emit_array(address);
+                    self.builder.emit_array(address, 1);
                     self.generate_array_item(&item, position)
                 },
             }
@@ -473,7 +477,7 @@ impl BarracudaByteCodeGenerator {
         match datatype {
             DataType::ARRAY(_, _) => {
                 let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
-                self.builder.emit_array(address);
+                self.builder.emit_array(address, DataType::get_array_length(&datatype));
             },
             _ => {
                 self.builder.emit_value(0.0);
@@ -482,7 +486,7 @@ impl BarracudaByteCodeGenerator {
     }
 
     fn generate_extern_statement(&mut self, identifier: &Box<ASTNode>) {
-        self.builder.add_environment_variable();
+        //self.builder.add_environment_variable();  Phill: This was bad, was only adding env_vars per extern statement and not based on total number available. This caused index issues.
         let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name.clone())
     }
@@ -503,7 +507,7 @@ impl BarracudaByteCodeGenerator {
                         _ => self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level)
                     }
                 }
-                SymbolType::EnvironmentVariable(global_id, _, qualifier) => {
+                SymbolType::EnvironmentVariable(global_id, datatype, qualifier) => {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
                     self.generate_node(expression);
                     if qualifier.contains("*") {
@@ -517,6 +521,24 @@ impl BarracudaByteCodeGenerator {
                             else {
                                 self.builder.emit_op(OP::PTR_DEREF);
                             }
+                        }
+                        for index in array_index {
+                            self.generate_node(index);
+                            self.builder.emit_op(OP::LDNT);
+                            self.builder.emit_op(OP::LONGLONGTODOUBLE);
+                            self.builder.emit_op(OP::MUL);
+
+                            // Need to multiply by N (element bit-width of pointer)
+                            match datatype { 
+                                DataType::CONST(primitive) | DataType::MUTABLE(primitive) | DataType::ENVIRONMENTVARIABLE(primitive) => {
+                                    self.builder.emit_value(primitive.size() as f64);
+                                    
+                                }
+                                _ => panic!("Datatype {:?} should be a primitive!", datatype)
+                            }
+                            self.builder.emit_op(OP::MUL);
+                            self.builder.emit_op(OP::DOUBLETOLONGLONG);
+                            self.builder.emit_op(OP::ADD_PTR);
                         }
                         self.builder.emit_op(OP::SWAP);
                         self.builder.emit_op(OP::WRITE);

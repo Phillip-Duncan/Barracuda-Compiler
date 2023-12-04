@@ -68,6 +68,13 @@ impl<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> Compiler<P, A, G> {
         return self
     }
 
+    pub fn set_environment_variable_count(mut self, env_var_count: usize) -> Self {
+        for _ in 0..env_var_count {
+            self.generator.add_environment_variable();
+        }
+        return self
+    }
+
     /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
         let ast = self.parser.parse(source);

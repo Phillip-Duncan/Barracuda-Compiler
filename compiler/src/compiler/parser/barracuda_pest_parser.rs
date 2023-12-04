@@ -69,6 +69,7 @@ impl PestBarracudaParser {
             Rule::index =>              { Self::parse_pair_array_index(pair) },
             Rule::global_statement_list |
             Rule::statement_list =>     { Self::parse_pair_statement_list(pair) },
+            Rule::full_qualified_construct_statement => { Self::parse_pair_full_qualified_construct_statement(pair) },
             Rule::full_construct_statement => { Self::parse_pair_full_construct_statement(pair) },
             Rule::inferred_construct_statement => { Self::parse_pair_inferred_construct_statement(pair) },
             Rule::empty_construct_statement => { Self::parse_pair_empty_construct_statement(pair) },
@@ -222,6 +223,21 @@ impl PestBarracudaParser {
         ASTNode::STATEMENT_LIST(
             pair.into_inner().map(Self::parse_pair_node).collect()
         )
+    }
+
+    /// Parses a pest token pair into an AST construct statement, with datatype
+    fn parse_pair_full_qualified_construct_statement(pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let qualifier = Self::parse_pair_node(pair.next().unwrap());
+        let identifier = Self::parse_pair_node(pair.next().unwrap());
+        let datatype = Self::parse_pair_node(pair.next().unwrap());
+        let expression = Self::parse_pair_node(pair.next().unwrap());
+
+        ASTNode::CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(Some(datatype)),
+            expression: Box::new(expression)
+        }
     }
 
     /// Parses a pest token pair into an AST construct statement, with datatype
