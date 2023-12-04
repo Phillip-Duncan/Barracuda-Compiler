@@ -41,7 +41,10 @@ pub struct CompilerResponse {
     /// Recommended stack size is an auto generated estimate for the stack size required
     /// to execute the program code. This will give the exact min required size if analysis
     /// goes okay otherwise it will use a default large size.
-    recommended_stack_size: usize
+    recommended_stack_size: usize,
+
+    /// user space size, used for memory allocations.
+    user_space_size: usize
 }
 
 /// EnvironmentVariable describes an environment variable the program will have access to in the
@@ -101,7 +104,9 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let env_vars = generate_environment_context(&request);
 
     let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
-        .set_environment_variables(env_vars);
+        .set_environment_variables(env_vars).set_environment_variable_count(request.env_vars.len());
+
+    //compiler.set_environment_variable_count(request.env_vars.len());
     let program_code = compiler.compile_str(request.code_text.to_str());
     let compiled_text = program_code.to_string();
 
@@ -118,7 +123,8 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
         instructions_list: repr_c::Vec::try_from(instructions).unwrap(),
         operations_list: repr_c::Vec::try_from(operations).unwrap(),
         values_list: repr_c::Vec::try_from(values).unwrap(),
-        recommended_stack_size: program_code.max_stack_size
+        recommended_stack_size: program_code.max_stack_size,
+        user_space_size: program_code.user_space_size
     }
 }
 
@@ -374,7 +380,7 @@ mod tests {
         COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
         ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
         NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
-        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN,LDNT];
         for function in &functions {
             let input = vec!["3"; function.consume() as usize].join(",");
             let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);
@@ -1099,7 +1105,7 @@ mod tests {
         COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
         ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
         NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
-        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN,LDNT];
         for function in &functions {
             let input = vec!["3"; function.consume() as usize].join(",");
             let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);

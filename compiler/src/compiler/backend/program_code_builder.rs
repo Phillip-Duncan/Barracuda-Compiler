@@ -26,7 +26,7 @@ enum BarracudaIR {
 
     // Arrays are stored in a different memory section to normal variables. 
     // Generating the exact address of each array is only possible once the whole program is generated.
-    Array{address: usize},
+    Array{address: usize, size: usize},
 
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
@@ -107,8 +107,8 @@ impl BarracudaProgramCodeBuilder {
     /// Emits an array.
     /// Takes the preliminary address of the array.
     /// The exact memory address needs to be calculated later.
-    pub fn emit_array(&mut self, address: usize) {
-        self.program_out.push(BarracudaIR::Array{address})
+    pub fn emit_array(&mut self, address: usize, size: usize) {
+        self.program_out.push(BarracudaIR::Array{address, size})
     }
 
     /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
@@ -186,8 +186,12 @@ impl BarracudaProgramCodeBuilder {
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
                 }
-                BarracudaIR::Array{address, ..} => {
+                BarracudaIR::Array{address, size, ..} => {
                     output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
+                    // Phill: Make sure to increment the user space size for each array
+                    // TODO: Implement memory solution for differing CONST/MUTABLE arrays, possibly have two variables (user_space_size_const, user_space_size_mutable).
+                    // Only the implementation code will know how to alloc the actual memory, so we need to provide the sizes of both const and mutable memory allocations.
+                    output_program.user_space_size += size;
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {
