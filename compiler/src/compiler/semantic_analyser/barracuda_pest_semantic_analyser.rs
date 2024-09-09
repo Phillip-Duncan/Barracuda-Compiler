@@ -271,19 +271,40 @@ impl BarracudaSemanticAnalyser {
         let index = Box::new(self.analyse_node(index));
         let expression_datatype = expression.get_type();
         let index_datatype = index.get_type();
-        // check index is a literal and expression is an array. Return array innards
-        if let DataType::ARRAY(inner_type, _size) = expression_datatype {
-            if let DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_)  = index_datatype {
-                ASTNode::TYPED_NODE { 
-                    datatype: inner_type.as_ref().clone(), 
-                    inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+        // check index is a literal and expression is an array/environmentvariable. Return array innards
+        match expression_datatype {
+            DataType::ARRAY(inner_type, _size) => {
+                match index_datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {
+                        ASTNode::TYPED_NODE { 
+                            datatype: inner_type.as_ref().clone(), 
+                            inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+                }
                 }
             } else {
                 panic!("Can only index arrays with literal values!")
+                        }
+            } else {
+                panic!("Can only index arrays with literal values!")
+                    }
+                    _ => panic!("Can only index arrays with literal values!")
+                }
             }
-        } else {
-            panic!("Can't index a non-array! (indexing {:?} with {:?})", expression_datatype, index_datatype)
+            DataType::ENVIRONMENTVARIABLE(inner_type) => {
+                match index_datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {
+                        ASTNode::TYPED_NODE { 
+                            datatype: Box::new(DataType::MUTABLE(inner_type)).as_ref().clone(), 
+                            inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+                        }
+                    }
+                    _ => panic!("Can only index arrays with literal values!")
+                }
+            }
+            _ => panic!("Can't index a non-array! (indexing {:?} with {:?})", expression_datatype, index_datatype)
+        
         }
+
     }
 
     fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
