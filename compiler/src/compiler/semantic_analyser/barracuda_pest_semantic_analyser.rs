@@ -279,13 +279,7 @@ impl BarracudaSemanticAnalyser {
                         ASTNode::TYPED_NODE { 
                             datatype: inner_type.as_ref().clone(), 
                             inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
-                }
-                }
-            } else {
-                panic!("Can only index arrays with literal values!")
                         }
-            } else {
-                panic!("Can only index arrays with literal values!")
                     }
                     _ => panic!("Can only index arrays with literal values!")
                 }
@@ -301,10 +295,8 @@ impl BarracudaSemanticAnalyser {
                     _ => panic!("Can only index arrays with literal values!")
                 }
             }
-            _ => panic!("Can't index a non-array! (indexing {:?} with {:?})", expression_datatype, index_datatype)
-        
+            _ => panic!("Can't index a non-array or non-environmentvariable! (indexing {:?} with {:?})", expression_datatype, index_datatype)
         }
-
     }
 
     fn analyse_construct_statement(&mut self, identifier: &Box<ASTNode>, datatype: &Box<Option<ASTNode>>, expression: &Box<ASTNode>) -> ASTNode {
