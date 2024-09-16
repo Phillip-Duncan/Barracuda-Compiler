@@ -141,7 +141,8 @@ impl BarracudaSemanticAnalyser {
         let datatype = match *literal {
             Literal::FLOAT(_) => DataType::CONST(PrimitiveDataType::F64),
             Literal::INTEGER(_) => DataType::CONST(PrimitiveDataType::I64),
-            Literal::BOOL(_) => DataType::CONST(PrimitiveDataType::Bool)
+            Literal::BOOL(_) => DataType::CONST(PrimitiveDataType::Bool),
+            Literal::PACKEDSTRING(_) => DataType::CONST(PrimitiveDataType::String),
         };
 
         ASTNode::TYPED_NODE { 

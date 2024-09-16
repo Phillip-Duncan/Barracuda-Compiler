@@ -2,6 +2,7 @@ mod ast;
 pub mod backend;
 pub mod parser;
 pub mod semantic_analyser;
+pub mod utils;
 use barracuda_common;
 
 use std::path::Path;
@@ -36,7 +37,8 @@ pub struct Compiler<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> {
     parser: P,
     semantic_analyser: A,
     generator: G,
-    env_vars: EnvironmentSymbolContext
+    env_vars: EnvironmentSymbolContext,
+    precision: usize
 }
 
 #[allow(dead_code)] // Many of the functions on compiler act as a library interface and are not used
@@ -49,17 +51,19 @@ impl<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> Compiler<P, A, G> {
             parser: P::default(),
             semantic_analyser: A::default(),
             generator: G::default(),
-            env_vars: EnvironmentSymbolContext::new()
+            env_vars: EnvironmentSymbolContext::new(),
+            precision: 32
         }
     }
 
     /// Create new compiler using a preconfigured parser and generator.
-    pub fn new(parser: P, semantic_analyser: A, generator: G, env_vars: EnvironmentSymbolContext) -> Self {
+    pub fn new(parser: P, semantic_analyser: A, generator: G, env_vars: EnvironmentSymbolContext, precision: usize) -> Self {
         Compiler {
             parser,
             semantic_analyser,
             generator,
-            env_vars
+            env_vars,
+            precision,
         }
     }
 
@@ -75,9 +79,15 @@ impl<P: AstParser, A: SemanticAnalyser, G: BackEndGenerator> Compiler<P, A, G> {
         return self
     }
 
+    pub fn set_precision(mut self, precision: usize) -> Self {
+        self.precision = precision;
+        self.generator.set_precision(precision);
+        return self
+    }
+
     /// Compiles a string representing an interpretable language by the parser into program code.
     pub fn compile_str(self, source: &str) -> ProgramCode {
-        let ast = self.parser.parse(source);
+        let ast = self.parser.parse(source, self.precision);
         let annotated_ast = self.semantic_analyser.analyse(ast, self.env_vars);
         let program_code = self.generator.generate(annotated_ast);
 

@@ -26,6 +26,10 @@ use crate::compiler::backend::analysis::stack_estimator::StackEstimator;
 use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
 use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
 
+use crate::compiler::PrimitiveDataType;
+use crate::compiler::utils::pack_string_to_f64_array;
+
+
 /// BarracudaByteCodeGenerator is a Backend for Barracuda
 /// It generates program code from an Abstract Syntax Tree
 ///
@@ -103,6 +107,10 @@ impl BackEndGenerator for BarracudaByteCodeGenerator {
 
     fn add_environment_variable(&mut self) {
         self.builder.add_environment_variable();
+    }
+
+    fn set_precision(&mut self, precision: usize) {
+        self.builder.set_precision(precision);
     }
 }
 
@@ -349,6 +357,7 @@ impl BarracudaByteCodeGenerator {
             Literal::FLOAT(value) => { value }
             Literal::INTEGER(value) => { value as f64 }
             Literal::BOOL(value) => { value as i64 as f64 }
+            Literal::PACKEDSTRING(value) => { value }
         };
 
         self.builder.emit_value(literal_value);
@@ -638,11 +647,62 @@ impl BarracudaByteCodeGenerator {
     fn generate_print_statement(&mut self, expression: &Box<ASTNode>) {
         self.builder.comment(format!("PRINT"));
         self.generate_node(expression);
+
+        match expression.as_ref() {
+            ASTNode::TYPED_NODE { datatype, .. } => {
+                match datatype {
+                    DataType::ARRAY(sub_datatype, size) => {
+                        match **sub_datatype {
+                            DataType::CONST(primitive) | DataType::MUTABLE(primitive) => {
+                                match primitive {
+                                    PrimitiveDataType::F8 | PrimitiveDataType::F16 | PrimitiveDataType::F32 | PrimitiveDataType::F64 | PrimitiveDataType::F128 => {
+                                        self.builder.emit_op(OP::PRINTFF);
+                                    }
+                                    PrimitiveDataType::String => {
+                                        // Iterate over array and print each element
+                                        for i in 0..*size {
+                                            self.builder.emit_op(OP::DUP); // Duplicate the position of start of the array.
+                                            self.builder.emit_value(f64::from_be_bytes(i.to_be_bytes())); // Load the index
+                                            self.builder.emit_op(OP::ADD_PTR); // Add the index to the address
+                                            self.builder.emit_op(OP::LDNXPTR); // Load the address of the element
+                                            self.builder.emit_op(OP::READ); // Read the value at the address
+                                            self.builder.emit_op(OP::PRINTC); // Print the value
+                                        }
+                                    }
+                                    _ => {
+                                        self.builder.emit_op(OP::PRINTFF);
+                                    }
+                                }
+                            }
+                            _ => {
+                                panic!("Cannot print array of type {:?}", sub_datatype);
+                            }
+
+                        }
+                    },
+                    _ => {
+                        self.builder.emit_op(OP::PRINTFF);
+                    }
+                }
+            }
+            _ => {
+                self.builder.emit_op(OP::PRINTFF);
+            }
+        }
+
+        let new_line = pack_string_to_f64_array("\n", self.builder.get_precision())[0];
+        self.builder.emit_value(new_line);
+        self.builder.emit_op(OP::PRINTC);
+
+        /*
+        
+        
         self.builder.emit_op(OP::PRINTFF);
 
         // New Line character
         self.builder.emit_value(10.0);
         self.builder.emit_op(OP::PRINTC);
+        */
     }
 
     fn generate_return_statement(&mut self, expression: &Box<ASTNode>) {

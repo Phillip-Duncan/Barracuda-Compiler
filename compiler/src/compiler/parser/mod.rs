@@ -9,7 +9,7 @@ pub trait AstParser {
     fn default() -> Self;
 
     /// Parse a source string into an Abstract Syntax Tree
-    fn parse(self, source: &str) -> ASTNode;
+    fn parse(self, source: &str, precision: usize) -> ASTNode;
 }
 
 // Concrete Definition Export

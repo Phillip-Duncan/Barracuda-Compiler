@@ -9,6 +9,7 @@ extern crate barracuda_common;
 use safer_ffi::prelude::*;
 
 use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType};
+use crate::compiler::utils::pack_string_to_f64_array;
 
 // Internal Modules
 mod compiler;
@@ -44,7 +45,7 @@ pub struct CompilerResponse {
     recommended_stack_size: usize,
 
     /// user space size, used for memory allocations.
-    user_space_size: usize
+    user_space_size: usize,
 }
 
 /// EnvironmentVariable describes an environment variable the program will have access to in the
@@ -76,7 +77,10 @@ pub struct CompilerRequest {
     /// Environment variables are used to share data between the host environment and user code
     /// they are mutable and defined by their name for use in barracuda code and their offset
     /// for the memory location in the host environment user space.
-    env_vars: repr_c::Vec<EnvironmentVariable>
+    env_vars: repr_c::Vec<EnvironmentVariable>,
+
+    /// Numerical precision is floating point bit-precision to use for the program. (default: 32)
+    precision: usize,
 }
 
 // Private
@@ -104,7 +108,8 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let env_vars = generate_environment_context(&request);
 
     let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
-        .set_environment_variables(env_vars).set_environment_variable_count(request.env_vars.len());
+        .set_environment_variables(env_vars).set_environment_variable_count(request.env_vars.len())
+        .set_precision(request.precision);
 
     //compiler.set_environment_variable_count(request.env_vars.len());
     let program_code = compiler.compile_str(request.code_text.to_str());
@@ -635,23 +640,25 @@ mod tests {
     // Tests that if and else work
     #[test]
     fn if_and_else() {
+        let new_line = pack_string_to_f64_array("\n", 32)[0];
+
         let stack = compile_and_merge("if false {print 3;}");
         assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), 
-            Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+            Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
 
         let stack = compile_and_merge("if false {print 3;} else {print 4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-        Val(ptr(15)), Instr(GOTO), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)),
+        Val(ptr(15)), Instr(GOTO), Val(4.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
 
         let stack = compile_and_merge("if false {print 3;} else if false {print 4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)),
             Val(ptr(18)), Instr(GOTO), Val(0.0), Val(ptr(18)), Instr(GOTO_IF), 
-            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+            Val(4.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
 
         let stack = compile_and_merge("if false {print 3;} else if false {print 4;} else {print 5;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-            Val(ptr(24)), Instr(GOTO), Val(0.0), Val(ptr(20)), Instr(GOTO_IF), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-            Val(ptr(24)), Instr(GOTO), Val(5.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)),
+            Val(ptr(24)), Instr(GOTO), Val(0.0), Val(ptr(20)), Instr(GOTO_IF), Val(4.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)),
+            Val(ptr(24)), Instr(GOTO), Val(5.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
     }
 
     // Generates a variable call.
@@ -729,8 +736,9 @@ mod tests {
     // Tests print statement.
     #[test]
     fn print() {
+        let new_line = pack_string_to_f64_array("\n", 32)[0];
         let stack = compile_and_merge("print 3;");
-        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
     }
 
     // Tests while loop.
@@ -738,9 +746,11 @@ mod tests {
     fn while_loop() {
         let stack = compile_and_merge(
             "while 3 {print 4;}");
+
+        let new_line = pack_string_to_f64_array("\n", 32)[0];
         assert_eq!(vec![
             Val(3.0), Val(ptr(11)), Instr(GOTO_IF), // loop exit condition
-            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // loop body
+            Val(4.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)), // loop body
             Val(ptr(2)), Instr(GOTO) // loop restart
         ], stack);
     }
@@ -748,11 +758,12 @@ mod tests {
     // Tests for loop.
     #[test]
     fn for_loop() {
+        let new_line = pack_string_to_f64_array("\n", 32)[0];
         let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print 7;}");
         assert_eq!(vec![
             Val(4.0), // construction 
             Val(5.0), Val(ptr(18)), Instr(GOTO_IF), // loop exit condition 
-            Val(7.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // body
+            Val(7.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)), // body
             Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
             Val(ptr(3)), Instr(GOTO), // restart loop 
             Op(FIXED(DROP)) // drop loop variable
@@ -1071,7 +1082,7 @@ mod tests {
             "i32",
             "i16",
             "i8",
-            "bool",
+            "bool"
         ];
         for datatype in datatypes {
             compile_and_assert_equal(&format!("let a = 0;"), &format!("let a : {} = 0;", datatype));
@@ -1223,7 +1234,7 @@ mod tests {
     }
 
     #[test]
-    fn array_type() {
+    fn array_types() {
         compile_and_assert_equal("let a = [1.0, 2.0];", "let a: [f64; 2] = [1.0, 2.0];");
     }
 
@@ -1456,4 +1467,22 @@ mod tests {
     fn nonexistent_function() {
         compile_and_merge("testfunc();");
     }
+
+    #[test]
+    fn string_literal() {
+        let stack = compile_and_merge(r#"let a = "hello world";"#);
+        let packed_string = pack_string_to_f64_array("hello world", 32);
+        assert_eq!(vec![Val(packed_string[0])], stack[4..5]);
+        assert_eq!(vec![Val(packed_string[1])], stack[10..11]);
+    }
+
+    #[test]
+    fn print_string() {
+        let stack = compile_and_merge(r#"let a = "hello world"; print a;"#);
+        let packed_string = pack_string_to_f64_array("hello world", 32);
+        assert_eq!(vec![Val(packed_string[0])], stack[4..5]);
+        assert_eq!(vec![Val(packed_string[1])], stack[10..11]);
+    }
+
+
 }
