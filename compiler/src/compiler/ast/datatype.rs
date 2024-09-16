@@ -13,7 +13,8 @@ pub enum PrimitiveDataType {
     I32,
     I16,
     I8,
-    Bool
+    Bool,
+    String
 }
 
 impl PrimitiveDataType {
@@ -31,6 +32,7 @@ impl PrimitiveDataType {
             "i16" => {Self::I16},
             "i8" =>  {Self::I8},
             "bool" => {Self::Bool}
+            "string" => {Self::String}
             _ => {return None}
         })
     }
@@ -46,7 +48,8 @@ impl PrimitiveDataType {
             PrimitiveDataType::I32 => 4,
             PrimitiveDataType::I16 => 2,
             PrimitiveDataType::I8 => 1,
-            PrimitiveDataType::Bool => 1
+            PrimitiveDataType::Bool => 1,
+            PrimitiveDataType::String => 8
         }
     }
 }

@@ -426,7 +426,7 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=0)]
     #[assoc(produce=1)]
     LDTID      = 0x12FD ,
-    #[assoc(consume=0)]
+    #[assoc(consume=1)]
     #[assoc(produce=1)]
     LDNXPTR    = 0x12FE ,
 

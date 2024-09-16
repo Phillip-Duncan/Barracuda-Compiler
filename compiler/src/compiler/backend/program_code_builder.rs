@@ -40,7 +40,8 @@ enum BarracudaIR {
 pub struct BarracudaProgramCodeBuilder {
     program_out: Vec<BarracudaIR>,
     label_count: u64,
-    env_var_count: usize
+    env_var_count: usize,
+    precision: usize
 }
 
 impl BarracudaProgramCodeBuilder {
@@ -48,7 +49,8 @@ impl BarracudaProgramCodeBuilder {
         Self {
             program_out: vec![],
             label_count: 0,
-            env_var_count: 0
+            env_var_count: 0,
+            precision: 32
         }
     }
 
@@ -114,6 +116,14 @@ impl BarracudaProgramCodeBuilder {
     /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
     pub fn add_environment_variable(&mut self) {
         self.env_var_count += 1;
+    }
+
+    pub fn set_precision(&mut self, precision: usize) {
+        self.precision = precision;
+    }
+
+    pub fn get_precision(&self) -> usize {
+        self.precision
     }
 
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.

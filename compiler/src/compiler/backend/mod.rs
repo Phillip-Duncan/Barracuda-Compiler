@@ -17,6 +17,8 @@ pub trait BackEndGenerator {
     fn generate(self, tree: AbstractSyntaxTree) -> ProgramCode;
 
     fn add_environment_variable(&mut self);
+
+    fn set_precision(&mut self, precision: usize);
 }
 
 // Concrete Definition Export
