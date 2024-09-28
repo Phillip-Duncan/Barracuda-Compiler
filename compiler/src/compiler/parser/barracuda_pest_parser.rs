@@ -113,7 +113,7 @@ impl PestBarracudaParser {
     fn parse_pair_string(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let string = pair.as_str();
         let string = &string[1..string.len() - 1];
-        let string = pack_string_to_f64_array(string, self.precision);
+        let string = pack_string_to_f64_array(string, 64);
         ASTNode::ARRAY(
             string
                 .into_iter()
@@ -133,7 +133,7 @@ impl PestBarracudaParser {
 
     /// Parses a pest token pair into an AST reference
     fn parse_pair_reference(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
-        ASTNode::REFERENECE(String::from(&pair.as_str()[1..]))
+        ASTNode::REFERENCE(String::from(&pair.as_str()[1..]))
     }
 
     fn parse_pair_primitive_datatype(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {

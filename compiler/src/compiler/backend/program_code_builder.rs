@@ -28,6 +28,9 @@ enum BarracudaIR {
     // Generating the exact address of each array is only possible once the whole program is generated.
     Array{address: usize, size: usize},
 
+    /// Userspace is a value that is stored in the user space of the program.
+    Userspace(f64),
+
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
     Comment(String)
@@ -67,6 +70,10 @@ impl BarracudaProgramCodeBuilder {
     /// Emit operation pushes an op to be loaded as the next instruction
     pub fn emit_op(&mut self, operation: FIXED_OP) {
         self.program_out.push(BarracudaIR::Operation(OP::FIXED(operation)));
+    }
+
+    pub fn emit_userspace(&mut self, value: f64) {
+        self.program_out.push(BarracudaIR::Userspace(value));
     }
 
     /// Comment decorates the next instruction with a string
@@ -164,6 +171,7 @@ impl BarracudaProgramCodeBuilder {
                     locations[*id as usize] = current_line;
                 }
                 BarracudaIR::Comment(_) => {}
+                BarracudaIR::Userspace(_) => {} // Userspace should NOT take up instruction slots.
 
                 // Everything else should take up a instruction slot
                 _ => {
@@ -202,6 +210,9 @@ impl BarracudaProgramCodeBuilder {
                     // TODO: Implement memory solution for differing CONST/MUTABLE arrays, possibly have two variables (user_space_size_const, user_space_size_mutable).
                     // Only the implementation code will know how to alloc the actual memory, so we need to provide the sizes of both const and mutable memory allocations.
                     output_program.user_space_size += size;
+                }
+                BarracudaIR::Userspace(value) => {
+                    output_program.push_userspace(value.clone());
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {

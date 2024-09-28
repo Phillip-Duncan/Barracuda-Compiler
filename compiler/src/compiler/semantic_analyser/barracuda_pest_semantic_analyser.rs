@@ -33,7 +33,7 @@ impl BarracudaSemanticAnalyser {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.analyse_identifier(identifier_name) 
             }
-            ASTNode::REFERENECE(identifier_name) => {
+            ASTNode::REFERENCE(identifier_name) => {
                 self.analyse_reference(identifier_name)
             }
             ASTNode::DATATYPE(_) => {
@@ -133,7 +133,7 @@ impl BarracudaSemanticAnalyser {
         let datatype = self.type_from_identifier(name);
         ASTNode::TYPED_NODE { 
             datatype: DataType::POINTER(Box::new(datatype)), 
-            inner: Box::new(ASTNode::REFERENECE(name.clone())) 
+            inner: Box::new(ASTNode::REFERENCE(name.clone())) 
         }
     }
 

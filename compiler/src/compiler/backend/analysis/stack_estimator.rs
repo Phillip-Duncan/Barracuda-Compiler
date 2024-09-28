@@ -35,11 +35,9 @@ impl StackEstimator {
             self.max_depth_reached = true;
             return stack_size;
         }
-
         // Follow Execution
         while let Some(instruction) = code.instructions.get(pc) {
             max_stack_size = max(max_stack_size, stack_size);
-
             match instruction {
                 BarracudaInstructions::OP => {
                     if let Some(op) = code.operations.get(pc) {
@@ -61,7 +59,7 @@ impl StackEstimator {
                     // If no last value is set then the function must be returning from a call
                     // as this is the only context for this action at present
                     if let Some(address) = last_value {
-                        pc = usize::from_ne_bytes((*address).to_ne_bytes());
+                        pc = usize::from_be_bytes((*address).to_be_bytes());
                     } else {
                         break;
                     }
@@ -71,8 +69,7 @@ impl StackEstimator {
                     stack_size -= 2;
 
                     if let Some(address) = last_value {
-                        let false_pc = usize::from_ne_bytes((*address).to_ne_bytes());
-
+                        let false_pc = usize::from_be_bytes((*address).to_be_bytes());
                         // Follow true path if not matching current execution path
                         // as this implies a loop iteration with no expected change.
                         if stack_size != initial_stack_size && pc + 1 != initial_pc {

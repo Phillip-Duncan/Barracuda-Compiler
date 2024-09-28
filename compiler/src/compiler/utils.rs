@@ -1,6 +1,70 @@
 pub fn pack_string_to_f64_array(input: &str, precision: usize) -> Vec<f64> {
     let mut result = Vec::new();
-    let bytes = input.as_bytes();
+    let mut processed_input = String::new();
+    
+    // Process escape sequences
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(next_c) = chars.peek() {
+                match next_c {
+                    'a' => {
+                        processed_input.push('\x07');
+                        chars.next(); // consume 'a'
+                    }
+                    'b' => {
+                        processed_input.push('\x08');
+                        chars.next(); // consume 'b'
+                    }
+                    'f' => {
+                        processed_input.push('\x0C');
+                        chars.next(); // consume 'f'
+                    }
+                    'n' => {
+                        processed_input.push('\n');
+                        chars.next(); // consume 'n'
+                    }
+                    'r' => {
+                        processed_input.push('\r');
+                        chars.next(); // consume 'r'
+                    }
+                    't' => {
+                        processed_input.push('\t');
+                        chars.next(); // consume 't'
+                    }
+                    'v' => {
+                        processed_input.push('\x0B');
+                        chars.next(); // consume 'v'
+                    }
+                    '\\' => {
+                        processed_input.push('\\');
+                        chars.next(); // consume '\\'
+                    }
+                    '\'' => {
+                        processed_input.push('\'');
+                        chars.next(); // consume '\''
+                    }
+                    '"' => {
+                        processed_input.push('"');
+                        chars.next(); // consume '"'
+                    }
+                    '?' => {
+                        processed_input.push('?');
+                        chars.next(); // consume '?'
+                    }
+                    _ => {
+                        processed_input.push(c);
+                    }
+                }
+            } else {
+                processed_input.push(c);
+            }
+        } else {
+            processed_input.push(c);
+        }
+    }
+
+    let bytes = processed_input.as_bytes();
     
     let chunk_size = match precision {
         32 => 4,  // 4 bytes for 32-bit precision
@@ -26,4 +90,3 @@ pub fn pack_string_to_f64_array(input: &str, precision: usize) -> Vec<f64> {
 
     result
 }
-
