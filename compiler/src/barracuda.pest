@@ -112,7 +112,7 @@ array_datatype = {"[" ~ datatype ~ ";" ~ integer ~ "]"}
 string_datatype = {"string" | "str"}
 datatype = _{primitive_datatype | pointer_datatype | array_datatype}
 
-print_statement = {"print" ~ expression}
+print_statement = {"print" ~ "(" ~ expression ~ ")"}
 
 // Control Flow
 if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("else" ~ if_statement))?}

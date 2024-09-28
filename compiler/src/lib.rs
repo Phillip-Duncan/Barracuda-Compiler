@@ -46,6 +46,9 @@ pub struct CompilerResponse {
 
     /// user space size, used for memory allocations.
     user_space_size: usize,
+
+    /// User space is a vector of f64 values that are used to store user defined variables.
+    user_space: repr_c::Vec<f64>,
 }
 
 /// EnvironmentVariable describes an environment variable the program will have access to in the
@@ -123,13 +126,17 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let values: Vec<f64> = program_code.values.into_iter().rev()
                                     .map(|value| value as f64).collect();
 
+    let user_space: Vec<f64> = program_code.user_space.into_iter().rev()
+                                    .map(|value| value as f64).collect();
+
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
         instructions_list: repr_c::Vec::try_from(instructions).unwrap(),
         operations_list: repr_c::Vec::try_from(operations).unwrap(),
         values_list: repr_c::Vec::try_from(values).unwrap(),
         recommended_stack_size: program_code.max_stack_size,
-        user_space_size: program_code.user_space_size
+        user_space_size: program_code.user_space_size,
+        user_space: repr_c::Vec::try_from(user_space).unwrap()
     }
 }
 
@@ -178,7 +185,7 @@ mod tests {
     use MergedInstructions::*;
 
     fn ptr(int: usize) -> f64 {
-        f64::from_ne_bytes(int.to_ne_bytes())
+        f64::from_be_bytes(int.to_be_bytes())
     }
 
     // Compiles a program string and converts the result to a vector of merged instructions.
@@ -640,7 +647,7 @@ mod tests {
     // Tests that if and else work
     #[test]
     fn if_and_else() {
-        let new_line = pack_string_to_f64_array("\n", 32)[0];
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
 
         let stack = compile_and_merge("if false {print 3;}");
         assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), 
@@ -736,7 +743,7 @@ mod tests {
     // Tests print statement.
     #[test]
     fn print() {
-        let new_line = pack_string_to_f64_array("\n", 32)[0];
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
         let stack = compile_and_merge("print 3;");
         assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC))], stack);
     }
@@ -747,7 +754,7 @@ mod tests {
         let stack = compile_and_merge(
             "while 3 {print 4;}");
 
-        let new_line = pack_string_to_f64_array("\n", 32)[0];
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
         assert_eq!(vec![
             Val(3.0), Val(ptr(11)), Instr(GOTO_IF), // loop exit condition
             Val(4.0), Op(FIXED(PRINTFF)), Val(new_line), Op(FIXED(PRINTC)), // loop body
@@ -758,7 +765,7 @@ mod tests {
     // Tests for loop.
     #[test]
     fn for_loop() {
-        let new_line = pack_string_to_f64_array("\n", 32)[0];
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
         let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print 7;}");
         assert_eq!(vec![
             Val(4.0), // construction 
@@ -772,29 +779,47 @@ mod tests {
 
     // Tests reading an external variable
     #[test]
-    fn external_variable() {
+    fn external_f64_variable() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
     }
 
+    // Tests reading an external variable with different type (should be the same as above)
+    #[test]
+    fn external_i32_variable() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
+    }
+
     // Tests reading an external variable with a single pointer (*) qualifier
     #[test]
-    fn external_variable_with_qualifier() {
+    fn external_f64_variable_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_F64))], stack);
+    }
+
+    // Tests reading an external variable with a single pointer (*) qualifier and a different type
+    #[test]
+    fn external_i32_variable_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_I32))], stack);
     }
 
     // Tests reading an external variable with a double pointer (**) qualifier
     #[test]
-    fn external_variable_with_double_qualifier() {
+    fn external_f64_variable_with_double_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ_F64))], stack);
     }
 
     // Tests writing to an external variable
@@ -983,7 +1008,22 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
+    }
+
+    #[test]
+    fn array_and_loop(){
+        let stack = compile_and_merge("let a = [1,2,3]; for (let i = 0; i < 3; i = i + 1) {print a[i];}");
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
+
+        assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
+                        Val(3.0), Op(FIXED(LT)), Val(2.17e-322), Instr(GOTO_IF), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), 
+                        Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(STK_READ)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)),
+                        Op(FIXED(PRINTFF)), Val(1.6259745436952323e-260), Op(FIXED(PRINTC)), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)),
+                        Op(FIXED(ADD_PTR)), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(1.0),
+                        Op(FIXED(ADD)), Op(FIXED(STK_WRITE)), Val(2e-323), Instr(GOTO), Op(FIXED(DROP))], stack);
+
     }
 
     #[test]
@@ -993,7 +1033,7 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(2)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-        Val(1.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+        Val(1.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     #[test]
@@ -1003,7 +1043,7 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-        Val(3.0), Val(3.0), Op(FIXED(SUB)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+        Val(3.0), Val(3.0), Op(FIXED(SUB)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     #[test]
@@ -1014,7 +1054,7 @@ mod tests {
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
                         Val(0.0), Val(1.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), // Enter first level
-                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], // Enter second level
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], // Enter second level
             stack[old_stack.len()..stack.len()]);
     }
 
@@ -1031,7 +1071,7 @@ mod tests {
             Val(1.0), Val(8.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Val(0.0), Val(4.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Val(1.0), Val(2.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     // Tests for arrays
@@ -1068,6 +1108,14 @@ mod tests {
             Op(FIXED(DUP)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
     }
 
+    #[test]
+    fn assign_array_extern_value() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = [1]; b[0] = a;", env_vars);
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), 
+                        Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(WRITE))], stack);
+    }
     // Tests for the type system.
     #[test]
     fn literal_types() {
@@ -1471,7 +1519,7 @@ mod tests {
     #[test]
     fn string_literal() {
         let stack = compile_and_merge(r#"let a = "hello world";"#);
-        let packed_string = pack_string_to_f64_array("hello world", 32);
+        let packed_string = pack_string_to_f64_array("hello world", 64);
         assert_eq!(vec![Val(packed_string[0])], stack[4..5]);
         assert_eq!(vec![Val(packed_string[1])], stack[10..11]);
     }
@@ -1479,7 +1527,7 @@ mod tests {
     #[test]
     fn print_string() {
         let stack = compile_and_merge(r#"let a = "hello world"; print a;"#);
-        let packed_string = pack_string_to_f64_array("hello world", 32);
+        let packed_string = pack_string_to_f64_array("hello world", 64);
         assert_eq!(vec![Val(packed_string[0])], stack[4..5]);
         assert_eq!(vec![Val(packed_string[1])], stack[10..11]);
     }

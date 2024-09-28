@@ -22,7 +22,7 @@ pub enum ASTNode {
     ///     let hello = 4;
     ///     let hello_ref = &hello;
     ///                     ^^^^^^ -> Reference
-    REFERENECE(String),
+    REFERENCE(String),
 
     /// # Example:
     ///     let hello: i64 = 4;
@@ -337,7 +337,7 @@ impl ASTNode {
 
         match self {
             ASTNode::IDENTIFIER(_) => {}
-            ASTNode::REFERENECE(_) => {}
+            ASTNode::REFERENCE(_) => {}
             ASTNode::DATATYPE(_) => {}
             ASTNode::LITERAL(_) => {}
             ASTNode::ARRAY(items) => {
