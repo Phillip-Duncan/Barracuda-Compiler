@@ -1041,6 +1041,13 @@ impl BarracudaByteCodeGenerator {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::LITERAL(_) => continue,
+                    ASTNode::UNARY_OP { op, expression } => {
+                        if self.is_literal_expression(expression) {
+                            continue;
+                        } else {
+                            return false;
+                        }
+                    },
                     ASTNode::ARRAY(sub_items) => {
                         // Recursively check if inner arrays are static
                         if !self.is_static_array(sub_items) {
@@ -1061,6 +1068,13 @@ impl BarracudaByteCodeGenerator {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::LITERAL(literal) => values.push(self.extract_literal_value(literal)),
+                    ASTNode::UNARY_OP { op, expression } => {
+                        if let Some(value) = self.evaluate_unary_operation(op, expression) {
+                            values.push(value);
+                        } else {
+                            panic!("Non-literal value in static array!");
+                        }
+                    },
                     ASTNode::ARRAY(sub_items) => {
                         let mut sub_values = self.get_array_values(sub_items);
                         values.append(&mut sub_values);
@@ -1073,12 +1087,40 @@ impl BarracudaByteCodeGenerator {
         values
     }
     
+    
     fn extract_literal_value(&self, literal: &Literal) -> f64 {
         match *literal {
             Literal::FLOAT(value) => value,
             Literal::INTEGER(value) => value as f64,
             Literal::BOOL(value) => value as i64 as f64,
             Literal::PACKEDSTRING(value) => value,  // If you have packed strings as floats
+        }
+    }
+
+    fn is_literal_expression(&self, expression: &Box<ASTNode>) -> bool {
+        match expression.as_ref() {
+            ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
+                ASTNode::LITERAL(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn evaluate_unary_operation(&self, op: &UnaryOperation, expression: &Box<ASTNode>) -> Option<f64> {
+        if let ASTNode::TYPED_NODE { inner, .. } = expression.as_ref() {
+            if let ASTNode::LITERAL(literal) = inner.as_ref() {
+                let value = self.extract_literal_value(literal);
+                match op {
+                    UnaryOperation::NEGATE => Some(-value),
+                    UnaryOperation::NOT => Some((value == 0.0) as i64 as f64),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
     
