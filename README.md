@@ -1,10 +1,9 @@
 # Barracuda Compiler
-Welcome to the repo of the barracuda compiler. [Barracuda]() is a header only CUDA library for running concurrent bytecode 
-on GPU cores. This repo provides helpful tools in generating this bytecode from a natural high level language. This is
-accomplished by the compiler itself but is aided by the debugging tools offered in the CPU VM Emulator.
+Welcome to the repo of the Barracuda compiler. [Barracuda]() is a header only CUDA library for running concurrent bytecode 
+on GPU cores. This repo provides helpful tools in generating this bytecode from a natural high level language.
 
 ## Installation
-Installation requires having rust-stable installed at the time of writing 1.64.0. This will install the rust toolchain 
+Installation requires having rust-stable 1.64.0+ installed. This will install the rust toolchain 
 as well as the **cargo** package manager used to control dependencies, test, and documentation.
 
 + Generate all targets use: `cargo build`
