@@ -371,7 +371,7 @@ impl SymbolTable {
                     // In the current implementation all environment variables are doubles
                     SymbolType::EnvironmentVariable(
                             env_address.0,
-                            DataType::MUTABLE(env_address.1),
+                            DataType::ENVIRONMENTVARIABLE(env_address.1),
                             env_address.2
                         )
                     )

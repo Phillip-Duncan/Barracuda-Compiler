@@ -88,4 +88,17 @@ pub static BARRACUDA_BUILT_IN_FUNCTIONS: &[OP] = &[
     OP::BESY0,
     OP::BESY1,
     OP::BESYN,
+    OP::LDTID,
+    OP::LDNT,
+    OP::LONGLONGTODOUBLE,
+    OP::DOUBLETOLONGLONG,
+    OP::MALLOC,
+    OP::FREE,
+    OP::MEMCPY,
+    OP::MEMSET,
+    // These instructions could potentially be dangerous to be exposed to the user (could lead to deadlocks if used incorrectly [e.g., used inside an if statement where one thread doesn't reach the sync]),
+    // eventually we need the compiler to recognise when these are required and insert them automatically, but for now expose them to the user...
+    OP::SYNCWARP,
+    OP::SYNCBLOCK,
+    OP::SYNCGRID,
 ];

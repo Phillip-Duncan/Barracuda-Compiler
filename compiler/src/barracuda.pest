@@ -18,6 +18,8 @@ boolean = @ {
     "false" | "true"
 }
 
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
 identifier_char = _{
     ASCII_ALPHANUMERIC | "_"
 }
@@ -26,7 +28,7 @@ array = {"[" ~ (expression ~ ("," ~ expression)* )? ~ "]"}
 
 identifier = @{ (ASCII_ALPHA | "_") ~ identifier_char*}
 reference = @{ "&" ~ identifier }
-literal = _{decimal | integer | boolean}
+literal = _{decimal | integer | boolean | string}
 
 func_arg = {expression}
 func_call = {identifier ~ "(" ~ ")" |
@@ -89,11 +91,13 @@ statement = _{if_statement | for_statement | while_statement
 statement_list = {statement*}
 scope_block = {"{" ~  statement_list ~ "}"}
 
-construct_statement = _{ full_construct_statement | inferred_construct_statement | empty_construct_statement }
+construct_statement = _{ full_qualified_construct_statement | full_construct_statement | inferred_construct_statement | empty_construct_statement }
 
+full_qualified_construct_statement = { "let " ~ qualifier ~ identifier ~ ":" ~ datatype ~ "=" ~ expression }
 full_construct_statement = { "let " ~ identifier ~ ":" ~ datatype ~ "=" ~ expression }
 inferred_construct_statement = { "let " ~ identifier ~ "=" ~ expression }
 empty_construct_statement = { "let " ~ identifier ~ ":" ~ datatype }
+qualifier = _{"mut" | "const"}
 
 // Define environment variable
 external_statement = {"extern " ~ identifier}
@@ -105,9 +109,10 @@ assign_statement = {assign_pointers ~ identifier ~ ("[" ~ expression ~ "]")* ~ "
 primitive_datatype = {"f8" | "f16" | "f32" | "f64" | "f128" | "i8" | "i16" | "i32" | "i64" | "i128" | "bool" | "none"}
 pointer_datatype = {"*" ~ datatype}
 array_datatype = {"[" ~ datatype ~ ";" ~ integer ~ "]"}
+string_datatype = {"string" | "str"}
 datatype = _{primitive_datatype | pointer_datatype | array_datatype}
 
-print_statement = {"print" ~ expression}
+print_statement = {"print" ~ "(" ~ expression ~ ")"}
 
 // Control Flow
 if_statement = {"if" ~ expression ~ scope_block ~ ( ("else" ~ scope_block) | ("else" ~ if_statement))?}

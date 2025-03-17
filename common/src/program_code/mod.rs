@@ -54,6 +54,12 @@ pub struct ProgramCode {
     /// Estimate given for max stack size needed for execution of the program code
     pub max_stack_size: usize,
 
+    /// User space size is the amount of memory allocated for the user to use (arrays).
+    pub user_space_size: usize,
+
+    /// User space is the memory allocated for the user to use (arrays).
+    pub user_space: Vec<f64>,
+
     /// Render decorations is used when formatting to determine if to include decorations.
     render_decorations: bool,
 
@@ -71,6 +77,8 @@ impl ProgramCode {
             operations: vec![],
             instructions: vec![],
             max_stack_size: 0,
+            user_space_size: 0,
+            user_space: vec![],
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -83,6 +91,8 @@ impl ProgramCode {
             operations: Self::pad_list_to_size_of_instructions(BarracudaInstructions::OP, &instructions, &operations, BarracudaOperators::FIXED(FixedBarracudaOperators::NULL)),
             instructions,
             max_stack_size: 0,
+            user_space_size: 0,
+            user_space: vec![],
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -114,6 +124,11 @@ impl ProgramCode {
         self.values.push(0.0);
         self.operations.push(BarracudaOperators::FIXED(FixedBarracudaOperators::NULL));
         self.instructions.push(instruction);
+    }
+
+    /// Builder function adds user space to program code
+    pub fn push_userspace(&mut self, value: f64) {
+        self.user_space.push(value);
     }
 
     /// Builder function adds comment to program code decorations at current line

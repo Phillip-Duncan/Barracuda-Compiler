@@ -33,7 +33,7 @@ impl BarracudaSemanticAnalyser {
             ASTNode::IDENTIFIER(identifier_name) => {
                 self.analyse_identifier(identifier_name) 
             }
-            ASTNode::REFERENECE(identifier_name) => {
+            ASTNode::REFERENCE(identifier_name) => {
                 self.analyse_reference(identifier_name)
             }
             ASTNode::DATATYPE(_) => {
@@ -133,7 +133,7 @@ impl BarracudaSemanticAnalyser {
         let datatype = self.type_from_identifier(name);
         ASTNode::TYPED_NODE { 
             datatype: DataType::POINTER(Box::new(datatype)), 
-            inner: Box::new(ASTNode::REFERENECE(name.clone())) 
+            inner: Box::new(ASTNode::REFERENCE(name.clone())) 
         }
     }
 
@@ -141,7 +141,8 @@ impl BarracudaSemanticAnalyser {
         let datatype = match *literal {
             Literal::FLOAT(_) => DataType::CONST(PrimitiveDataType::F64),
             Literal::INTEGER(_) => DataType::CONST(PrimitiveDataType::I64),
-            Literal::BOOL(_) => DataType::CONST(PrimitiveDataType::Bool)
+            Literal::BOOL(_) => DataType::CONST(PrimitiveDataType::Bool),
+            Literal::PACKEDSTRING(_) => DataType::CONST(PrimitiveDataType::String),
         };
 
         ASTNode::TYPED_NODE { 
@@ -166,7 +167,12 @@ impl BarracudaSemanticAnalyser {
             }
         }
         ASTNode::TYPED_NODE { 
-            datatype: DataType::ARRAY(Box::new(datatype), items.len()), 
+            //datatype: DataType::ARRAY(Box::new(datatype), items.len()), 
+            datatype: match datatype {
+                // Phillip: For now make all arrays mutable. This will be changed later with type qualifiers.
+                DataType::CONST(inner_datatype) => DataType::ARRAY(Box::new(DataType::MUTABLE(inner_datatype)), items.len()),
+                _ => DataType::ARRAY(Box::new(datatype), items.len())
+            },
             inner: Box::new(ASTNode::ARRAY(typed_items))
         }
     }
@@ -177,7 +183,7 @@ impl BarracudaSemanticAnalyser {
         let datatype = match op {
             UnaryOperation::NOT | UnaryOperation::NEGATE => { 
                 match datatype {
-                    DataType::CONST(_) | DataType::MUTABLE(_) => datatype,
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => datatype,
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
                 }
             }
@@ -211,14 +217,14 @@ impl BarracudaSemanticAnalyser {
             BinaryOperation::ADD | BinaryOperation::SUB | BinaryOperation::DIV 
           | BinaryOperation::MUL | BinaryOperation::MOD | BinaryOperation::POW => { 
                 match datatype {
-                    DataType::CONST(_) | DataType::MUTABLE(_) => datatype,
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => datatype,
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
                 }
             }
             BinaryOperation::GREATER_THAN | BinaryOperation::LESS_THAN 
           | BinaryOperation::GREATER_EQUAL | BinaryOperation::LESS_EQUAL => { 
                 match datatype {
-                    DataType::CONST(_) | DataType::MUTABLE(_) => DataType::CONST(PrimitiveDataType::Bool),
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => DataType::CONST(PrimitiveDataType::Bool),
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
                 }
             }
@@ -266,18 +272,31 @@ impl BarracudaSemanticAnalyser {
         let index = Box::new(self.analyse_node(index));
         let expression_datatype = expression.get_type();
         let index_datatype = index.get_type();
-        // check index is a literal and expression is an array. Return array innards
-        if let DataType::ARRAY(inner_type, _size) = expression_datatype {
-            if let DataType::CONST(_) | DataType::MUTABLE(_)  = index_datatype {
-                ASTNode::TYPED_NODE { 
-                    datatype: inner_type.as_ref().clone(), 
-                    inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+        // check index is a literal and expression is an array/environmentvariable. Return array innards
+        match expression_datatype {
+            DataType::ARRAY(inner_type, _size) => {
+                match index_datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {
+                        ASTNode::TYPED_NODE { 
+                            datatype: inner_type.as_ref().clone(), 
+                            inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+                        }
+                    }
+                    _ => panic!("Can only index arrays with literal values!")
                 }
-            } else {
-                panic!("Can only index arrays with literal values!")
             }
-        } else {
-            panic!("Can't index a non-array! (indexing {:?} with {:?})", expression_datatype, index_datatype)
+            DataType::ENVIRONMENTVARIABLE(inner_type) => {
+                match index_datatype {
+                    DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {
+                        ASTNode::TYPED_NODE { 
+                            datatype: Box::new(DataType::MUTABLE(inner_type)).as_ref().clone(), 
+                            inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
+                        }
+                    }
+                    _ => panic!("Can only index arrays with literal values!")
+                }
+            }
+            _ => panic!("Can't index a non-array or non-environmentvariable! (indexing {:?} with {:?})", expression_datatype, index_datatype)
         }
     }
 
@@ -285,7 +304,14 @@ impl BarracudaSemanticAnalyser {
         let expression = Box::new(self.analyse_node(expression));
         let expression_datatype = expression.get_type();
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
-            self.mark_identifier(name, SymbolType::Variable(expression_datatype.clone()));
+            
+            // Phillip: For now make variables mutable by default. This will be changed later with type-qualifiers.
+            let variable_datatype = match expression_datatype {
+                DataType::CONST(primitive) => DataType::MUTABLE(primitive),
+                _ => expression_datatype.clone(),
+            };
+            self.mark_identifier(name, SymbolType::Variable(variable_datatype));            
+
             let identifier = Box::new(self.analyse_node(identifier));
             if let Some(datatype) = datatype.as_ref().clone() {
                 let datatype = match datatype {
@@ -325,7 +351,7 @@ impl BarracudaSemanticAnalyser {
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             match self.env_vars.get(name) {
                 Some((usize, datatype, string)) => {
-                    self.mark_identifier(name, SymbolType::EnvironmentVariable(usize.clone(), DataType::MUTABLE(datatype.clone()), string.clone()));
+                    self.mark_identifier(name, SymbolType::EnvironmentVariable(usize.clone(), DataType::ENVIRONMENTVARIABLE(datatype.clone()), string.clone()));
                     let identifier = Box::new(self.analyse_node(identifier));
                     ASTNode::EXTERN { identifier }
                 }
@@ -352,12 +378,13 @@ impl BarracudaSemanticAnalyser {
             let index = self.analyse_node(index);
             let index_datatype = index.get_type();
             match index_datatype {
-                DataType::CONST(_) | DataType::MUTABLE(_) => {}
+                DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {}
                 _ => panic!("Can only index arrays with literal values!")
             };
             new_index.push(index);
             identifier_datatype = match identifier_datatype {
                 DataType::ARRAY(datatype, _) => *datatype,
+                DataType::ENVIRONMENTVARIABLE(datatype) => DataType::ENVIRONMENTVARIABLE(datatype),
                 _ => panic!("Can't index a non-array!")
             };
         }
@@ -365,6 +392,11 @@ impl BarracudaSemanticAnalyser {
         let expression = self.analyse_node(expression);
         let expression_datatype = expression.get_type();
         let expression = Box::new(expression);
+
+        match identifier_datatype {
+            DataType::CONST(_) => panic!("Can't assign to a constant value! {:?}", identifier),
+            _ => {}
+        }
 
         if expression_datatype != identifier_datatype {
             panic!("Identifier and expression must be equal in an assignment statement! (Currently {:?} vs {:?})", identifier_datatype, expression_datatype)
@@ -395,7 +427,7 @@ impl BarracudaSemanticAnalyser {
         };
         let datatype = condition.get_type();
         match datatype {
-            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {},
             _ => panic!("Literal values must be used for if statement conditions!")
         }
 
@@ -407,7 +439,7 @@ impl BarracudaSemanticAnalyser {
         let body = Box::new(self.analyse_node(body));
         let datatype = condition.get_type();
         match datatype {
-            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {},
             _ => panic!("Literal values must be used for while statement conditions!")
         }
         ASTNode::WHILE_LOOP { condition, body }
@@ -420,7 +452,7 @@ impl BarracudaSemanticAnalyser {
         let body = Box::new(self.analyse_node(body));
         let datatype = condition.get_type();
         match datatype {
-            DataType::CONST(_) | DataType::MUTABLE(_) => {},
+            DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => {},
             _ => panic!("Literal values must be used for for statement conditions!")
         }
         ASTNode::FOR_LOOP { initialization, condition, advancement, body }
@@ -457,7 +489,12 @@ impl BarracudaSemanticAnalyser {
     ) -> (ASTNode, DataType) {
         self.symbol_tracker.enter_scope();
         for (identifier, datatype) in parameter_names.iter().zip(parameters.iter()) { 
-            self.mark_identifier(identifier, SymbolType::Parameter(datatype.clone()));
+            // Phillip: For now make variables mutable by default. This will be changed later with type-qualifiers.
+            let parameter_datatype = match datatype.clone() {
+                DataType::CONST(primitive) => DataType::MUTABLE(primitive),
+                _ => datatype.clone(),
+            };
+            self.mark_identifier(identifier, SymbolType::Variable(parameter_datatype));
         }
         let body = self.analyse_node(body);
         let real_return_type = self.symbol_tracker.get_return_type().clone();

@@ -1,7 +1,7 @@
 use super::ast_node::ASTNode;
 
 /// Primitive Data types supported by the AST Model
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimitiveDataType {
     F128,
     F64,
@@ -13,7 +13,8 @@ pub enum PrimitiveDataType {
     I32,
     I16,
     I8,
-    Bool
+    Bool,
+    String
 }
 
 impl PrimitiveDataType {
@@ -31,8 +32,25 @@ impl PrimitiveDataType {
             "i16" => {Self::I16},
             "i8" =>  {Self::I8},
             "bool" => {Self::Bool}
+            "string" => {Self::String}
             _ => {return None}
         })
+    }
+    pub fn size(&self) -> usize {
+        match self {
+            PrimitiveDataType::F128 => 16,
+            PrimitiveDataType::F64 => 8,
+            PrimitiveDataType::F32 => 4,
+            PrimitiveDataType::F16 => 2,
+            PrimitiveDataType::F8 => 1,
+            PrimitiveDataType::I128 => 16,
+            PrimitiveDataType::I64 => 8,
+            PrimitiveDataType::I32 => 4,
+            PrimitiveDataType::I16 => 2,
+            PrimitiveDataType::I8 => 1,
+            PrimitiveDataType::Bool => 1,
+            PrimitiveDataType::String => 8
+        }
     }
 }
 
@@ -40,6 +58,7 @@ impl PrimitiveDataType {
 pub enum DataType {
     MUTABLE(PrimitiveDataType),
     CONST(PrimitiveDataType),
+    ENVIRONMENTVARIABLE(PrimitiveDataType),
     POINTER(Box<DataType>),
     ARRAY(Box<DataType>, usize),
     NONE
@@ -54,8 +73,13 @@ impl DataType {
     }
 
     pub fn from_str(datatype: String) -> Self {
+        // Create different qualified types based on datatype qualifier (MUTABLE/CONST). CONST by default.
         if datatype == "none" {
             DataType::NONE
+        } else if datatype.contains("mut") {
+            DataType::MUTABLE(PrimitiveDataType::parse(datatype.replace("mut", "")).unwrap())
+        } else if datatype.contains("const") {
+            DataType::CONST(PrimitiveDataType::parse(datatype.replace("const", "")).unwrap())
         } else {
             DataType::MUTABLE(PrimitiveDataType::parse(datatype).unwrap())
         }
@@ -79,7 +103,12 @@ impl PartialEq for DataType {
             (DataType::MUTABLE(_), DataType::MUTABLE(_))
             | (DataType::CONST(_), DataType::CONST(_))
             | (DataType::MUTABLE(_), DataType::CONST(_))
-            | (DataType::CONST(_), DataType::MUTABLE(_)) => true,
+            | (DataType::CONST(_), DataType::MUTABLE(_))
+            | (DataType::ENVIRONMENTVARIABLE(_), DataType::MUTABLE(_))
+            | (DataType::ENVIRONMENTVARIABLE(_), DataType::CONST(_))
+            | (DataType::MUTABLE(_), DataType::ENVIRONMENTVARIABLE(_))
+            | (DataType::CONST(_), DataType::ENVIRONMENTVARIABLE(_))
+            | (DataType::ENVIRONMENTVARIABLE(_), DataType::ENVIRONMENTVARIABLE(_)) => true,
             (DataType::POINTER(this_inner), DataType::POINTER(other_inner)) => this_inner == other_inner,
             (DataType::ARRAY(this_inner, this_size), DataType::ARRAY(other_inner, other_size)) => {
                 this_inner == other_inner && this_size == other_size

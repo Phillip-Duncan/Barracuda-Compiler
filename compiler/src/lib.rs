@@ -9,6 +9,7 @@ extern crate barracuda_common;
 use safer_ffi::prelude::*;
 
 use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType};
+use crate::compiler::utils::pack_string_to_f64_array;
 
 // Internal Modules
 mod compiler;
@@ -41,7 +42,13 @@ pub struct CompilerResponse {
     /// Recommended stack size is an auto generated estimate for the stack size required
     /// to execute the program code. This will give the exact min required size if analysis
     /// goes okay otherwise it will use a default large size.
-    recommended_stack_size: usize
+    recommended_stack_size: usize,
+
+    /// user space size, used for memory allocations.
+    user_space_size: usize,
+
+    /// User space is a vector of f64 values that are used to store user defined variables.
+    user_space: repr_c::Vec<f64>,
 }
 
 /// EnvironmentVariable describes an environment variable the program will have access to in the
@@ -73,7 +80,10 @@ pub struct CompilerRequest {
     /// Environment variables are used to share data between the host environment and user code
     /// they are mutable and defined by their name for use in barracuda code and their offset
     /// for the memory location in the host environment user space.
-    env_vars: repr_c::Vec<EnvironmentVariable>
+    env_vars: repr_c::Vec<EnvironmentVariable>,
+
+    /// Numerical precision is floating point bit-precision to use for the program. (default: 32)
+    precision: usize,
 }
 
 // Private
@@ -101,7 +111,10 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let env_vars = generate_environment_context(&request);
 
     let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
-        .set_environment_variables(env_vars);
+        .set_environment_variables(env_vars).set_environment_variable_count(request.env_vars.len())
+        .set_precision(request.precision);
+
+    //compiler.set_environment_variable_count(request.env_vars.len());
     let program_code = compiler.compile_str(request.code_text.to_str());
     let compiled_text = program_code.to_string();
 
@@ -113,12 +126,17 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let values: Vec<f64> = program_code.values.into_iter().rev()
                                     .map(|value| value as f64).collect();
 
+    let user_space: Vec<f64> = program_code.user_space.into_iter().rev()
+                                    .map(|value| value as f64).collect();
+
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
         instructions_list: repr_c::Vec::try_from(instructions).unwrap(),
         operations_list: repr_c::Vec::try_from(operations).unwrap(),
         values_list: repr_c::Vec::try_from(values).unwrap(),
-        recommended_stack_size: program_code.max_stack_size
+        recommended_stack_size: program_code.max_stack_size,
+        user_space_size: program_code.user_space_size,
+        user_space: repr_c::Vec::try_from(user_space).unwrap()
     }
 }
 
@@ -167,7 +185,7 @@ mod tests {
     use MergedInstructions::*;
 
     fn ptr(int: usize) -> f64 {
-        f64::from_ne_bytes(int.to_ne_bytes())
+        f64::from_be_bytes(int.to_be_bytes())
     }
 
     // Compiles a program string and converts the result to a vector of merged instructions.
@@ -374,7 +392,7 @@ mod tests {
         COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
         ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
         NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
-        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN,LDNT];
         for function in &functions {
             let input = vec!["3"; function.consume() as usize].join(",");
             let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);
@@ -629,23 +647,25 @@ mod tests {
     // Tests that if and else work
     #[test]
     fn if_and_else() {
-        let stack = compile_and_merge("if false {print 3;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), 
-            Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
 
-        let stack = compile_and_merge("if false {print 3;} else {print 4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-        Val(ptr(15)), Instr(GOTO), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        let stack = compile_and_merge("if false {print(3);}");
+        assert_eq!(vec![Val(0.0), Val(ptr(7)), Instr(GOTO_IF), Val(3.0), 
+            Op(FIXED(PRINTFF))], stack);
 
-        let stack = compile_and_merge("if false {print 3;} else if false {print 4;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-            Val(ptr(18)), Instr(GOTO), Val(0.0), Val(ptr(18)), Instr(GOTO_IF), 
-            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        let stack = compile_and_merge("if false {print(3);} else {print(4);}");
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)),
+        Val(ptr(11)), Instr(GOTO), Val(4.0), Op(FIXED(PRINTFF))], stack);
 
-        let stack = compile_and_merge("if false {print 3;} else if false {print 4;} else {print 5;}");
-        assert_eq!(vec![Val(0.0), Val(ptr(11)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-            Val(ptr(24)), Instr(GOTO), Val(0.0), Val(ptr(20)), Instr(GOTO_IF), Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)),
-            Val(ptr(24)), Instr(GOTO), Val(5.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        let stack = compile_and_merge("if false {print(3);} else if false {print(4);}");
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)),
+            Val(ptr(14)), Instr(GOTO), Val(0.0), Val(ptr(14)), Instr(GOTO_IF), 
+            Val(4.0), Op(FIXED(PRINTFF))], stack);
+
+        let stack = compile_and_merge("if false {print(3);} else if false {print(4);} else {print(5);}");
+        assert_eq!(vec![Val(0.0), Val(ptr(9)), Instr(GOTO_IF), Val(3.0), Op(FIXED(PRINTFF)),
+            Val(ptr(18)), Instr(GOTO), Val(0.0), Val(ptr(16)), Instr(GOTO_IF), Val(4.0), Op(FIXED(PRINTFF)),
+            Val(ptr(18)), Instr(GOTO), Val(5.0), Op(FIXED(PRINTFF))], stack);
     }
 
     // Generates a variable call.
@@ -723,18 +743,21 @@ mod tests {
     // Tests print statement.
     #[test]
     fn print() {
-        let stack = compile_and_merge("print 3;");
-        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC))], stack);
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
+        let stack = compile_and_merge("print(3);");
+        assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF))], stack);
     }
 
     // Tests while loop.
     #[test]
     fn while_loop() {
         let stack = compile_and_merge(
-            "while 3 {print 4;}");
+            "while 3 {print(4);}");
+
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
         assert_eq!(vec![
-            Val(3.0), Val(ptr(11)), Instr(GOTO_IF), // loop exit condition
-            Val(4.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // loop body
+            Val(3.0), Val(ptr(9)), Instr(GOTO_IF), // loop exit condition
+            Val(4.0), Op(FIXED(PRINTFF)), // loop body
             Val(ptr(2)), Instr(GOTO) // loop restart
         ], stack);
     }
@@ -742,11 +765,12 @@ mod tests {
     // Tests for loop.
     #[test]
     fn for_loop() {
-        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print 7;}");
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
+        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print(7);}");
         assert_eq!(vec![
             Val(4.0), // construction 
-            Val(5.0), Val(ptr(18)), Instr(GOTO_IF), // loop exit condition 
-            Val(7.0), Op(FIXED(PRINTFF)), Val(10.0), Op(FIXED(PRINTC)), // body
+            Val(5.0), Val(ptr(16)), Instr(GOTO_IF), // loop exit condition 
+            Val(7.0), Op(FIXED(PRINTFF)), // body
             Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(6.0), Op(FIXED(STK_WRITE)), // assignment 
             Val(ptr(3)), Instr(GOTO), // restart loop 
             Op(FIXED(DROP)) // drop loop variable
@@ -755,29 +779,47 @@ mod tests {
 
     // Tests reading an external variable
     #[test]
-    fn external_variable() {
+    fn external_f64_variable() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
     }
 
+    // Tests reading an external variable with different type (should be the same as above)
+    #[test]
+    fn external_i32_variable() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
+    }
+
     // Tests reading an external variable with a single pointer (*) qualifier
     #[test]
-    fn external_variable_with_qualifier() {
+    fn external_f64_variable_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_F64))], stack);
+    }
+
+    // Tests reading an external variable with a single pointer (*) qualifier and a different type
+    #[test]
+    fn external_i32_variable_with_qualifier() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "*".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_I32))], stack);
     }
 
     // Tests reading an external variable with a double pointer (**) qualifier
     #[test]
-    fn external_variable_with_double_qualifier() {
+    fn external_f64_variable_with_double_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
         env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
-        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ))], stack);
+        assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ_F64))], stack);
     }
 
     // Tests writing to an external variable
@@ -872,7 +914,7 @@ mod tests {
     #[test]
     fn create_array() {
         let stack = compile_and_merge("let a = [1];");
-        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE)), Val(ptr(0))], stack);
+        assert_eq!(vec![Val(ptr(0))], stack);
     }
 
     #[test]
@@ -886,49 +928,28 @@ mod tests {
         let stack = compile_and_merge("let a = [1,2,3,4,5,6,7,8,9,10];");
         let stack_length = 6;
         let array_elements = 10;
-        for i in 0..array_elements {
-            let start = i * stack_length;
-            let end = (i+1) * stack_length;
-            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
-        }
-        assert_eq!(Val(ptr(0)), stack[stack.len()-1]);
-        assert_eq!(stack.len(), stack_length * array_elements + 1);
+        
+        assert_eq!(vec![Val(ptr(0))], stack);
     }
 
     #[test]
     fn create_three_arrays() {
         let stack = compile_and_merge("let a = [1]; let b = [2]; let c = [3];");
-        let stack_length = 7;
-        let array_elements = 3;
-        for i in 0..array_elements {
-            let start = i * stack_length;
-            let end = (i+1) * stack_length;
-            assert_eq!(vec![Val(ptr(i)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE)), Val(ptr(i))], stack[start..end]);
-        }
-        assert_eq!(stack.len(), stack_length * array_elements);
+        
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(1)), Val(ptr(2))], stack);
     }
 
     #[test]
     fn create_three_long_arrays() {
         let stack = compile_and_merge("let a = [1,2,3]; let b = [4,5,6]; let c = [7,8,9];");
-        let stack_length = 6;
-        let array_number = 3;
-        let array_length = 3;
-        for i in 0..array_number {
-            for j in 0..array_length {
-                let start = (3*i+j) * stack_length + i;
-                let end = (3*i+j+1) * stack_length + i;
-                assert_eq!(vec![Val(ptr(3*i)), Val(ptr(j)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((3*i+j+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
-            }
-            assert_eq!(Val(ptr(i*3)), stack[(3*(i+1)) * stack_length + i]);
-        }
-        assert_eq!(stack.len(), stack_length * array_number * array_length + array_number);
+        
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(3)), Val(ptr(6))], stack);
     }
 
     #[test]
     fn create_2d_array() {
         let stack = compile_and_merge("let a = [[1]];");
-        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(1.0), Op(FIXED(WRITE)), Val(ptr(0))], stack);
+        assert_eq!(vec![Val(ptr(0))], stack);
     }
 
     #[test]
@@ -936,13 +957,8 @@ mod tests {
         let stack = compile_and_merge("let a = [[1,2,3],[4,5,6],[7,8,9]];");
         let stack_length = 6;
         let array_elements = 9;
-        for i in 0..array_elements {
-            let start = i * stack_length;
-            let end = (i+1) * stack_length;
-            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
-        }
-        assert_eq!(Val(ptr(0)), stack[stack.len()-1]);
-        assert_eq!(stack.len(), stack_length * array_elements + 1);
+        assert_eq!(vec![Val(0.0)], stack);
+
     }
 
     #[test]
@@ -950,13 +966,8 @@ mod tests {
         let stack = compile_and_merge("let a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];");
         let stack_length = 6;
         let array_elements = 16;
-        for i in 0..array_elements {
-            let start = i * stack_length;
-            let end = (i+1) * stack_length;
-            assert_eq!(vec![Val(ptr(0)), Val(ptr(i)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val((i+1) as f64), Op(FIXED(WRITE))], stack[start..end]);
-        }
-        assert_eq!(Val(ptr(0)), stack[stack.len()-1]);
-        assert_eq!(stack.len(), stack_length * array_elements + 1);
+
+        assert_eq!(vec![Val(0.0)], stack);
     }
 
     #[test]
@@ -966,7 +977,22 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
+    }
+
+    #[test]
+    fn array_and_loop(){
+        let stack = compile_and_merge("let a = [1,2,3]; for (let i = 0; i < 3; i = i + 1) {print(a[i]);}");
+        let new_line = pack_string_to_f64_array("\n", 64)[0];
+
+        assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(3.0), Op(FIXED(LT)), Val(2.08e-322), Instr(GOTO_IF), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)),
+                        Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(STK_READ)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)),
+                        Op(FIXED(PRINTFF)), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Val(1e-323), Val(5e-324),
+                        Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(1.0), Op(FIXED(ADD)), Op(FIXED(STK_WRITE)),
+                        Val(2e-323), Instr(GOTO), Op(FIXED(DROP))], stack);
+
     }
 
     #[test]
@@ -976,7 +1002,7 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(2)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-        Val(1.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+        Val(1.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     #[test]
@@ -986,7 +1012,7 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
-        Val(3.0), Val(3.0), Op(FIXED(SUB)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+        Val(3.0), Val(3.0), Op(FIXED(SUB)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     #[test]
@@ -997,7 +1023,7 @@ mod tests {
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
                         Val(0.0), Val(1.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), // Enter first level
-                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], // Enter second level
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], // Enter second level
             stack[old_stack.len()..stack.len()]);
     }
 
@@ -1014,7 +1040,7 @@ mod tests {
             Val(1.0), Val(8.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Val(0.0), Val(4.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Val(1.0), Val(2.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ))], stack[old_stack.len()..stack.len()]);
+            Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     // Tests for arrays
@@ -1024,8 +1050,8 @@ mod tests {
         let stack = compile_and_merge("let a = [1]; a[0] = 2;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
-        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-            Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0),
+                        Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Val(2.0), Op(FIXED(SWAP)), Op(FIXED(RCNX))], stack[old_stack.len()..stack.len()]);
     }
 
     // Tests for arrays
@@ -1035,9 +1061,9 @@ mod tests {
         let stack = compile_and_merge("let a = [[1]]; a[0][0] = 2;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
-        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-            Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+        assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0), 
+                        Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)),
+                        Val(2.0), Op(FIXED(SWAP)), Op(FIXED(RCNX))], stack[old_stack.len()..stack.len()]);
     }
 
     // Tests for arrays
@@ -1048,9 +1074,17 @@ mod tests {
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Op(FIXED(DUP)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Val(2.0), Op(FIXED(WRITE))], stack[old_stack.len()..stack.len()]);
+            Op(FIXED(DUP)), Val(ptr(0)), Op(FIXED(ADD_PTR)), Val(2.0), Op(FIXED(SWAP)), Op(FIXED(RCNX))], stack[old_stack.len()..stack.len()]);
     }
 
+    #[test]
+    fn assign_array_extern_value() {
+        let mut env_vars = EnvironmentSymbolContext::new();
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let b = [1]; b[0] = a;", env_vars);
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), 
+                        Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(SWAP)), Op(FIXED(RCNX))], stack);
+    }
     // Tests for the type system.
     #[test]
     fn literal_types() {
@@ -1065,7 +1099,7 @@ mod tests {
             "i32",
             "i16",
             "i8",
-            "bool",
+            "bool"
         ];
         for datatype in datatypes {
             compile_and_assert_equal(&format!("let a = 0;"), &format!("let a : {} = 0;", datatype));
@@ -1099,7 +1133,7 @@ mod tests {
         COSPI,BESI0,BESI1,ERF,ERFC,ERFCI,ERFCX,ERFI,EXP,EXP10,EXP2,EXPM1,FABS,FDIM,FLOOR,FMA,FMAX,FMIN,FMOD,FREXP,HYPOT,
         ILOGB,ISFIN,ISINF,ISNAN,BESJ0,BESJ1,BESJN,LDEXP,LGAMMA,LLRINT,LLROUND,LOG,LOG10,LOG1P,LOG2,LOGB,LRINT,LROUND,MAX,MIN,MODF,
         NXTAFT,POW,RCBRT,REM,REMQUO,RHYPOT,RINT,ROUND,
-        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN];
+        RSQRT,SCALBLN,SCALBN,SGNBIT,SIN,SINH,SINPI,SQRT,TAN,TANH,TGAMMA,TRUNC,BESY0,BESY1,BESYN,LDNT];
         for function in &functions {
             let input = vec!["3"; function.consume() as usize].join(",");
             let text = &format!("let a = __{}({});", function.to_string().to_lowercase(), input);
@@ -1217,7 +1251,7 @@ mod tests {
     }
 
     #[test]
-    fn array_type() {
+    fn array_types() {
         compile_and_assert_equal("let a = [1.0, 2.0];", "let a: [f64; 2] = [1.0, 2.0];");
     }
 
@@ -1450,4 +1484,23 @@ mod tests {
     fn nonexistent_function() {
         compile_and_merge("testfunc();");
     }
+
+    #[test]
+    fn string_literal() {
+        let stack = compile_and_merge(r#"let a = "hello world";"#);
+        let packed_string = pack_string_to_f64_array("hello world", 64);
+        assert_eq!(vec![Val(ptr(0))], stack);
+    }
+
+    #[test]
+    fn print_string() {
+        let stack = compile_and_merge(r#"let a = "hello world"; print(a);"#);
+        let packed_string = pack_string_to_f64_array("hello world", 64);
+        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Op(FIXED(DUP)), Val(0.0), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
+                        Op(FIXED(DUP)), Val(5e-324), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
+                        Op(FIXED(DROP))], stack);
+    }
+
+
 }

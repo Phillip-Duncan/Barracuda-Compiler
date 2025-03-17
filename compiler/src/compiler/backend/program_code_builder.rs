@@ -26,7 +26,10 @@ enum BarracudaIR {
 
     // Arrays are stored in a different memory section to normal variables. 
     // Generating the exact address of each array is only possible once the whole program is generated.
-    Array{address: usize},
+    Array{address: usize, size: usize},
+
+    /// Userspace is a value that is stored in the user space of the program.
+    Userspace(f64),
 
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
@@ -40,7 +43,8 @@ enum BarracudaIR {
 pub struct BarracudaProgramCodeBuilder {
     program_out: Vec<BarracudaIR>,
     label_count: u64,
-    env_var_count: usize
+    env_var_count: usize,
+    precision: usize
 }
 
 impl BarracudaProgramCodeBuilder {
@@ -48,7 +52,8 @@ impl BarracudaProgramCodeBuilder {
         Self {
             program_out: vec![],
             label_count: 0,
-            env_var_count: 0
+            env_var_count: 0,
+            precision: 32
         }
     }
 
@@ -65,6 +70,10 @@ impl BarracudaProgramCodeBuilder {
     /// Emit operation pushes an op to be loaded as the next instruction
     pub fn emit_op(&mut self, operation: FIXED_OP) {
         self.program_out.push(BarracudaIR::Operation(OP::FIXED(operation)));
+    }
+
+    pub fn emit_userspace(&mut self, value: f64) {
+        self.program_out.push(BarracudaIR::Userspace(value));
     }
 
     /// Comment decorates the next instruction with a string
@@ -107,13 +116,21 @@ impl BarracudaProgramCodeBuilder {
     /// Emits an array.
     /// Takes the preliminary address of the array.
     /// The exact memory address needs to be calculated later.
-    pub fn emit_array(&mut self, address: usize) {
-        self.program_out.push(BarracudaIR::Array{address})
+    pub fn emit_array(&mut self, address: usize, size: usize) {
+        self.program_out.push(BarracudaIR::Array{address, size})
     }
 
     /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
     pub fn add_environment_variable(&mut self) {
         self.env_var_count += 1;
+    }
+
+    pub fn set_precision(&mut self, precision: usize) {
+        self.precision = precision;
+    }
+
+    pub fn get_precision(&self) -> usize {
+        self.precision
     }
 
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.
@@ -154,6 +171,7 @@ impl BarracudaProgramCodeBuilder {
                     locations[*id as usize] = current_line;
                 }
                 BarracudaIR::Comment(_) => {}
+                BarracudaIR::Userspace(_) => {} // Userspace should NOT take up instruction slots.
 
                 // Everything else should take up a instruction slot
                 _ => {
@@ -186,8 +204,15 @@ impl BarracudaProgramCodeBuilder {
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
                 }
-                BarracudaIR::Array{address, ..} => {
+                BarracudaIR::Array{address, size, ..} => {
                     output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
+                    // Phill: Make sure to increment the user space size for each array
+                    // TODO: Implement memory solution for differing CONST/MUTABLE arrays, possibly have two variables (user_space_size_const, user_space_size_mutable).
+                    // Only the implementation code will know how to alloc the actual memory, so we need to provide the sizes of both const and mutable memory allocations.
+                    output_program.user_space_size += size;
+                }
+                BarracudaIR::Userspace(value) => {
+                    output_program.push_userspace(value.clone());
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {

@@ -16,5 +16,9 @@ pub enum Literal {
     // STRING(String),
 
     /// Form: false | true
-    BOOL(bool)
+    BOOL(bool),
+
+    /// Form: %d.%d
+    /// 8 characters packed into a single f64
+    PACKEDSTRING(f64), 
 }

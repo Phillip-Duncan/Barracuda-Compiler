@@ -106,10 +106,10 @@ pub enum FixedBarracudaOperators {
     MEMSET     = 0x03E2 ,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ       = 0x03E3 ,
+    READ       = 0x03E3 , /// Read from f32/f64 memory (note: this is in implementation-precision so be careful when using, use READ_F32/READ_F64/READ_I32/READ_I64/READ_CHAR for specific access of userspace.)
     #[assoc(consume=2)]
     #[assoc(produce=0)]
-    WRITE      = 0x03E4 ,
+    WRITE      = 0x03E4 , /// Read from f32/f64 memory (note: this is in implementation-precision so be careful when using, use WRITE_F32/WRITE_F64/WRITE_I32/WRITE_I64/WRITE_CHAR for specific access of userspace.)
     #[assoc(consume=2)]
     #[assoc(produce=1)]
     ADD_PTR    = 0x03E5 ,
@@ -143,6 +143,30 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=1)]
     #[assoc(produce=1)]
     PTR_DEREF  = 0x03EE,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ_F32   = 0x03EF,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ_F64   = 0x03F0,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    WRITE_F32  = 0x03F1,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    WRITE_F64  = 0x03F2,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ_I32   = 0x03F3,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ_I64   = 0x03F4,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    READ_CHAR  = 0x03F5,
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    WRITE_CHAR = 0x03F6,
 
 
     #[assoc(consume=1)]
@@ -426,7 +450,7 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=0)]
     #[assoc(produce=1)]
     LDTID      = 0x12FD ,
-    #[assoc(consume=0)]
+    #[assoc(consume=1)]
     #[assoc(produce=1)]
     LDNXPTR    = 0x12FE ,
 
@@ -460,6 +484,18 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=1)]
     #[assoc(produce=1)]
     DOUBLETOLONGLONG = 0x16C9 ,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCWARP = 0x1A94,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCBLOCK = 0x1A95,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCGRID = 0x1A96,
 
     
 }
