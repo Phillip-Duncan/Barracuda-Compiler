@@ -485,6 +485,18 @@ pub enum FixedBarracudaOperators {
     #[assoc(produce=1)]
     DOUBLETOLONGLONG = 0x16C9 ,
 
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCWARP = 0x1A94,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCBLOCK = 0x1A95,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=0)]
+    SYNCGRID = 0x1A96,
+
     
 }
 
