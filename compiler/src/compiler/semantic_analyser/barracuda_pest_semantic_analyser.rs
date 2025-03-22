@@ -215,14 +215,16 @@ impl BarracudaSemanticAnalyser {
         
         let datatype = match op {
             BinaryOperation::ADD | BinaryOperation::SUB | BinaryOperation::DIV 
-          | BinaryOperation::MUL | BinaryOperation::MOD | BinaryOperation::POW => { 
+          | BinaryOperation::MUL | BinaryOperation::MOD | BinaryOperation::POW
+          | BinaryOperation::LSHIFT | BinaryOperation::RSHIFT => { 
                 match datatype {
                     DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => datatype,
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)
                 }
             }
             BinaryOperation::GREATER_THAN | BinaryOperation::LESS_THAN 
-          | BinaryOperation::GREATER_EQUAL | BinaryOperation::LESS_EQUAL => { 
+          | BinaryOperation::GREATER_EQUAL | BinaryOperation::LESS_EQUAL
+          | BinaryOperation::AND | BinaryOperation::OR => { 
                 match datatype {
                     DataType::CONST(_) | DataType::MUTABLE(_) | DataType::ENVIRONMENTVARIABLE(_) => DataType::CONST(PrimitiveDataType::Bool),
                     _ => panic!("Cannot use operation {:?} on type {:?}", op, datatype)

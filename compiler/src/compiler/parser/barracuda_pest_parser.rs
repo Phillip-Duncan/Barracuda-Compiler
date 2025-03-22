@@ -65,6 +65,8 @@ impl PestBarracudaParser {
             Rule::comparison |
             Rule::term |
             Rule::factor |
+            Rule::shift |
+            Rule::logical |
             Rule::exponent =>           { self.parse_pair_binary_expression(pair) },
             Rule::ternary =>            { self.parse_pair_ternary_expression(pair) },
             Rule::unary |
@@ -500,6 +502,10 @@ impl PestBarracudaParser {
             Rule::less_than => Some(BinaryOperation::LESS_THAN),
             Rule::greater_equal => Some(BinaryOperation::GREATER_EQUAL),
             Rule::less_equal => Some(BinaryOperation::LESS_EQUAL),
+            Rule::and => Some(BinaryOperation::AND),
+            Rule::or => Some(BinaryOperation::OR),
+            Rule::lshift => Some(BinaryOperation::LSHIFT),
+            Rule::rshift => Some(BinaryOperation::RSHIFT),
             _ => None,
         }
     }
