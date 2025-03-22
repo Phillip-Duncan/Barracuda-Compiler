@@ -289,7 +289,13 @@ mod tests {
             (">=", GTEQ),
             ("<=", LTEQ),
             (">", GT),
-            ("<", LT),       
+            ("<", LT),
+            ("&&", AND),
+            ("and", AND),
+            ("||", OR),
+            ("or", OR),
+            ("<<", LSHIFT),
+            (">>", RSHIFT),
         ];
         for (text, op) in &binary_operators {
             let stack = compile_and_merge(&format!("let a = 4{}5;", text));

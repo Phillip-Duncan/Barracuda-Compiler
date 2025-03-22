@@ -23,5 +23,11 @@ pub enum BinaryOperation {
     GREATER_THAN,   // <lhs> >  <rhs>
     LESS_THAN,      // <lhs> <  <rhs>
     GREATER_EQUAL,  // <lhs> >= <rhs>
-    LESS_EQUAL      // <lhs> <= <rhs>
+    LESS_EQUAL,      // <lhs> <= <rhs>
+
+    AND,           // <lhs> && <rhs>
+    OR,           // <lhs> || <rhs>
+    LSHIFT,      // <lhs> << <rhs>
+    RSHIFT     // <lhs> >> <rhs>
+
 }

@@ -447,6 +447,10 @@ impl BarracudaByteCodeGenerator {
             BinaryOperation::LESS_THAN     => { self.builder.emit_op(OP::LT); }
             BinaryOperation::GREATER_EQUAL => { self.builder.emit_op(OP::GTEQ); }
             BinaryOperation::LESS_EQUAL    => { self.builder.emit_op(OP::LTEQ); }
+            BinaryOperation::AND => { self.builder.emit_op(OP::AND); }
+            BinaryOperation::OR  => { self.builder.emit_op(OP::OR); }
+            BinaryOperation::LSHIFT => { self.builder.emit_op(OP::LSHIFT); }
+            BinaryOperation::RSHIFT => { self.builder.emit_op(OP::RSHIFT); }
         };
     }
 
