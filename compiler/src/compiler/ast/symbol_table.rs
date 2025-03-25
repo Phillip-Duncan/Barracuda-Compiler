@@ -4,17 +4,19 @@ use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, Func
 use super::ASTNode;
 use super::scope::ScopeId;
 use super::datatype::{DataType, PrimitiveDataType};
+use super::qualifiers::Qualifier;
 use std::fmt;
 
 
 /// Symbol types associated with an identifier
 #[derive(Debug, Clone)]
 pub enum SymbolType {
-    Variable(DataType),
-    EnvironmentVariable(usize, DataType, String),
-    Parameter(DataType),
+    Variable(DataType, Qualifier),
+    EnvironmentVariable(usize, DataType, Qualifier, String),
+    Parameter(DataType, Qualifier),
     Function {
         func_params: Vec<DataType>,
+        func_qualifiers: Vec<Qualifier>,
         func_return: Box<DataType>
     },
 }
@@ -56,14 +58,14 @@ impl Symbol {
 
     pub fn is_variable(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(_) => true,
+            SymbolType::Variable(_, _) => true,
             _ => false
         }
     }
 
     pub fn is_array(&self) -> bool {
         match &self.symbol_type {
-            SymbolType::Variable(datatype) => match datatype {
+            SymbolType::Variable(datatype, _) => match datatype {
                 DataType::ARRAY(_,_) => true,
                 _ => false
             },
@@ -73,7 +75,7 @@ impl Symbol {
 
     pub fn array_length(&self) -> usize {
         match &self.symbol_type {
-            SymbolType::Variable(datatype) => match datatype {
+            SymbolType::Variable(datatype, _) => match datatype {
                 DataType::ARRAY(_, _) => DataType::get_array_length(datatype),
                 _ => 0
             },
@@ -145,7 +147,7 @@ pub struct SymbolTable {
     // This implementation is a hashmap to allow for the pruning of scopes without restructuring
     scope_map: HashMap<ScopeId, SymbolScope>,
 
-    env_var_data: HashMap<String, (usize, PrimitiveDataType, String)>,
+    env_var_data: HashMap<String, (usize, PrimitiveDataType, Qualifier, String)>,
     
     functions: HashMap<String, FunctionTracker>,
 
@@ -183,7 +185,7 @@ impl SymbolTable {
     /// @root: Root node of an Abstract Syntax Tree. Mutable as scope ids are assigned to scope
     /// @env_variable_ids: Map of environment variable data, identifier:(env_address, datatype, type qualifier)
     /// ast nodes during this process.
-    pub(super) fn from(root: &mut ASTNode, env_variable_data: HashMap<String, (usize, PrimitiveDataType, String)>, functions: HashMap<String, FunctionTracker>) -> SymbolTable {
+    pub(super) fn from(root: &mut ASTNode, env_variable_data: HashMap<String, (usize, PrimitiveDataType, Qualifier, String)>, functions: HashMap<String, FunctionTracker>) -> SymbolTable {
         let mut symbol_table = SymbolTable::new();
         symbol_table.env_var_data = env_variable_data;
         symbol_table.functions = functions;
@@ -273,7 +275,7 @@ impl SymbolTable {
 
     /// Helper function to simplify processing variables where data is stored within deeper
     /// ASTNodes.
-    fn process_variable(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
+    fn process_variable(identifier: &ASTNode, datatype: &Option<ASTNode>, qualifier: &ASTNode) -> Option<Symbol> {
         // Get inner string
         let identifier = match identifier {
             ASTNode::IDENTIFIER(name) => name.clone(),
@@ -284,13 +286,17 @@ impl SymbolTable {
             Some(datatype_node) => DataType::from(datatype_node),
             None => DataType::NONE
         };
+        let qualifier = match qualifier {
+            ASTNode::QUALIFIER(qualifier) => qualifier.clone(),
+            _ => panic!("") // AST Malformed
+        };
 
-        Some(Symbol::new(identifier, SymbolType::Variable(datatype)))
+        Some(Symbol::new(identifier, SymbolType::Variable(datatype, qualifier)))
     }
 
     /// Helper function to simplify processing parameters where data is stored within deeper
     /// ASTNodes.
-    fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>) -> Option<Symbol> {
+    fn process_parameter(identifier: &ASTNode, datatype: &Option<ASTNode>, qualifier: &ASTNode) -> Option<Symbol> {
         // Get inner string
         let identifier = match identifier {
             ASTNode::IDENTIFIER(name) => name.clone(),
@@ -302,8 +308,12 @@ impl SymbolTable {
             Some(datatype_node) => DataType::from(datatype_node),
             None => panic!("Parameters should always have some datatype!")
         };
+        let qualifier = match qualifier {
+            ASTNode::QUALIFIER(qualifier) => qualifier.clone(),
+            _ => panic!("") // AST Malformed
+        };
 
-        Some(Symbol::new(identifier, SymbolType::Parameter(datatype)))
+        Some(Symbol::new(identifier, SymbolType::Parameter(datatype, qualifier)))
     }
 
     /// Helper function to simplify processing functions where data is stored within deeper
@@ -311,9 +321,11 @@ impl SymbolTable {
     fn process_function(implementation: &FunctionImplementation) -> Symbol {
         // Transform ASTNodes into function identifier and data types
         let func_params = implementation.get_parameter_types().clone();
+        let func_qualifiers = implementation.get_parameter_qualifiers().clone();
         let return_type = implementation.get_return_type();
         let symbol_type = SymbolType::Function {
             func_params,
+            func_qualifiers,
             func_return: Box::new(return_type)
         };
         // Add function to symbol table
@@ -330,28 +342,28 @@ impl SymbolTable {
         let symbol_scope = self.scope_map.get_mut(&current_scope).unwrap();
 
         match node {
-            ASTNode::PARAMETER { identifier, datatype } => {
-                match Self::process_parameter(identifier.as_ref(), datatype.as_ref()) {
+            ASTNode::PARAMETER { identifier, datatype, qualifier } => {
+                match Self::process_parameter(identifier.as_ref(), datatype.as_ref(), qualifier.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::CONSTRUCT{ identifier, datatype, .. } => {
+            ASTNode::CONSTRUCT{ identifier, datatype, qualifier, .. } => {
                 let identifier = match identifier.as_ref() {
                     ASTNode::TYPED_NODE { inner, .. } => inner,
                     _ => identifier
                 };
-                match Self::process_variable(identifier.as_ref(), datatype) {
+                match Self::process_variable(identifier.as_ref(), datatype, qualifier.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
             }
-            ASTNode::EMPTY_CONSTRUCT{ identifier, datatype } => {
+            ASTNode::EMPTY_CONSTRUCT{ identifier, datatype, qualifier } => {
                 let identifier = match identifier.as_ref() {
                     ASTNode::TYPED_NODE { inner, .. } => inner,
                     _ => identifier
                 };
-                match Self::process_variable(identifier.as_ref(), &Some(datatype.as_ref().clone())) {
+                match Self::process_variable(identifier.as_ref(), &Some(datatype.as_ref().clone()), qualifier.as_ref()) {
                     Some(symbol) => symbol_scope.add_symbol(symbol),
                     None => panic!("") // AST Malformed
                 };
@@ -372,7 +384,8 @@ impl SymbolTable {
                     SymbolType::EnvironmentVariable(
                             env_address.0,
                             DataType::ENVIRONMENTVARIABLE(env_address.1),
-                            env_address.2
+                            env_address.2,
+                            env_address.3
                         )
                     )
                 );
@@ -396,8 +409,8 @@ impl SymbolTable {
                     };
                     self.generate_new_scope(current_scope.clone(), inner_func_scope.clone(), true);
                     let symbol_scope = self.scope_map.get_mut(&inner_func_scope).unwrap();
-                    for (identifier, datatype) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()) {
-                        symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone())));
+                    for ((identifier, datatype), qualifier) in implementation.get_parameters().iter().zip(implementation.get_parameter_types().iter()).zip(implementation.get_parameter_qualifiers().iter()) {
+                        symbol_scope.add_symbol(Symbol::new(identifier.clone(), SymbolType::Parameter(datatype.clone(), qualifier.clone())));
                     }
                     for child in implementation.get_body().clone().children() {
                         self.process_node(child, inner_func_scope.clone());

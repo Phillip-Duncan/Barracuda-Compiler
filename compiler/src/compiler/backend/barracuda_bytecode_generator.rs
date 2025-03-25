@@ -27,6 +27,7 @@ use crate::compiler::backend::program_code_builder::BarracudaProgramCodeBuilder;
 use crate::compiler::semantic_analyser::function_tracker::{FunctionTracker, FunctionImplementation};
 
 use crate::compiler::PrimitiveDataType;
+use crate::compiler::Qualifier;
 use crate::compiler::utils::pack_string_to_f64_array;
 
 
@@ -164,6 +165,7 @@ impl BarracudaByteCodeGenerator {
     // Generate code to set stack pointer to the value on top of the stack.
     // Must add one as VM RCSTK_PTR is off by one.
     fn generate_set_stack_ptr(&mut self) {
+        println!("Generating set stack pointer");
         self.builder.emit_value(f64::from_be_bytes(1_u64.to_be_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
         self.builder.emit_op(OP::RCSTK_PTR);
@@ -226,7 +228,7 @@ impl BarracudaByteCodeGenerator {
 impl BarracudaByteCodeGenerator {
     fn generate_node(&mut self, node: &ASTNode) {
         match node {
-            ASTNode::TYPED_NODE { datatype, inner } => match inner.as_ref() {
+            ASTNode::TYPED_NODE { datatype, inner, qualifier } => match inner.as_ref() {
                 ASTNode::IDENTIFIER(identifier_name) => {
                     self.generate_identifier(identifier_name)
                 }
@@ -236,7 +238,7 @@ impl BarracudaByteCodeGenerator {
                 ASTNode::LITERAL(literal) => {
                     self.generate_literal(literal)
                 }
-                ASTNode::ARRAY(_) => {
+                ASTNode::ARRAY {items, qualifier} => {
                     panic!("Arrays literals can only be used for direct assignment!");
                 }
                 ASTNode::UNARY_OP { op, expression } => {
@@ -249,15 +251,15 @@ impl BarracudaByteCodeGenerator {
                     self.generate_ternary_op(condition, true_branch, false_branch)
                 }
                 ASTNode::ARRAY_INDEX { index, expression } => {
-                    self.generate_array_index(index, expression, datatype)
+                    self.generate_array_index(index, expression, datatype, qualifier)
                 }
                 ASTNode::FUNC_CALL { identifier, arguments } => {
                     self.generate_function_call(identifier, arguments)
                 }
                 _ => panic!("Malformed AST! Node {:?} should not be inside a typed node.", node)
             }
-            ASTNode::CONSTRUCT { identifier, expression, .. } => {
-                self.generate_construct_statement(identifier, expression);
+            ASTNode::CONSTRUCT { identifier, qualifier, expression, .. } => {
+                self.generate_construct_statement(identifier, qualifier, expression);
             }
             ASTNode::EMPTY_CONSTRUCT { identifier, .. } => {
                 self.generate_empty_construct_statement(identifier);
@@ -311,17 +313,17 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_) => {
+            SymbolType::Variable(_,_) => {
                 self.generate_identifier_id(name)
             }
-            SymbolType::EnvironmentVariable( global_id, datatype, qualifier) => {
-                let ptr_depth = qualifier.matches("*").count();
+            SymbolType::EnvironmentVariable( global_id, datatype, qualifier, ptr_levels) => {
+                let ptr_depth = ptr_levels.matches("*").count();
                 self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
                 self.builder.emit_op(OP::LDNX);
                 for _n in 0..ptr_depth {
                     if _n == ptr_depth - 1 {
                         match datatype {
-                            DataType::CONST(primitive) | DataType::MUTABLE(primitive) | DataType::ENVIRONMENTVARIABLE(primitive) => {
+                            DataType::PRIMITIVE(primitive) | DataType::ENVIRONMENTVARIABLE(primitive) => {
                                 match primitive {
                                     PrimitiveDataType::F128 => panic!("F128 not currently supported in environment variables"),
                                     PrimitiveDataType::F64 => self.builder.emit_op(OP::READ_F64),
@@ -345,7 +347,7 @@ impl BarracudaByteCodeGenerator {
                     }
                 }
             }
-            SymbolType::Parameter(_datatype) => {
+            SymbolType::Parameter(_datatype,_qualifier) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
                 self.builder.emit_op(OP::STK_READ);
@@ -358,11 +360,11 @@ impl BarracudaByteCodeGenerator {
         let symbol_result = self.symbol_tracker.find_symbol(name).unwrap();
 
         match symbol_result.symbol_type() {
-            SymbolType::Variable(_datatype) => {
+            SymbolType::Variable(_datatype,_qualifier) => {
                 let localvar_id = self.symbol_tracker.get_local_id(name).unwrap();
                 self.generate_local_var_address(localvar_id);
             }
-            SymbolType::Parameter(_datatype) => {
+            SymbolType::Parameter(_datatype,_qualifier) => {
                 let param_id = self.symbol_tracker.get_param_id(name).unwrap();
                 self.generate_parameter_address(param_id);
             }
@@ -381,39 +383,59 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_value(literal_value);
     }
 
-    fn generate_preallocated_array(&mut self, identifier: String, values: Vec<f64>, address: usize) {
+    fn generate_preallocated_array(&mut self, identifier: String, qualifier: &Box<ASTNode>, values: Vec<f64>, address: usize) {
+        let qualifier = match qualifier.as_ref() {
+            ASTNode::QUALIFIER(qualifier) => qualifier,
+            _ => panic!("Expected a qualifier! Found {:?}", qualifier)
+        };
+
         for (i, value) in values.iter().enumerate() {
-            self.builder.emit_userspace(*value);
+            self.builder.emit_userspace(*value, qualifier.to_str().to_owned());
         }
-        self.builder.emit_array(address, values.len());
+        self.builder.emit_array(address, values.len(), qualifier.to_str().to_owned());
     }
 
-    fn generate_array(&mut self, items: &Vec<ASTNode>, identifier: &String) {
+    fn generate_array(&mut self, items: &Vec<ASTNode>, qualifier: &Box<ASTNode>, identifier: &String) {
         let address = self.symbol_tracker.get_array_id(identifier).unwrap();
-        self.generate_subarray(items, address, 0);
-        self.builder.emit_array(address, items.len());
+        self.generate_subarray(items, qualifier, address, 0);
+
+        let qualifier = match qualifier.as_ref() {
+            ASTNode::QUALIFIER(qualifier) => qualifier,
+            _ => panic!("Expected a qualifier! Found {:?}", qualifier)
+        };
+
+        self.builder.emit_array(address, items.len(), qualifier.to_str().to_owned());
     }
 
-    fn generate_subarray(&mut self, items: &Vec<ASTNode>, address: usize, mut position: usize) -> usize {
+    fn generate_subarray(&mut self, items: &Vec<ASTNode>, qualifier: &Box<ASTNode>, address: usize, mut position: usize) -> usize {
         for item in items {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
-                    ASTNode::ARRAY(items) => position = self.generate_subarray(&items, address, position),
+                    ASTNode::ARRAY{items, qualifier} => position = self.generate_subarray(&items, &qualifier, address, position),
                     _ => position = {
-                        self.builder.emit_array(address, 1);
-                        self.generate_array_item(&item, position)
+                        let qual = match qualifier.as_ref() {
+                            ASTNode::QUALIFIER(qualifier) => qualifier,
+                            _ => panic!("Expected a qualifier! Found {:?}", qualifier)
+                        };
+                        self.builder.emit_array(address, 1, qual.to_str().to_owned());
+                        self.generate_array_item(&item, &qualifier, position)
                     },
                 }
                 _ => position = {
-                    self.builder.emit_array(address, 1);
-                    self.generate_array_item(&item, position)
+                    let qual = match qualifier.as_ref() {
+                        ASTNode::QUALIFIER(qualifier) => qualifier,
+                        _ => panic!("Expected a qualifier! Found {:?}", qualifier)
+                    };
+
+                    self.builder.emit_array(address, 1, qual.to_str().to_owned());
+                    self.generate_array_item(&item, &qualifier, position)
                 },
             }
         }
         position
     }
 
-    fn generate_array_item(&mut self, item: &ASTNode, position: usize) -> usize {
+    fn generate_array_item(&mut self, item: &ASTNode, qualifier: &Box<ASTNode>, position: usize) -> usize {
         self.builder.emit_value(f64::from_be_bytes(position.to_be_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
         self.generate_node(item);
@@ -461,28 +483,40 @@ impl BarracudaByteCodeGenerator {
         self.builder.emit_op(OP::TERNARY);
     }
 
-    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>, datatype: &DataType) {
+    fn generate_array_index(&mut self, index: &Box<ASTNode>, expression: &Box<ASTNode>, datatype: &DataType, _qualifier: &Qualifier) {   
+        // Generate code to determine the index.
         self.generate_node(expression);
         self.generate_node(index);
+    
+        // Then, perform pointer arithmetic based on the datatype.
         match datatype {
             DataType::ARRAY(_, _) => {
                 let array_length = DataType::get_array_length(&datatype);
                 self.builder.emit_value(array_length as f64);
-                self.builder.emit_op(OP::MUL);
+                self.builder.emit_op(OP::MUL_PTR);
                 self.builder.emit_op(OP::DOUBLETOLONGLONG);
                 self.builder.emit_op(OP::ADD_PTR);
             },
             _ => {
                 self.builder.emit_op(OP::DOUBLETOLONGLONG);
                 self.builder.emit_op(OP::ADD_PTR);
-                //self.builder.emit_op(OP::LDNX);
-                self.builder.emit_op(OP::LDNXPTR);
-                self.builder.emit_op(OP::READ_F64);
+                let array_qualifier = expression.get_qualifier();
+                match array_qualifier {
+                    Qualifier::CONSTANT => {
+                        self.builder.emit_op(OP::LDCUX);
+                    },
+                    Qualifier::MUTABLE => {
+                        self.builder.emit_op(OP::LDNXPTR);
+                        self.builder.emit_op(OP::READ_F64);
+                    },
+                    _ => panic!("Expected a qualifier! Found {:?}", array_qualifier)
+                }
             }
         }
     }
+    
 
-    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
+    fn generate_construct_statement(&mut self, identifier: &Box<ASTNode>, qualifier: &Box<ASTNode>, expression: &Box<ASTNode>) {
         let identifier_name = identifier.identifier_name().unwrap();
         self.add_symbol(identifier_name.clone());
     
@@ -491,14 +525,14 @@ impl BarracudaByteCodeGenerator {
             DataType::ARRAY(_, _) => {
                 match expression.as_ref() {
                     ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
-                        ASTNode::ARRAY(items) => {
+                        ASTNode::ARRAY {items, qualifier} => {
                             if self.is_static_array(items) {
                                 // Preallocate with known values
                                 let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
                                 let precomputed_values = self.get_array_values(items);
-                                self.generate_preallocated_array(identifier_name, precomputed_values, address);
+                                self.generate_preallocated_array(identifier_name, qualifier, precomputed_values, address);
                             } else {
-                                self.generate_array(items, &identifier_name);
+                                self.generate_array(items, qualifier, &identifier_name);
                             }
                         }
                         _ => self.generate_node(expression)
@@ -523,7 +557,8 @@ impl BarracudaByteCodeGenerator {
                 let address = self.symbol_tracker.get_array_id(&identifier_name).unwrap();
                 
                 // Emit code to allocate memory for the array
-                self.generate_preallocated_array(identifier_name, vec![0.0; array_size], address);
+                let qualifier = identifier.get_qualifier();
+                self.generate_preallocated_array(identifier_name, &Box::new(ASTNode::QUALIFIER(qualifier)), vec![0.0; array_size], address);
             },
             _ => {
                 self.builder.emit_value(0.0);
@@ -542,24 +577,24 @@ impl BarracudaByteCodeGenerator {
 
         if let Some(symbol) = self.symbol_tracker.find_symbol(&identifier_name) {
             match symbol.symbol_type() {
-                SymbolType::Variable(datatype) => {
+                SymbolType::Variable(datatype, qualifier) => {
                     let local_var_id = self.symbol_tracker.get_local_id(&identifier_name).unwrap();
                     self.generate_local_var_address(local_var_id);
                     match datatype {
                         DataType::ARRAY(_,_) => {
                             self.builder.emit_op(OP::STK_READ);
-                            self.generate_array_assignment_statement(array_index, expression, datatype)
+                            self.generate_array_assignment_statement(array_index, expression, datatype, qualifier)
                         },
-                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level)
+                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, qualifier, pointer_level)
                     }
                 }
-                SymbolType::EnvironmentVariable(global_id, datatype, qualifier) => {
+                SymbolType::EnvironmentVariable(global_id, datatype, qualifier, ptr_levels) => {
                     self.builder.comment(format!("ASSIGNMENT {}:G{}", &identifier_name, global_id));
                     self.generate_node(expression);
-                    if qualifier.contains("*") {
+                    if ptr_levels.contains("*") {
                         self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
                         self.builder.emit_op(OP::LDNX);
-                        let ptr_depth = qualifier.matches("*").count();
+                        let ptr_depth = ptr_levels.matches("*").count();
                         for _n in 0..ptr_depth {
                             if _n == ptr_depth - 1 {
                                 continue;
@@ -571,8 +606,8 @@ impl BarracudaByteCodeGenerator {
                         for index in array_index {
                             self.generate_node(index);
                             self.builder.emit_op(OP::LDNT);
-                            //self.builder.emit_op(OP::LONGLONGTODOUBLE);
-                            self.builder.emit_op(OP::MUL);
+                            self.builder.emit_op(OP::LONGLONGTODOUBLE);
+                            self.builder.emit_op(OP::MUL_PTR);
 
                             // Need to multiply by N (element bit-width of pointer)
                             //Phillip: I don't think this is correct since when casting for write/read it will automatically convert the integer to the correct pointer position.
@@ -583,7 +618,7 @@ impl BarracudaByteCodeGenerator {
                             //    }
                             //    _ => panic!("Datatype {:?} should be a primitive!", datatype)
                             //}
-                            //self.builder.emit_op(OP::MUL);
+                            //self.builder.emit_op(OP::MUL_PTR);
                             //self.builder.emit_op(OP::DOUBLETOLONGLONG);
                             self.builder.emit_op(OP::ADD_PTR);
                         }
@@ -592,13 +627,13 @@ impl BarracudaByteCodeGenerator {
                     }
                     else {
                         self.builder.emit_value(f64::from_be_bytes(global_id.to_be_bytes()));
-                        self.builder.emit_op(OP::RCNX);
+                        self.builder.emit_op(OP::RCNX); // TODO: Implement constant memory for environment variables
                     }
                 }
-                SymbolType::Parameter(datatype) => {
+                SymbolType::Parameter(datatype, qualifier) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
                     self.generate_parameter_address(local_param_id);
-                    self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level);
+                    self.generate_regular_assignment_statement(expression, array_index, datatype, qualifier, pointer_level);
                 }
                 SymbolType::Function { .. } => {
                     panic!("Cannot reassign a value to function '{}'", identifier_name);
@@ -609,7 +644,7 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, mut datatype: DataType) {
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, mut datatype: DataType, mut qualifier: Qualifier) {
         //we have pointer as usize on the stack
         for index in array_index {
             datatype = match datatype {
@@ -617,8 +652,8 @@ impl BarracudaByteCodeGenerator {
                     self.generate_node(index);
                     let array_length = DataType::get_array_length(&inner);
                     if array_length > 1 {
-                        self.builder.emit_value(array_length as f64);
-                        self.builder.emit_op(OP::MUL);
+                        self.builder.emit_value(array_length as f64); // avoid unneccessary double to longlong conversion
+                        self.builder.emit_op(OP::MUL_PTR);
                     }
                     self.builder.emit_op(OP::DOUBLETOLONGLONG);
                     self.builder.emit_op(OP::ADD_PTR);
@@ -631,7 +666,7 @@ impl BarracudaByteCodeGenerator {
         match datatype {
             DataType::ARRAY(_, _) => match expression {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
-                    ASTNode::ARRAY(items) => {self.generate_array_assignment(items, 0);},
+                    ASTNode::ARRAY{items, qualifier} => {self.generate_array_assignment(items, qualifier, 0);},
                     _ => panic!("Expected an array! Found {:?}", expression)
                 },
                 _ => panic!("Expected an array! Found {:?}", expression)
@@ -644,26 +679,26 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, mut position: usize) -> usize {
+    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, qualifier: &Box<ASTNode>, mut position: usize) -> usize {
         for item in items {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
-                    ASTNode::ARRAY(items) => position = self.generate_array_assignment(&items, position),
+                    ASTNode::ARRAY{items, qualifier} => position = self.generate_array_assignment(&items, &qualifier, position),
                     _ => {
                         self.builder.emit_op(OP::DUP);
-                        position = self.generate_array_item(&item, position);
+                        position = self.generate_array_item(&item, &qualifier, position);
                     },
                 }
                 _ => {
                     self.builder.emit_op(OP::DUP);
-                    position = self.generate_array_item(&item, position);
+                    position = self.generate_array_item(&item, &qualifier, position);
                 },
             }
         }
         position
     }
 
-    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, mut datatype: DataType, pointer_level: usize) {
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, mut datatype: DataType, mut qualifier: Qualifier, pointer_level: usize) {
         for _ in 0..pointer_level {
             datatype = match datatype {
                 DataType::POINTER(inner) => *inner,
@@ -673,7 +708,7 @@ impl BarracudaByteCodeGenerator {
         }
         match datatype {
             DataType::ARRAY(_, _) => {
-                self.generate_array_assignment_statement(array_index, expression, datatype);
+                self.generate_array_assignment_statement(array_index, expression, datatype, qualifier);
             }
             _ => {
                 self.generate_node(expression);
@@ -687,11 +722,11 @@ impl BarracudaByteCodeGenerator {
         self.generate_node(expression);
 
         match expression.as_ref() {
-            ASTNode::TYPED_NODE { datatype, .. } => {
+            ASTNode::TYPED_NODE { datatype, qualifier, .. } => {
                 match datatype {
                     DataType::ARRAY(sub_datatype, size) => {
                         match **sub_datatype {
-                            DataType::CONST(primitive) | DataType::MUTABLE(primitive) => {
+                            DataType::PRIMITIVE(primitive) => {
                                 match primitive {
                                     PrimitiveDataType::F8 | PrimitiveDataType::F16 | PrimitiveDataType::F32 | PrimitiveDataType::F64 | PrimitiveDataType::F128 => {
                                         // Iterate over array and print each element
@@ -699,8 +734,15 @@ impl BarracudaByteCodeGenerator {
                                             self.builder.emit_op(OP::DUP); // Duplicate the position of start of the array.
                                             self.builder.emit_value(f64::from_be_bytes(i.to_be_bytes())); // Load the index
                                             self.builder.emit_op(OP::ADD_PTR); // Add the index to the address
-                                            self.builder.emit_op(OP::LDNXPTR); // Load the address of the element
-                                            self.builder.emit_op(OP::READ_F64); // Read the element
+                                            match qualifier {
+                                                Qualifier::CONSTANT => {
+                                                    self.builder.emit_op(OP::LDCUX); // Load the address of the element
+                                                }
+                                                Qualifier::MUTABLE => {
+                                                    self.builder.emit_op(OP::LDNXPTR); // Load the address of the element
+                                                    self.builder.emit_op(OP::READ_F64); // Read the element
+                                                }
+                                            }
                                             self.builder.emit_op(OP::PRINTFF); // Print the value
                                         }
                                     }
@@ -710,8 +752,15 @@ impl BarracudaByteCodeGenerator {
                                             self.builder.emit_op(OP::DUP); // Duplicate the position of start of the array.
                                             self.builder.emit_value(f64::from_be_bytes(i.to_be_bytes())); // Load the index
                                             self.builder.emit_op(OP::ADD_PTR); // Add the index to the address
-                                            self.builder.emit_op(OP::LDNXPTR); // Load the address of the element
-                                            self.builder.emit_op(OP::READ_F64); // Read the element
+                                            match qualifier {
+                                                Qualifier::CONSTANT => {
+                                                    self.builder.emit_op(OP::LDCUX); // Load the address of the element
+                                                }
+                                                Qualifier::MUTABLE => {
+                                                    self.builder.emit_op(OP::LDNXPTR); // Load the address of the element
+                                                    self.builder.emit_op(OP::READ_F64); // Read the element
+                                                }
+                                            }
                                             self.builder.emit_op(OP::PRINTC); // Print the value
                                         }
                                         self.builder.emit_op(OP::DROP); // Remove the duplicated base address.
@@ -727,7 +776,8 @@ impl BarracudaByteCodeGenerator {
 
                         }
                     },
-                    DataType::CONST(primitive) | DataType::MUTABLE(primitive) => {
+                    DataType::PRIMITIVE(primitive) => {
+                        // TODO: Print logic in here doesn't work well for const arrays.
                         match primitive {
                             PrimitiveDataType::F8 | PrimitiveDataType::F16 | PrimitiveDataType::F32 | PrimitiveDataType::F64 | PrimitiveDataType::F128 => {
                                 self.builder.emit_op(OP::PRINTFF);
@@ -1052,9 +1102,9 @@ impl BarracudaByteCodeGenerator {
                             return false;
                         }
                     },
-                    ASTNode::ARRAY(sub_items) => {
+                    ASTNode::ARRAY{items, qualifier} => {
                         // Recursively check if inner arrays are static
-                        if !self.is_static_array(sub_items) {
+                        if !self.is_static_array(items) {
                             return false;
                         }
                     }
@@ -1079,8 +1129,8 @@ impl BarracudaByteCodeGenerator {
                             panic!("Non-literal value in static array!");
                         }
                     },
-                    ASTNode::ARRAY(sub_items) => {
-                        let mut sub_values = self.get_array_values(sub_items);
+                    ASTNode::ARRAY{items, qualifier} => {
+                        let mut sub_values = self.get_array_values(items);
                         values.append(&mut sub_values);
                     }
                     _ => panic!("Non-literal value in static array!"),

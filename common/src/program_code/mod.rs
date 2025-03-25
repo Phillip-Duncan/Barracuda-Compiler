@@ -54,11 +54,13 @@ pub struct ProgramCode {
     /// Estimate given for max stack size needed for execution of the program code
     pub max_stack_size: usize,
 
-    /// User space size is the amount of memory allocated for the user to use (arrays).
-    pub user_space_size: usize,
+    /// User space size is the amount of memory allocated for the user to use (arrays). 
+    // index 0 is the size of the mutable user space and index 1 is the size of the constant user space.
+    pub user_space_size: Vec<u64>,
 
-    /// User space is the memory allocated for the user to use (arrays).
-    pub user_space: Vec<f64>,
+    pub mutable_user_space: Vec<f64>,
+
+    pub constant_user_space: Vec<f64>,
 
     /// Render decorations is used when formatting to determine if to include decorations.
     render_decorations: bool,
@@ -77,8 +79,9 @@ impl ProgramCode {
             operations: vec![],
             instructions: vec![],
             max_stack_size: 0,
-            user_space_size: 0,
-            user_space: vec![],
+            user_space_size: vec![0, 0],
+            mutable_user_space: vec![],
+            constant_user_space: vec![],
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -91,8 +94,9 @@ impl ProgramCode {
             operations: Self::pad_list_to_size_of_instructions(BarracudaInstructions::OP, &instructions, &operations, BarracudaOperators::FIXED(FixedBarracudaOperators::NULL)),
             instructions,
             max_stack_size: 0,
-            user_space_size: 0,
-            user_space: vec![],
+            user_space_size: vec![0, 0],
+            mutable_user_space: vec![],
+            constant_user_space: vec![],
             render_decorations: false,
             decorations: ProgramCodeDecorations::new()
         }
@@ -127,8 +131,12 @@ impl ProgramCode {
     }
 
     /// Builder function adds user space to program code
-    pub fn push_userspace(&mut self, value: f64) {
-        self.user_space.push(value);
+    pub fn push_mutable_userspace(&mut self, value: f64) {
+        self.mutable_user_space.push(value);
+    }
+
+    pub fn push_constant_userspace(&mut self, value: f64) {
+        self.constant_user_space.push(value);
     }
 
     /// Builder function adds comment to program code decorations at current line

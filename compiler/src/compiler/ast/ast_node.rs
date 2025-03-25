@@ -3,6 +3,7 @@ use super::literals::Literal;
 use super::operators::{UnaryOperation, BinaryOperation};
 use super::scope::ScopeId;
 use std::borrow::BorrowMut;
+use super::qualifiers::Qualifier;
 
 
 #[derive(Debug, Clone)]
@@ -30,6 +31,12 @@ pub enum ASTNode {
     DATATYPE(DataType),
 
 
+    /// # Example:
+    ///     let const hello = 4;
+    ///         ^^^^^ -> Qualifier
+    QUALIFIER(Qualifier),
+
+
     /// Literal is a constant value used within an expression.
     /// # Example:
     ///     let hello = 4;
@@ -42,7 +49,10 @@ pub enum ASTNode {
     /// # Example:
     ///     let array : [4] = [1, 2, 3+4, 5];
     ///                       ^^^^^^^^^^^^^^ -> Array
-    ARRAY(Vec<ASTNode>),
+    ARRAY {
+        items: Vec<ASTNode>,
+        qualifier: Box<ASTNode>
+    },
 
     /// Unary operation is an expression operation with only one argument
     ///
@@ -106,6 +116,7 @@ pub enum ASTNode {
     CONSTRUCT {
         identifier: Box<ASTNode>,
         datatype: Box<Option<ASTNode>>,
+        qualifier: Box<ASTNode>,
         expression: Box<ASTNode>
     },
 
@@ -122,7 +133,8 @@ pub enum ASTNode {
     ///
     EMPTY_CONSTRUCT {
         identifier: Box<ASTNode>,
-        datatype: Box<ASTNode>
+        datatype: Box<ASTNode>,
+        qualifier: Box<ASTNode>
     },
 
     /// External statement defines a external variable for use in future statements in scope.
@@ -246,7 +258,8 @@ pub enum ASTNode {
     ///     }
     PARAMETER {
         identifier: Box<ASTNode>,
-        datatype: Box<Option<ASTNode>>
+        datatype: Box<Option<ASTNode>>,
+        qualifier: Box<ASTNode>
     },
 
     /// Functions are callable sections of code that have defined 0 or more function parameters and
@@ -324,6 +337,7 @@ pub enum ASTNode {
     ///     ^^^^^^^^^^^ -> Print Statement
     TYPED_NODE {
         datatype: DataType,
+        qualifier: Qualifier,
         inner: Box<ASTNode>
     },
 }
@@ -339,11 +353,13 @@ impl ASTNode {
             ASTNode::IDENTIFIER(_) => {}
             ASTNode::REFERENCE(_) => {}
             ASTNode::DATATYPE(_) => {}
+            ASTNode::QUALIFIER(_) => {}
             ASTNode::LITERAL(_) => {}
-            ASTNode::ARRAY(items) => {
+            ASTNode::ARRAY {items, qualifier} => {
                 for item in items {
                     output.push(item.borrow_mut());
                 }
+                output.push(qualifier.as_mut());
             }
             ASTNode::UNARY_OP { op: _, expression } => {
                 output.push(expression.as_mut());
@@ -360,17 +376,19 @@ impl ASTNode {
             ASTNode::ARRAY_INDEX { index: _, expression } => {
                 output.push(expression.as_mut());
             }
-            ASTNode::CONSTRUCT { identifier, datatype, expression } => {
+            ASTNode::CONSTRUCT { identifier, datatype, qualifier, expression } => {
                 output.push(identifier.as_mut());
 
                 if datatype.is_some() {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }
+                output.push(qualifier.as_mut());
                 output.push(expression.as_mut());
             }
-            ASTNode::EMPTY_CONSTRUCT { identifier, datatype } => {
+            ASTNode::EMPTY_CONSTRUCT { identifier, datatype, qualifier } => {
                 output.push(identifier.as_mut());
                 output.push(datatype.as_mut());
+                output.push(qualifier.as_mut());
             }
             ASTNode::EXTERN {identifier} => {
                 output.push(identifier.as_mut());
@@ -405,8 +423,9 @@ impl ASTNode {
                 output.push(advancement.as_mut());
                 output.push(body.as_mut());
             }
-            ASTNode::PARAMETER { identifier, datatype } => {
+            ASTNode::PARAMETER { identifier, datatype, qualifier } => {
                 output.push(identifier.as_mut());
+                output.push(qualifier.as_mut());
                 if datatype.is_some() {
                     output.push(datatype.as_mut().as_mut().unwrap());
                 }
@@ -462,6 +481,13 @@ impl ASTNode {
     pub(crate) fn get_type(&self) -> DataType {
         match self {
             ASTNode::TYPED_NODE { datatype, .. } => datatype.clone(),
+            _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", self)
+        }
+    }
+
+    pub(crate) fn get_qualifier(&self) -> Qualifier {
+        match self {
+            ASTNode::TYPED_NODE { qualifier, .. } => qualifier.clone(),
             _ => panic!("Malformed AST! Node {:?} was meant to be a TYPED_NODE but wasn't!", self)
         }
     }
