@@ -8,7 +8,7 @@ extern crate barracuda_common;
 
 use safer_ffi::prelude::*;
 
-use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType};
+use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType, Qualifier};
 use crate::compiler::utils::pack_string_to_f64_array;
 
 // Internal Modules
@@ -45,7 +45,8 @@ pub struct CompilerResponse {
     recommended_stack_size: usize,
 
     /// user space size, used for memory allocations.
-    user_space_size: usize,
+    /// index 0 is for mutable variables, index 1 is for constant variables.
+    user_space_size: repr_c::Vec<u64>,
 
     /// User space is a vector of f64 values that are used to store user defined variables.
     user_space: repr_c::Vec<f64>,
@@ -66,6 +67,8 @@ pub struct EnvironmentVariable {
     datatype: char_p::Box,
 
     qualifier: char_p::Box,
+
+    ptr_levels: char_p::Box,
 }
 
 /// Compiler request describes the content needed to attempt a compilation.
@@ -94,9 +97,10 @@ fn generate_environment_context(request: &CompilerRequest) -> EnvironmentSymbolC
         let identifier = String::from(env_var.identifier.to_str());
         let address = env_var.ptr_offset;
         let datatype = PrimitiveDataType::parse(String::from(env_var.datatype.to_str())).unwrap();
-        let qualifier = String::from(env_var.qualifier.to_str());
+        let qualifier = Qualifier::from_str(String::from(env_var.qualifier.to_str()));
+        let ptr_levels = String::from(env_var.ptr_levels.to_str());
 
-        context.add_symbol(identifier, address, datatype, qualifier);
+        context.add_symbol(identifier, address, datatype, qualifier, ptr_levels);
     }
 
     return context;
@@ -111,7 +115,7 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let env_vars = generate_environment_context(&request);
 
     let compiler: Compiler<PARSER, ANALYSER, GENERATOR> = Compiler::default()
-        .set_environment_variables(env_vars).set_environment_variable_count(request.env_vars.len())
+        .set_environment_variables(env_vars.clone()).set_environment_variable_count(request.env_vars.len())
         .set_precision(request.precision);
 
     //compiler.set_environment_variable_count(request.env_vars.len());
@@ -126,8 +130,17 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let values: Vec<f64> = program_code.values.into_iter().rev()
                                     .map(|value| value as f64).collect();
 
-    let user_space: Vec<f64> = program_code.user_space.into_iter().rev()
-                                    .map(|value| value as f64).collect();
+    //let user_space: Vec<f64> = program_code.user_space.into_iter().rev()
+    //                                .map(|value| value as f64).collect();
+    //
+
+    // Join mutable and constant user space into one vector
+    let mut_user_space: Vec<f64> = program_code.mutable_user_space.into_iter().map(|value| value as f64).collect();
+    let const_user_space: Vec<f64> = program_code.constant_user_space.into_iter().map(|value| value as f64).collect();
+    let user_space: Vec<f64> = mut_user_space.iter().chain(const_user_space.iter()).copied().collect();
+
+    let mut user_space_size: Vec<u64> = program_code.user_space_size;
+    user_space_size[0] += (env_vars.copy_addresses().len() as u64); // TODO: Make const environment add to constant size whereas mutable adds to mutable size (once const/mut env vars are implemented)
 
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
@@ -135,7 +148,7 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
         operations_list: repr_c::Vec::try_from(operations).unwrap(),
         values_list: repr_c::Vec::try_from(values).unwrap(),
         recommended_stack_size: program_code.max_stack_size,
-        user_space_size: program_code.user_space_size,
+        user_space_size: repr_c::Vec::try_from(user_space_size).unwrap(),
         user_space: repr_c::Vec::try_from(user_space).unwrap()
     }
 }
@@ -289,7 +302,13 @@ mod tests {
             (">=", GTEQ),
             ("<=", LTEQ),
             (">", GT),
-            ("<", LT),       
+            ("<", LT),
+            ("&&", AND),
+            ("and", AND),
+            ("||", OR),
+            ("or", OR),
+            ("<<", LSHIFT),
+            (">>", RSHIFT),
         ];
         for (text, op) in &binary_operators {
             let stack = compile_and_merge(&format!("let a = 4{}5;", text));
@@ -609,7 +628,7 @@ mod tests {
     // Checks that function parameters can be assigned to
     #[test]
     fn function_with_parameter_assigned() {
-        let stack = compile_and_merge("fn test_func(a) {a = 3;} let b = test_func(4);");
+        let stack = compile_and_merge("fn test_func(mut a) {a = 3;} let b = test_func(4);");
         let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), // get pointer to parameter
@@ -726,7 +745,7 @@ mod tests {
     // Tests variable assignment
     #[test]
     fn variable_assignment() {
-        let stack = compile_and_merge("let a = 3; a = 4;");
+        let stack = compile_and_merge("let mut a = 3; a = 4;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(generate_variable_assign(1, "let a = 4;"), stack[1..]);
     }
@@ -734,7 +753,7 @@ mod tests {
     // Tests variable assignment for a second variable
     #[test]
     fn second_variable_assignment() {
-        let stack = compile_and_merge("let a = 3; let b = 4; b = 5;");
+        let stack = compile_and_merge("let a = 3; let mut b = 4; b = 5;");
         assert_eq!(Val(3.0), stack[0]);
         assert_eq!(Val(4.0), stack[1]);
         assert_eq!(generate_variable_assign(2, "let a = 5;"), stack[2..]);
@@ -766,7 +785,7 @@ mod tests {
     #[test]
     fn for_loop() {
         let new_line = pack_string_to_f64_array("\n", 64)[0];
-        let stack = compile_and_merge("for (let i = 4; 5; i = 6) {print(7);}");
+        let stack = compile_and_merge("for (let mut i = 4; 5; i = 6) {print(7);}");
         assert_eq!(vec![
             Val(4.0), // construction 
             Val(5.0), Val(ptr(16)), Instr(GOTO_IF), // loop exit condition 
@@ -781,7 +800,7 @@ mod tests {
     #[test]
     fn external_f64_variable() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
     }
@@ -790,7 +809,7 @@ mod tests {
     #[test]
     fn external_i32_variable() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, Qualifier::CONSTANT, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX))], stack);
     }
@@ -799,7 +818,7 @@ mod tests {
     #[test]
     fn external_f64_variable_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_F64))], stack);
     }
@@ -808,7 +827,7 @@ mod tests {
     #[test]
     fn external_i32_variable_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, "*".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::I32, Qualifier::CONSTANT, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(READ_I32))], stack);
     }
@@ -817,7 +836,7 @@ mod tests {
     #[test]
     fn external_f64_variable_with_double_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         assert_eq!(vec![Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(READ_F64))], stack);
     }
@@ -826,7 +845,7 @@ mod tests {
     #[test]
     fn external_variable_write() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::MUTABLE, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
         assert_eq!(vec![Val(4.0), Val(ptr(7)), Op(FIXED(RCNX))], stack);
     }
@@ -835,7 +854,7 @@ mod tests {
     #[test]
     fn external_variable_write_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::MUTABLE, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
         assert_eq!(vec![Val(4.0), Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
     }
@@ -844,7 +863,7 @@ mod tests {
     #[test]
     fn external_variable_write_with_double_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "**".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::MUTABLE, "**".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; a = 4;", env_vars);
         assert_eq!(vec![Val(4.0), Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(PTR_DEREF)), Op(FIXED(SWAP)), Op(FIXED(WRITE))], stack);
     }
@@ -877,7 +896,7 @@ mod tests {
     #[test]
     fn pointer_assign() {
         let old_stack = compile_and_merge("let a = 3; let b = &a;");
-        let stack = compile_and_merge("let a = 3; let b = &a; *b = 4;");
+        let stack = compile_and_merge("let a = 3; let mut b = &a; *b = 4;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(generate_variable_call(2), stack[old_stack.len()..old_stack.len()+5]);
@@ -887,7 +906,7 @@ mod tests {
     #[test]
     fn triple_pointer_assign() {
         let old_stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = &c;");
-        let stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let d = &c; ***d = 4;");
+        let stack = compile_and_merge("let a = 3; let b = &a; let c = &b; let mut d = &c; ***d = 4;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(generate_variable_call(4), stack[old_stack.len()..old_stack.len()+5]);
@@ -897,7 +916,7 @@ mod tests {
     //Check that parameters can also use pointer assign syntax
     #[test]
     fn parameter_pointer_assign() {
-        let stack = compile_and_merge("fn test_func(a: *i64) {*a = 3;} let b = 1; let c = test_func(&b);");
+        let stack = compile_and_merge("fn test_func(mut a: *i64) {*a = 3;} let b = 1; let c = test_func(&b);"); // TODO: Investigate this, I don't think this should pass without b being mutable..
         let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ)), // get pointer
@@ -972,8 +991,8 @@ mod tests {
 
     #[test]
     fn array_access() {
-        let old_stack = compile_and_merge("let a = [1];");
-        let stack = compile_and_merge("let a = [1]; let b = a[0];");
+        let old_stack = compile_and_merge("let mut a = [1];");
+        let stack = compile_and_merge("let mut a = [1]; let mut b = a[0];");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
@@ -982,7 +1001,7 @@ mod tests {
 
     #[test]
     fn array_and_loop(){
-        let stack = compile_and_merge("let a = [1,2,3]; for (let i = 0; i < 3; i = i + 1) {print(a[i]);}");
+        let stack = compile_and_merge("let mut a = [1,2,3]; for (let mut i = 0; i < 3; i = i + 1) {print(a[i]);}");
         let new_line = pack_string_to_f64_array("\n", 64)[0];
 
         assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
@@ -997,8 +1016,8 @@ mod tests {
 
     #[test]
     fn deeper_array_access() {
-        let old_stack = compile_and_merge("let a = [1,2]; let b = [3,4,5];");
-        let stack = compile_and_merge("let a = [1,2]; let b = [3,4,5]; let c = b[1];");
+        let old_stack = compile_and_merge("let mut a = [1,2]; let mut b = [3,4,5];");
+        let stack = compile_and_merge("let mut a = [1,2]; let mut b = [3,4,5]; let c = b[1];");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(2)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
@@ -1007,8 +1026,8 @@ mod tests {
 
     #[test]
     fn complex_array_access() {
-        let old_stack = compile_and_merge("let a = [1];");
-        let stack = compile_and_merge("let a = [1]; let b = a[3 - 3];");
+        let old_stack = compile_and_merge("let mut a = [1];");
+        let stack = compile_and_merge("let mut a = [1]; let mut b = a[3 - 3];");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), 
@@ -1017,37 +1036,37 @@ mod tests {
 
     #[test]
     fn multidimensional_array_access() {
-        let old_stack = compile_and_merge("let a = [[1]];");
-        let stack = compile_and_merge("let a = [[1]]; let b = a[0][0];");
+        let old_stack = compile_and_merge("let mut a = [[1]];");
+        let stack = compile_and_merge("let mut a = [[1]]; let mut b = a[0][0];");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-                        Val(0.0), Val(1.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), // Enter first level
+                        Val(0.0), Val(1.0), Op(FIXED(MUL_PTR)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), // Enter first level
                         Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], // Enter second level
             stack[old_stack.len()..stack.len()]);
     }
 
     #[test]
     fn large_multidimensional_array_access() {
-        let old_stack = compile_and_merge("let a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];");
+        let old_stack = compile_and_merge("let mut a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];");
         let stack = compile_and_merge("
-            let a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];
-            let b = a[1][0][1][0];
+            let mut a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];
+            let mut b = a[1][0][1][0];
         ");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-            Val(1.0), Val(8.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Val(0.0), Val(4.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
-            Val(1.0), Val(2.0), Op(FIXED(MUL)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
+            Val(1.0), Val(8.0), Op(FIXED(MUL_PTR)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
+            Val(0.0), Val(4.0), Op(FIXED(MUL_PTR)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
+            Val(1.0), Val(2.0), Op(FIXED(MUL_PTR)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
             Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64))], stack[old_stack.len()..stack.len()]);
     }
 
     // Tests for arrays
     #[test]
     fn assign_array() {
-        let old_stack = compile_and_merge("let a = [1];");
-        let stack = compile_and_merge("let a = [1]; a[0] = 2;");
+        let old_stack = compile_and_merge("let mut a = [1];");
+        let stack = compile_and_merge("let mut a = [1]; a[0] = 2;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0),
@@ -1057,8 +1076,8 @@ mod tests {
     // Tests for arrays
     #[test]
     fn assign_2d_array() {
-        let old_stack = compile_and_merge("let a = [[1]];");
-        let stack = compile_and_merge("let a = [[1]]; a[0][0] = 2;");
+        let old_stack = compile_and_merge("let mut a = [[1]];");
+        let stack = compile_and_merge("let mut a = [[1]]; a[0][0] = 2;");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0), 
@@ -1069,8 +1088,8 @@ mod tests {
     // Tests for arrays
     #[test]
     fn assign_2d_array_half() {
-        let old_stack = compile_and_merge("let a = [[1]];");
-        let stack = compile_and_merge("let a = [[1]]; a[0] = [2];");
+        let old_stack = compile_and_merge("let mut a = [[1]];");
+        let stack = compile_and_merge("let mut a = [[1]]; a[0] = [2];");
 
         assert_eq!(old_stack, stack[..old_stack.len()]);
         assert_eq!(vec![Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), 
@@ -1080,11 +1099,57 @@ mod tests {
     #[test]
     fn assign_array_extern_value() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
-        let stack = compile_and_merge_with_env_vars("extern a; let b = [1]; b[0] = a;", env_vars);
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "".to_string());
+        let stack = compile_and_merge_with_env_vars("extern a; let mut b = [1]; b[0] = a;", env_vars);
         assert_eq!(vec![Val(ptr(0)), Val(ptr(1)), Val(ptr(1)), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(ptr(0)), 
                         Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Val(ptr(7)), Op(FIXED(LDNX)), Op(FIXED(SWAP)), Op(FIXED(RCNX))], stack);
     }
+
+    #[test]
+    fn const_array() {
+        let stack = compile_and_merge("let const a = [1,2]; let mut c = [5,6,7]; let const d = [3,4,6,7,7]; let mut x = [2];");
+        assert_eq!(vec![Val(ptr(0)), Val(ptr(0)), Val(ptr(2)), Val(ptr(3))], stack);
+    }
+
+    #[test]
+    fn qualified_typed_array() {
+        compile_and_merge(r#"let mut a: [i64; 3];"#);
+    }
+
+    #[test]
+    fn qualified_typed_2d_array() {
+        compile_and_merge(r#"let mut a: [[i64; 3]; 3];"#);
+    }
+
+    #[test]
+    fn qualified_typed_3d_array() {
+        compile_and_merge(r#"let mut a: [[[i64; 3]; 3]; 3];"#);
+    }
+
+    #[test]
+    fn qualified_typed_array_access() {
+        let stack = compile_and_merge("let const a: [i64; 3] = [1,2,3]; let mut b = a[0];");
+        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)), Op(FIXED(READ_F64))], stack);
+    }
+
+
+    #[test]
+    fn complex_qualified_typed_array_access() {
+        let stack = compile_and_merge("let mut a: [i64; 3] = [9,9,9]; let const b: [i64; 3] = [1,2,3]; let c = b[0]; let d = a[0]; print(b);");
+        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(READ_F64))], stack);
+    }
+
+    #[test]
+    fn complex_qualified_typed_array_access_mut() {
+        let stack = compile_and_merge("let const a: [i64; 3] = [9,9,9]; let mut b: [i64; 3] = [1,2,3]; let c = b[0]; let d = a[0]; print(b);");
+        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(READ_F64))], stack);
+    }
+
     // Tests for the type system.
     #[test]
     fn literal_types() {
@@ -1164,7 +1229,7 @@ mod tests {
 
     #[test]
     fn parameter_type() {
-        compile_and_assert_equal("fn func(a) {a = 2;} func(1);", "fn func(a: i64) {a = 2;} func(1);");
+        compile_and_assert_equal("fn func(mut a) {a = 2;} func(1);", "fn func(mut a: i64) {a = 2;} func(1);");
     }
 
     #[test]
@@ -1191,28 +1256,28 @@ mod tests {
 
     #[test]
     fn variable_assignment_type() {
-        compile_and_assert_equal("let a = 3; a = 4;", "let a: i64 = 3; a = 4;");
+        compile_and_assert_equal("let mut a = 3; a = 4;", "let mut a: i64 = 3; a = 4;");
     }
 
     #[test]
     fn while_loop_type() {
-        compile_and_assert_equal("let a = 3; while true { a = 4; }", "let a: i64 = 3; while true { a = 4; }");
+        compile_and_assert_equal("let mut a = 3; while true { a = 4; }", "let mut a: i64 = 3; while true { a = 4; }");
     }
 
     #[test]
     fn for_loop_type() {
         compile_and_assert_equal(
-            "let a = 3; for (let i = 4; i < 50; i = i + 1) { a = a + 1; }", 
-            "let a: i64 = 3; for (let i: i8 = 4; i < 50; i = i + 1) { a = a + 1; }");
+            "let mut a = 3; for (let mut i = 4; i < 50; i = i + 1) { a = a + 1; }", 
+            "let mut a: i64 = 3; for (let mut i: i8 = 4; i < 50; i = i + 1) { a = a + 1; }");
     }
 
     #[test]
     fn external_variable_type() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "".to_string());
         let typed_stack = compile_and_merge_with_env_vars("extern a; let b: i64 = a;", env_vars);
         assert_eq!(stack, typed_stack);
     }
@@ -1220,10 +1285,10 @@ mod tests {
     #[test]
     fn external_variable_type_with_qualifier() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "*".to_string());
         let stack = compile_and_merge_with_env_vars("extern a; let b = a;", env_vars);
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "*".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "*".to_string());
         let typed_stack = compile_and_merge_with_env_vars("extern a; let b: i64 = a;", env_vars);
         assert_eq!(stack, typed_stack);
     }
@@ -1247,7 +1312,7 @@ mod tests {
 
     #[test]
     fn pointer_assign_type() {
-        compile_and_assert_equal("let a = 3; let b = &a; *b = 4;", "let a: i64 = 3; let b: *i64 = &a; *b = 4;");
+        compile_and_assert_equal("let a = 3; let mut b = &a; *b = 4;", "let a: i64 = 3; let mut b: *i64 = &a; *b = 4;");
     }
 
     #[test]
@@ -1272,17 +1337,17 @@ mod tests {
 
     #[test]
     fn array_assign_type() {
-        compile_and_assert_equal("let a = [1]; a[0] = 2;", "let a: [i64; 1] = [1]; a[0] = 2;");
+        compile_and_assert_equal("let mut a = [1]; a[0] = 2;", "let mut a: [i64; 1] = [1]; a[0] = 2;");
     }
 
     #[test]
     fn array_assign_type_2d() {
-        compile_and_assert_equal("let a = [[1]]; a[0][0] = 2;", "let a: [[i64; 1]; 1] = [[1]]; a[0][0] = 2;");
+        compile_and_assert_equal("let mut a = [[1]]; a[0][0] = 2;", "let mut a: [[i64; 1]; 1] = [[1]]; a[0][0] = 2;");
     }
 
     #[test]
     fn array_assign_type_2d_half() {
-        compile_and_assert_equal("let a = [[1]]; a[0] = [2];", "let a: [[i64; 1]; 1] = [[1]]; a[0] = [2];");
+        compile_and_assert_equal("let mut a = [[1]]; a[0] = [2];", "let mut a: [[i64; 1]; 1] = [[1]]; a[0] = [2];");
     }
 
     #[test]
@@ -1337,7 +1402,7 @@ mod tests {
     #[should_panic]
     fn bad_extern_reference() {
         let mut env_vars = EnvironmentSymbolContext::new();
-        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, "".to_string());
+        env_vars.add_symbol("a".to_string(), 7, PrimitiveDataType::F64, Qualifier::CONSTANT, "".to_string());
         compile_and_merge_with_env_vars("extern a; let b = &a;", env_vars);
     }
 

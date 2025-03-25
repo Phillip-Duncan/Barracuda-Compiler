@@ -1,10 +1,11 @@
 
-use crate::compiler::ast::{ASTNode, datatype::DataType};
+use crate::compiler::ast::{ASTNode, datatype::DataType, qualifiers::Qualifier};
 
 #[derive(Clone, Debug)]
 pub struct FunctionTracker {
     parameter_names: Vec<String>,
     parameters: Vec<Option<DataType>>,
+    parameter_qualifiers: Vec<Qualifier>,
     return_type: Option<DataType>,
     body: ASTNode,
     implementations: Vec<FunctionImplementation>,
@@ -21,9 +22,10 @@ impl FunctionTracker {
     pub fn new(parameters: Vec<ASTNode>, return_type: Option<ASTNode>, body: ASTNode) -> Self {
         let mut parameter_names = vec![];
         let mut parameter_types = vec![];
+        let mut parameter_qualifiers = vec![];
         for parameter in parameters {
             match parameter {
-                ASTNode::PARAMETER { datatype, identifier } => {
+                ASTNode::PARAMETER { datatype, identifier, qualifier } => {
                     let datatype = match datatype.as_ref() {
                         Some(datatype) => match datatype {
                             ASTNode::DATATYPE(datatype) => Some(datatype.clone()),
@@ -33,10 +35,15 @@ impl FunctionTracker {
                     };
                     let identifier = match identifier.as_ref() {
                         ASTNode::IDENTIFIER(name) => name.clone(),
-                        _ => panic!("Malformed AST! Node {:?} should have been a datatype but wasn't!", datatype)
+                        _ => panic!("Malformed AST! Node {:?} should have been an identifier but wasn't!", identifier)
+                    };
+                    let qualifier = match qualifier.as_ref() {
+                        ASTNode::QUALIFIER(qualifier) => qualifier.clone(),
+                        _ => panic!("Malformed AST! Node {:?} should have been a qualifier but wasn't!", qualifier)
                     };
                     parameter_names.push(identifier);
                     parameter_types.push(datatype);
+                    parameter_qualifiers.push(qualifier);
                 },
                 _ => panic!("Malformed AST! Parameter wasn't a parameter, instead it was {:?}", parameter)
             };
@@ -51,6 +58,7 @@ impl FunctionTracker {
         FunctionTracker {
             parameter_names,
             parameters: parameter_types,
+            parameter_qualifiers,
             return_type,
             body,
             implementations: Vec::new()
@@ -66,17 +74,17 @@ impl FunctionTracker {
         return None
     }
 
-    pub fn get_innards(&self) -> (&Vec<Option<DataType>>, &Vec<String>, &Option<DataType>, &ASTNode) {
-        (&self.parameters, &self.parameter_names, &self.return_type, &self.body)
+    pub fn get_innards(&self) -> (&Vec<Option<DataType>>, &Vec<String>, &Vec<Qualifier>, &Option<DataType>, &ASTNode) {
+        (&self.parameters, &self.parameter_names, &self.parameter_qualifiers, &self.return_type, &self.body)
     }
 
     pub fn get_implementations(&self) -> &Vec<FunctionImplementation> {
         &self.implementations
     }
 
-    pub fn create_implementation(&mut self, name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, return_type: DataType, body: ASTNode) -> String {
+    pub fn create_implementation(&mut self, name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, parameter_qualifiers: Vec<Qualifier>, return_type: DataType, body: ASTNode) -> String {
         let name = format!("{}:{}", name, self.implementations.len());
-        let implementation = FunctionImplementation::new(name, parameter_names, parameter_types, return_type, body);
+        let implementation = FunctionImplementation::new(name, parameter_names, parameter_types, parameter_qualifiers, return_type, body);
         let implementation_name = implementation.get_name();
         self.implementations.push(implementation);
         return implementation_name;
@@ -88,13 +96,14 @@ pub struct FunctionImplementation {
     name: String,
     parameter_names: Vec<String>,
     parameter_types: Vec<DataType>,
+    parameter_qualifiers: Vec<Qualifier>,
     return_type: DataType,
     body: ASTNode
 }
 
 impl FunctionImplementation {
-    pub fn new(name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, return_type: DataType, body: ASTNode) -> Self {
-        FunctionImplementation { name, parameter_names, parameter_types, return_type, body }
+    pub fn new(name: String, parameter_names: Vec<String>, parameter_types: Vec<DataType>, parameter_qualifiers: Vec<Qualifier>, return_type: DataType, body: ASTNode) -> Self {
+        FunctionImplementation { name, parameter_names, parameter_types, parameter_qualifiers, return_type, body }
     }
 
     pub fn matches_arguments(&self, arguments: &Vec<DataType>) -> bool {
@@ -119,5 +128,9 @@ impl FunctionImplementation {
 
     pub fn get_parameter_types(&self) -> &Vec<DataType> {
         &self.parameter_types
+    }
+
+    pub fn get_parameter_qualifiers(&self) -> &Vec<Qualifier> {
+        &self.parameter_qualifiers
     }
 }
