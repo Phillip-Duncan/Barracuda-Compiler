@@ -11,6 +11,7 @@ mod compiler;
 use compiler::Compiler;
 use compiler::EnvironmentSymbolContext;
 use compiler::PrimitiveDataType;
+use compiler::Qualifier;
 
 use barracuda_common::CLIEnvVarDescriptor;
 
@@ -87,9 +88,10 @@ impl CompilerCLIOptions {
                 };
                 let identifier = env_var_descriptor.identifier.clone();
                 let datatype = PrimitiveDataType::parse(env_var_descriptor.datatype.clone()).unwrap();
-                let qualifier = env_var_descriptor.qualifier.clone();
+                let qualifier = Qualifier::from_str(env_var_descriptor.qualifier.clone());
+                let ptr_levels = env_var_descriptor.ptr_levels.clone();
 
-                context.add_symbol(identifier, address, datatype, qualifier);
+                context.add_symbol(identifier, address, datatype, qualifier, ptr_levels);
             }
         }
 

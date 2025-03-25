@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use crate::compiler::ast::symbol_table::SymbolType;
 use super::symbol_table::{SymbolTable, Symbol};
 use super::ScopeId;
+use crate::compiler::Qualifier;
 
 /// Scope Tracker is a utility function for behavioural tracking changes in the current
 /// scope id. It wraps around a symbol table and will track the scope with the methods
@@ -40,7 +41,8 @@ pub(crate) struct ScopeTracker {
     array_ids: HashMap<String, usize>,
     local_var_count: usize,
     active_parameter_count: usize,
-    array_count: usize,
+    mutable_array_count: usize,
+    constant_array_count: usize,
 }
 
 
@@ -57,7 +59,8 @@ impl ScopeTracker {
             array_ids: Default::default(),
             local_var_count: 0,
             active_parameter_count: 0,
-            array_count: 0,
+            mutable_array_count: 0,
+            constant_array_count: 0,
         }
     }
 
@@ -72,7 +75,8 @@ impl ScopeTracker {
             array_ids: Default::default(),
             local_var_count: 0,
             active_parameter_count: 0,
-            array_count: 0,
+            mutable_array_count: 0,
+            constant_array_count: 0,
         }
     }
 
@@ -123,11 +127,19 @@ impl ScopeTracker {
         // Assign resource ids to symbols
         let symbol = self.find_symbol(&identifier).unwrap();
         match symbol.symbol_type() {
-            SymbolType::Variable(_) => {
+            SymbolType::Variable(_, qualifier) => {
                 if symbol.is_array() {
                     let unique_id = symbol.unique_id();
-                    let array_count = self.array_count;
-                    self.array_count += symbol.array_length();
+                    //let array_count = self.array_count;
+                    let array_count = match qualifier {
+                        Qualifier::CONSTANT => self.constant_array_count,
+                        Qualifier::MUTABLE => self.mutable_array_count
+                    };
+                    match qualifier {
+                        Qualifier::CONSTANT => self.constant_array_count += symbol.array_length(),
+                        Qualifier::MUTABLE => self.mutable_array_count += symbol.array_length()
+                    }
+                    //self.array_count += symbol.array_length();
                     self.array_ids.insert(unique_id.clone(), array_count);
                     self.local_var_ids.insert(unique_id, self.local_var_count);
                     self.local_var_count += 1;
@@ -137,8 +149,8 @@ impl ScopeTracker {
                     self.local_var_count += 1;
                 }
             }
-            SymbolType::EnvironmentVariable(_, _, _) => {}
-            SymbolType::Parameter(_) => {
+            SymbolType::EnvironmentVariable(_, _, _, _) => {}
+            SymbolType::Parameter(_, _) => {
                 let unique_id = symbol.unique_id();
                 self.parameter_ids.insert(unique_id, self.active_parameter_count);
                 self.active_parameter_count += 1;

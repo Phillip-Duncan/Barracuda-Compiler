@@ -23,6 +23,7 @@ pub use self::parser::PestBarracudaParser;
 pub use self::semantic_analyser::BarracudaSemanticAnalyser;
 pub use self::ast::EnvironmentSymbolContext;
 pub use self::ast::datatype::PrimitiveDataType;
+pub use self::ast::qualifiers::Qualifier;
 
 
 /// Compiler is a simple class that holds the configuration of a compilation configuration.

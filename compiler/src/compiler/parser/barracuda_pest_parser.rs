@@ -1,4 +1,5 @@
 use crate::compiler::ast::datatype::DataType;
+use crate::compiler::ast::qualifiers::Qualifier;
 use crate::pest::Parser;
 use super::AstParser;
 use super::super::ast::{
@@ -56,6 +57,7 @@ impl PestBarracudaParser {
             Rule::primitive_datatype => { self.parse_pair_primitive_datatype(pair) },
             Rule::pointer_datatype =>   { self.parse_pair_pointer_datatype(pair) },
             Rule::array_datatype =>     { self.parse_pair_array_datatype(pair) },
+            Rule::qualifier =>          { self.parse_pair_qualifier(pair) },
             Rule::integer |
             Rule::decimal |
             Rule::boolean =>            { self.parse_pair_literal(pair) },
@@ -76,7 +78,9 @@ impl PestBarracudaParser {
             Rule::statement_list =>     { self.parse_pair_statement_list(pair) },
             Rule::full_qualified_construct_statement => { self.parse_pair_full_qualified_construct_statement(pair) },
             Rule::full_construct_statement => { self.parse_pair_full_construct_statement(pair) },
+            Rule::inferred_qualified_construct_statement => { self.parse_pair_inferred_qualified_construct_statement(pair) },
             Rule::inferred_construct_statement => { self.parse_pair_inferred_construct_statement(pair) },
+            Rule::empty_qualified_construct_statement => { self.parse_pair_empty_qualified_construct_statement(pair) },
             Rule::empty_construct_statement => { self.parse_pair_empty_construct_statement(pair) },
             Rule::external_statement => { self.parse_pair_external_statement(pair) },
             Rule::assign_statement =>   { self.parse_pair_assignment_statement(pair) },
@@ -116,16 +120,19 @@ impl PestBarracudaParser {
         let string = pair.as_str();
         let string = &string[1..string.len() - 1];
         let string = pack_string_to_f64_array(string, 64);
-        ASTNode::ARRAY(
-            string
-                .into_iter()
-                .map(|x| ASTNode::LITERAL(Literal::PACKEDSTRING(x)))
-                .collect(),
-        )
+        ASTNode::ARRAY{
+            items: string.into_iter().map(|x| ASTNode::LITERAL(Literal::PACKEDSTRING(x))).collect(),
+            qualifier: Box::new(ASTNode::QUALIFIER(Qualifier::MUTABLE))
+        }
     }
 
     fn parse_pair_array(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
-        ASTNode::ARRAY(pair.into_inner().map(|p| self.parse_pair_node(p)).collect())
+        //ASTNode::ARRAY(pair.into_inner().map(|p| self.parse_pair_node(p)).collect())
+
+        ASTNode::ARRAY {
+            items: pair.into_inner().map(|p| self.parse_pair_node(p)).collect(),
+            qualifier: Box::new(ASTNode::QUALIFIER(Qualifier::MUTABLE))
+        }
     }
 
     /// Parses a pest token pair into an AST identifier
@@ -140,6 +147,10 @@ impl PestBarracudaParser {
 
     fn parse_pair_primitive_datatype(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
         ASTNode::DATATYPE(DataType::from_str(pair.as_str().to_owned()))
+    }
+
+    fn parse_pair_qualifier(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        ASTNode::QUALIFIER(Qualifier::from_str(pair.as_str().to_owned()))
     }
 
     fn parse_pair_pointer_datatype(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
@@ -251,6 +262,7 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(Some(datatype)),
+            qualifier: Box::new(qualifier),
             expression: Box::new(expression),
         }
     }
@@ -265,6 +277,21 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(Some(datatype)),
+            qualifier: Box::new(ASTNode::QUALIFIER(Qualifier::CONSTANT)),
+            expression: Box::new(expression),
+        }
+    }
+
+    fn parse_pair_inferred_qualified_construct_statement(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let qualifier = self.parse_pair_node(pair.next().unwrap());
+        let identifier = self.parse_pair_node(pair.next().unwrap());
+        let expression = self.parse_pair_node(pair.next().unwrap());
+
+        ASTNode::CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(None),
+            qualifier: Box::new(qualifier),
             expression: Box::new(expression),
         }
     }
@@ -278,7 +305,21 @@ impl PestBarracudaParser {
         ASTNode::CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(None),
+            qualifier: Box::new(ASTNode::QUALIFIER(Qualifier::CONSTANT)),
             expression: Box::new(expression),
+        }
+    }
+
+    fn parse_pair_empty_qualified_construct_statement(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
+        let mut pair = pair.into_inner();
+        let qualifier = self.parse_pair_node(pair.next().unwrap());
+        let identifier = self.parse_pair_node(pair.next().unwrap());
+        let datatype = self.parse_pair_node(pair.next().unwrap());
+
+        ASTNode::EMPTY_CONSTRUCT {
+            identifier: Box::new(identifier),
+            datatype: Box::new(datatype),
+            qualifier: Box::new(qualifier),
         }
     }
 
@@ -291,6 +332,7 @@ impl PestBarracudaParser {
         ASTNode::EMPTY_CONSTRUCT {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
+            qualifier: Box::new(ASTNode::QUALIFIER(Qualifier::MUTABLE)),
         }
     }
 
@@ -410,6 +452,20 @@ impl PestBarracudaParser {
     /// Function parameters are defined in the function definition.
     fn parse_pair_function_parameter(&self, pair: pest::iterators::Pair<Rule>) -> ASTNode {
         let mut pair = pair.into_inner();
+
+        // peek the first item to see if it is a qualifier
+        let qualifier = match pair.peek() {
+            Some(item) => {
+                if item.as_rule() == Rule::qualifier {
+                    self.parse_pair_node(pair.next().unwrap())
+                } else {
+                    ASTNode::QUALIFIER(Qualifier::CONSTANT)
+                }
+            },
+            None => ASTNode::QUALIFIER(Qualifier::CONSTANT),
+        };
+
+
         let identifier = self.parse_pair_node(pair.next().unwrap());
 
         let datatype = match pair.next() {
@@ -420,6 +476,7 @@ impl PestBarracudaParser {
         ASTNode::PARAMETER {
             identifier: Box::new(identifier),
             datatype: Box::new(datatype),
+            qualifier: Box::new(qualifier),
         }
     }
 

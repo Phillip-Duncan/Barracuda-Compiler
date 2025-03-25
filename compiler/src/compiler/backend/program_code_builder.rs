@@ -26,10 +26,10 @@ enum BarracudaIR {
 
     // Arrays are stored in a different memory section to normal variables. 
     // Generating the exact address of each array is only possible once the whole program is generated.
-    Array{address: usize, size: usize},
+    Array{address: usize, size: usize, qualifier: String},
 
     /// Userspace is a value that is stored in the user space of the program.
-    Userspace(f64),
+    Userspace(f64, String),
 
     /// Comments are purely decorative and allow for instructions to be annotated these are stored
     /// with ProgramCodeDecorations after finalisation
@@ -72,8 +72,13 @@ impl BarracudaProgramCodeBuilder {
         self.program_out.push(BarracudaIR::Operation(OP::FIXED(operation)));
     }
 
-    pub fn emit_userspace(&mut self, value: f64) {
-        self.program_out.push(BarracudaIR::Userspace(value));
+    pub fn emit_userspace(&mut self, value: f64, qualifier: String) {
+        match qualifier.as_str() {
+            "const" => self.program_out.push(BarracudaIR::Userspace(value, qualifier)),
+            "mut" => self.program_out.push(BarracudaIR::Userspace(value, qualifier)),
+            _ => panic!("Invalid userspace qualifier: {}", qualifier),
+        }
+        //self.program_out.push(BarracudaIR::Userspace(value));
     }
 
     /// Comment decorates the next instruction with a string
@@ -116,8 +121,8 @@ impl BarracudaProgramCodeBuilder {
     /// Emits an array.
     /// Takes the preliminary address of the array.
     /// The exact memory address needs to be calculated later.
-    pub fn emit_array(&mut self, address: usize, size: usize) {
-        self.program_out.push(BarracudaIR::Array{address, size})
+    pub fn emit_array(&mut self, address: usize, size: usize, qualifier: String) {
+        self.program_out.push(BarracudaIR::Array{address, size, qualifier})
     }
 
     /// Used to keep track of the number of enviornment variables so arrays can be correctly located.
@@ -171,7 +176,7 @@ impl BarracudaProgramCodeBuilder {
                     locations[*id as usize] = current_line;
                 }
                 BarracudaIR::Comment(_) => {}
-                BarracudaIR::Userspace(_) => {} // Userspace should NOT take up instruction slots.
+                BarracudaIR::Userspace(_, _) => {} // Userspace should NOT take up instruction slots.
 
                 // Everything else should take up a instruction slot
                 _ => {
@@ -204,15 +209,32 @@ impl BarracudaProgramCodeBuilder {
                 BarracudaIR::Reference(id) => {
                     output_program.push_value(f64::from_be_bytes(locations[*id as usize].clone().to_be_bytes()));
                 }
-                BarracudaIR::Array{address, size, ..} => {
-                    output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes()));
+                BarracudaIR::Array{address, size, qualifier, ..} => {
+
+                    match qualifier.as_str() {
+                        "const" => { output_program.push_value(f64::from_be_bytes((address).to_be_bytes())); }
+                        "mut" => { output_program.push_value(f64::from_be_bytes((address + self.env_var_count).to_be_bytes())); }
+                        _ => panic!("Invalid userspace qualifier: {}", qualifier),
+                    }
+                    
                     // Phill: Make sure to increment the user space size for each array
                     // TODO: Implement memory solution for differing CONST/MUTABLE arrays, possibly have two variables (user_space_size_const, user_space_size_mutable).
                     // Only the implementation code will know how to alloc the actual memory, so we need to provide the sizes of both const and mutable memory allocations.
-                    output_program.user_space_size += size;
+                    //output_program.user_space_size += size;
+
+                    match qualifier.as_str() {
+                        "mut" => output_program.user_space_size[0] += size.clone() as u64,
+                        "const" => output_program.user_space_size[1] += size.clone() as u64,
+                        _ => panic!("Invalid userspace qualifier: {}", qualifier),
+                    }
+                    
                 }
-                BarracudaIR::Userspace(value) => {
-                    output_program.push_userspace(value.clone());
+                BarracudaIR::Userspace(value, qualifier) => {
+                    match qualifier.as_str() {
+                        "const" => output_program.push_constant_userspace(value.clone()),
+                        "mut" => output_program.push_mutable_userspace(value.clone()),
+                        _ => panic!("Invalid userspace qualifier: {}", qualifier),
+                    }
                 }
                 BarracudaIR::Label(_) => {} // Skip labels
                 BarracudaIR::Comment(comment) => {

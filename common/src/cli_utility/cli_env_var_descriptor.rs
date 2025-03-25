@@ -8,7 +8,8 @@ pub struct CLIEnvVarDescriptor {
     pub given_address: Option<usize>,
     pub given_value: Option<f64>,
     pub datatype: String,
-    pub qualifier: String
+    pub qualifier: String,
+    pub ptr_levels: String
 }
 
 impl FromStr for CLIEnvVarDescriptor {
@@ -35,13 +36,17 @@ impl FromStr for CLIEnvVarDescriptor {
             let qualifier = caps.name("qualifier")
                 .and_then(|m| Some(String::from(m.as_str())))
                 .ok_or(SimpleError::new("Environment variable must have a valid qualifier"))?;
+            let ptr_levels = caps.name("ptr_levels")
+                .and_then(|m| Some(String::from(m.as_str())))
+                .ok_or(SimpleError::new("Environment variable must have a valid pointer level"))?;
 
             Ok(Self {
                 identifier,
                 given_address: address,
                 given_value: value,
                 datatype,
-                qualifier
+                qualifier,
+                ptr_levels
             })
         } else {
             bail!("Environment variable must be of the form identifier(:address:datatype)?(=value)?")

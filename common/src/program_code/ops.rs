@@ -116,57 +116,63 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=2)]
     #[assoc(produce=1)]
     SUB_PTR    = 0x03E6 ,
+    #[assoc(consume=2)]
+    #[assoc(produce=1)]
+    MUL_PTR    = 0x03E7 ,
+    #[assoc(consume=2)]
+    #[assoc(produce=1)]
+    DIV_PTR    = 0x03E8 ,
     #[assoc(consume=3)]
     #[assoc(produce=1)]
-    TERNARY    = 0x03E7 ,
+    TERNARY    = 0x03E9 ,
 
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    EQ         = 0x03E8,
+    EQ         = 0x03EA,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    GT         = 0x03E9,
+    GT         = 0x03EB,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    GTEQ       = 0x03EA,
+    GTEQ       = 0x03EC,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    LT         = 0x03EB,
+    LT         = 0x03ED,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    LTEQ       = 0x03EC,
+    LTEQ       = 0x03EE,
     #[assoc(consume=2)]
     #[assoc(produce=1)]
-    NEQ        = 0x03ED,
+    NEQ        = 0x03EF,
 
     // READ / WRITE OP CODES
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    PTR_DEREF  = 0x03EE,
+    PTR_DEREF  = 0x03F0,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ_F32   = 0x03EF,
+    READ_F32   = 0x03F1,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ_F64   = 0x03F0,
+    READ_F64   = 0x03F2,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    WRITE_F32  = 0x03F1,
+    WRITE_F32  = 0x03F3,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    WRITE_F64  = 0x03F2,
+    WRITE_F64  = 0x03F4,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ_I32   = 0x03F3,
+    READ_I32   = 0x03F5,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ_I64   = 0x03F4,
+    READ_I64   = 0x03F6,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    READ_CHAR  = 0x03F5,
+    READ_CHAR  = 0x03F7,
     #[assoc(consume=1)]
     #[assoc(produce=1)]
-    WRITE_CHAR = 0x03F6,
+    WRITE_CHAR = 0x03F8,
 
 
     #[assoc(consume=1)]
@@ -476,6 +482,14 @@ pub enum FixedBarracudaOperators {
     #[assoc(consume=0)]
     #[assoc(produce=1)]
     LDUSPTR    = 0x1304 ,
+
+    #[assoc(consume=1)]
+    #[assoc(produce=1)]
+    LDCUX    = 0x1305 ,
+
+    #[assoc(consume=0)]
+    #[assoc(produce=1)]
+    LDCUPTR    = 0x1306 ,
 
     #[assoc(consume=1)]
     #[assoc(produce=1)]

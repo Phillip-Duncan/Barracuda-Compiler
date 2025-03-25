@@ -5,6 +5,7 @@ pub(super) mod scope;
 pub(super) mod symbol_table;
 pub(super) mod datatype;
 pub(super) mod scope_tracker;
+pub(super) mod qualifiers;
 
 use std::collections::HashMap;
 

@@ -56,11 +56,10 @@ impl PrimitiveDataType {
 
 #[derive(Debug, Clone)]
 pub enum DataType {
-    MUTABLE(PrimitiveDataType),
-    CONST(PrimitiveDataType),
     ENVIRONMENTVARIABLE(PrimitiveDataType),
     POINTER(Box<DataType>),
     ARRAY(Box<DataType>, usize),
+    PRIMITIVE(PrimitiveDataType),
     NONE
 }
 
@@ -73,15 +72,11 @@ impl DataType {
     }
 
     pub fn from_str(datatype: String) -> Self {
-        // Create different qualified types based on datatype qualifier (MUTABLE/CONST). CONST by default.
         if datatype == "none" {
-            DataType::NONE
-        } else if datatype.contains("mut") {
-            DataType::MUTABLE(PrimitiveDataType::parse(datatype.replace("mut", "")).unwrap())
-        } else if datatype.contains("const") {
-            DataType::CONST(PrimitiveDataType::parse(datatype.replace("const", "")).unwrap())
-        } else {
-            DataType::MUTABLE(PrimitiveDataType::parse(datatype).unwrap())
+            return DataType::NONE;
+        }
+        else {
+            return DataType::PRIMITIVE(PrimitiveDataType::parse(datatype).unwrap());
         }
     }
 
@@ -100,14 +95,11 @@ impl PartialEq for DataType {
         match (self, other) {
             // Currently all primitive types are considered equal as everything is just a float on the VM.
             // This will need to be changed if proper integer operations are implemented.
-            (DataType::MUTABLE(_), DataType::MUTABLE(_))
-            | (DataType::CONST(_), DataType::CONST(_))
-            | (DataType::MUTABLE(_), DataType::CONST(_))
-            | (DataType::CONST(_), DataType::MUTABLE(_))
-            | (DataType::ENVIRONMENTVARIABLE(_), DataType::MUTABLE(_))
-            | (DataType::ENVIRONMENTVARIABLE(_), DataType::CONST(_))
-            | (DataType::MUTABLE(_), DataType::ENVIRONMENTVARIABLE(_))
-            | (DataType::CONST(_), DataType::ENVIRONMENTVARIABLE(_))
+            (DataType::PRIMITIVE(_), DataType::PRIMITIVE(_))
+            | (DataType::ENVIRONMENTVARIABLE(_), DataType::PRIMITIVE(_))
+            | (DataType::ENVIRONMENTVARIABLE(_), DataType::PRIMITIVE(_))
+            | (DataType::PRIMITIVE(_), DataType::ENVIRONMENTVARIABLE(_))
+            | (DataType::PRIMITIVE(_), DataType::ENVIRONMENTVARIABLE(_))
             | (DataType::ENVIRONMENTVARIABLE(_), DataType::ENVIRONMENTVARIABLE(_)) => true,
             (DataType::POINTER(this_inner), DataType::POINTER(other_inner)) => this_inner == other_inner,
             (DataType::ARRAY(this_inner, this_size), DataType::ARRAY(other_inner, other_size)) => {
