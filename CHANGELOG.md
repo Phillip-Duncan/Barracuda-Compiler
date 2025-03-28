@@ -1,3 +1,15 @@
+## 0.5.2 (2025-03-29)
+
+### Fix
+
+- **bct_parser,mod,barracuda_bytecode_generator**: fix erronous merge conflict resolutions
+
+## 0.4.1 (2025-03-26)
+
+### Refactor
+
+- **readme,-commitizen-config**: update readme, add in commitizen config for conventional commits
+
 ## 0.5.1 (2025-03-29)
 
 ### Fix
