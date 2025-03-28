@@ -1,6 +1,6 @@
 [package]
 name = "barracuda_compiler"
-version = "0.4.1"
+version = "0.5.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,6 +11,11 @@ crate-type = [
     "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
 ]
 
+doctest = false
+
+[[bin]]
+name = "barracuda_compiler_bin"
+path = "src/main.rs" # Path to the main.rs file
 # Prevents cargo test from interpreting some of the docstrings as tests
 doctest = false
 

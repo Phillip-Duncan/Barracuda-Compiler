@@ -65,7 +65,7 @@ impl FunctionTracker {
         }
     }
 
-    pub fn match_function(&self, arguments: &Vec<DataType>) -> Option<(String, DataType)> {
+    pub fn match_function(&self, arguments: &Vec<(DataType, Qualifier)>) -> Option<(String, DataType)> {
         for implementation in &self.implementations {
             if implementation.matches_arguments(arguments) {
                 return Some((implementation.get_name(), implementation.get_return_type()))
@@ -106,9 +106,14 @@ impl FunctionImplementation {
         FunctionImplementation { name, parameter_names, parameter_types, parameter_qualifiers, return_type, body }
     }
 
-    pub fn matches_arguments(&self, arguments: &Vec<DataType>) -> bool {
-        self.parameter_types.iter().zip(arguments.iter()).all(|(a, b)| a == b)
+    pub fn matches_arguments(&self, arguments: &Vec<(DataType, Qualifier)>) -> bool {
+        self.parameter_types
+            .iter()
+            .zip(self.parameter_qualifiers.iter())
+            .zip(arguments.iter())
+            .all(|(a, &(ref dt, ref qual))| a == (dt, qual))
     }
+    
 
     pub fn get_name(&self) -> String {
         self.name.clone()

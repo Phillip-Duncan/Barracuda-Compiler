@@ -20,3 +20,13 @@ impl Qualifier {
         }
     }
 }
+
+impl PartialEq for Qualifier {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Qualifier::CONSTANT, Qualifier::CONSTANT) => true,
+            (Qualifier::MUTABLE, Qualifier::MUTABLE) => true,
+            _ => false,
+        }
+    }
+}
