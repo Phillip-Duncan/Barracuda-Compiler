@@ -597,9 +597,12 @@ impl BarracudaSemanticAnalyser {
         for argument in arguments {
             typed_arguments.push(self.analyse_node(argument))
         }
-        let mut argument_types: Vec<DataType> = vec![];
-        for argument in &typed_arguments {
-            argument_types.push(argument.get_type())
+        let mut argument_datatypes: Vec<DataType> = vec![];
+        let mut argument_types: Vec<(DataType, Qualifier)> = vec![];
+        for argument in typed_arguments.iter() {
+            // Push tuple of qualifier and datatype to argument_types
+            argument_datatypes.push(argument.get_type());
+            argument_types.push((argument.get_type(), argument.get_qualifier()));
         }
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if self.functions.contains_key(name) {
@@ -616,19 +619,24 @@ impl BarracudaSemanticAnalyser {
                         }
                     }
                     None => {
-                        let (parameters, parameter_names, parameter_qualifiers, return_type, body) = function.get_innards();
+                        let (parameter_datatypes, parameter_names, parameter_qualifiers, return_type, body) = function.get_innards();
                         let parameter_names = parameter_names.clone();
                         let parameter_qualifiers = parameter_qualifiers.clone();
-                        let real_parameters = self.check_parameter_list(parameters, &argument_types, name);
+                        //let parameters_with_qualifiers: Vec<(Option<DataType>, Qualifier)> = parameter_datatypes.iter().cloned().zip(parameter_qualifiers.iter().cloned()).collect();
+                        let parameters: Vec<(String, (Option<DataType>, Qualifier))> =
+                            parameter_names.iter().cloned()
+                            .zip(parameter_datatypes.iter().cloned().zip(parameter_qualifiers.iter().cloned()))
+                            .collect();
+                        let real_datatypes = self.check_parameter_list(&parameters, &argument_types, name);
                         let (body, return_type) = self.analyse_function_implementation(
-                            &real_parameters.clone(),
+                            &real_datatypes.clone(),
                             &parameter_names.clone(),
                             &parameter_qualifiers.clone(),
                             &return_type.clone(),
                             &body.clone()
                         );
                         let function = self.functions.get_mut(name).unwrap();
-                        let implementation_name = function.create_implementation(name.clone(), parameter_names, real_parameters, parameter_qualifiers, return_type.clone(), body);
+                        let implementation_name = function.create_implementation(name.clone(), parameter_names, real_datatypes, parameter_qualifiers, return_type.clone(), body);
                         ASTNode::TYPED_NODE {
                             datatype: return_type,
                             qualifier: Qualifier::CONSTANT,
@@ -642,7 +650,7 @@ impl BarracudaSemanticAnalyser {
             } else {
                 for function in BARRACUDA_BUILT_IN_FUNCTIONS {
                     if name == &String::from(format!("__{}", function.to_string().to_lowercase())) {
-                        if argument_types == vec![DataType::PRIMITIVE(PrimitiveDataType::F64); function.consume() as usize] {
+                        if argument_datatypes == vec![DataType::PRIMITIVE(PrimitiveDataType::F64); function.consume() as usize] {
                             return ASTNode::TYPED_NODE {
                                 datatype: DataType::PRIMITIVE(PrimitiveDataType::F64),
                                 qualifier: Qualifier::CONSTANT,
@@ -661,23 +669,26 @@ impl BarracudaSemanticAnalyser {
         }
     }
 
-    fn check_parameter_list(&self, parameters: &Vec<Option<DataType>>, arguments: &Vec<DataType>, name: &String) -> Vec<DataType> {
+    fn check_parameter_list(&self, parameters: &Vec<(String, (Option<DataType>, Qualifier))>, arguments: &Vec<(DataType, Qualifier)>, name: &String) -> Vec<DataType> {
         if parameters.len() != arguments.len() {
             panic!("When calling function {}, need to use {} parameters! (Used {})", name, parameters.len(), arguments.len())
         }
         let mut real_types = vec![];
-        for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-            let datatype = match parameter {
-                Some(parameter) => {
-                    if parameter == argument {
-                        parameter.clone()
+        for ((parameter_name, (parameter_datatype, parameter_qualifier)), (argument_datatype, argument_qualifier)) in parameters.iter().zip(arguments.iter()) {
+            let final_datatype = match parameter_datatype {
+                Some(parameter_datatype) => {
+                    if parameter_datatype == argument_datatype {
+                        parameter_datatype.clone()
                     } else {
-                        panic!("Type of parameter in function {} didn't match! ({:?} vs {:?})", name, parameter, argument)
+                        panic!("Type of parameter {:?} in function {} didn't match! ({:?} vs {:?})", parameter_name, name, parameter_datatype, argument_datatype)
                     }
                 }
-                None => argument.clone()
+                None => argument_datatype.clone()
             };
-            real_types.push(datatype);
+            if parameter_qualifier != argument_qualifier {
+                panic!("Type qualifier of parameter {:?} in function {} didn't match the input argument! ({:?} vs {:?})", parameter_name, name, parameter_qualifier, argument_qualifier)
+            }
+            real_types.push(final_datatype);
         }
         real_types
     }
