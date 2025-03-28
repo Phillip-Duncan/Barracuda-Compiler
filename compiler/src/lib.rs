@@ -941,8 +941,6 @@ mod tests {
     #[test]
     fn create_long_array() {
         let stack = compile_and_merge("let a = [1,2,3,4,5,6,7,8,9,10];");
-        let stack_length = 6;
-        let array_elements = 10;
         
         assert_eq!(vec![Val(ptr(0))], stack);
     }
@@ -970,8 +968,6 @@ mod tests {
     #[test]
     fn create_large_2d_array() {
         let stack = compile_and_merge("let a = [[1,2,3],[4,5,6],[7,8,9]];");
-        let stack_length = 6;
-        let array_elements = 9;
         assert_eq!(vec![Val(0.0)], stack);
 
     }
@@ -979,8 +975,6 @@ mod tests {
     #[test]
     fn create_deep_2d_array() {
         let stack = compile_and_merge("let a = [[[[1,2], [3,4]],[[5,6], [7,8]]],[[[9,10], [11,12]],[[13,14], [15,16]]]];");
-        let stack_length = 6;
-        let array_elements = 16;
 
         assert_eq!(vec![Val(0.0)], stack);
     }
