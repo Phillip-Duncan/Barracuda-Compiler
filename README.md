@@ -14,7 +14,16 @@ as well as the **cargo** package manager used to control dependencies, test, and
 ## Usage 💻
 
 ### Compiler
-The compiler itself can be used by:
+There are two methods for compiler usage, as a binary or as a shared object (Linux) or Dynamic-link library (DLL; .dll or .so), the DLL is recommended over the binary as it is in general a simpler interface. The [primary testing suite](https://github.com/Phillip-Duncan/barracuda-vm-testing) calls the DLL for execution of all tests.
+
+#### Dynamic-link library
+
+Simply load the .dll/so file in, call the `compile` method, and convert the resulting data structures into arrays for passing into your Barracuda-embedded CUDA application. An example of this being done is within the [primary testing suite](https://github.com/Phillip-Duncan/barracuda-vm-testing) code, feel free to copy the compiler.py, driver.py, and env_vars.cfg files and reconfigure these to your application requirements.
+
+
+
+#### Binary usage
+The compiler binary can be used by:
 
 `barracuda_compiler <filename.bc> -o <outputfile.bct>`
 
