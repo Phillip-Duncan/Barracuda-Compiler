@@ -1,3 +1,9 @@
+## 0.5.1 (2025-03-29)
+
+### Fix
+
+- **Cargo,lib**: more dead code removal, and fix num-derive crate version requirement
+
 ## 0.5.0 (2025-03-29)
 
 ### Feat
