@@ -134,9 +134,9 @@ impl BarracudaProgramCodeBuilder {
         self.precision = precision;
     }
 
-    pub fn get_precision(&self) -> usize {
-        self.precision
-    }
+    //pub fn get_precision(&self) -> usize {
+    //    self.precision
+    //}
 
     /// Resolves all BarracudaIR items into ProgramCode, consumes self in the process.
     pub fn finalize(self) -> ProgramCode {
