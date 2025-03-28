@@ -36,22 +36,23 @@ impl PrimitiveDataType {
             _ => {return None}
         })
     }
-    pub fn size(&self) -> usize {
-        match self {
-            PrimitiveDataType::F128 => 16,
-            PrimitiveDataType::F64 => 8,
-            PrimitiveDataType::F32 => 4,
-            PrimitiveDataType::F16 => 2,
-            PrimitiveDataType::F8 => 1,
-            PrimitiveDataType::I128 => 16,
-            PrimitiveDataType::I64 => 8,
-            PrimitiveDataType::I32 => 4,
-            PrimitiveDataType::I16 => 2,
-            PrimitiveDataType::I8 => 1,
-            PrimitiveDataType::Bool => 1,
-            PrimitiveDataType::String => 8
-        }
-    }
+    // Currently unused but may be needed in future?
+    //pub fn size(&self) -> usize {
+    //    match self {
+    //        PrimitiveDataType::F128 => 16,
+    //        PrimitiveDataType::F64 => 8,
+    //        PrimitiveDataType::F32 => 4,
+    //        PrimitiveDataType::F16 => 2,
+    //        PrimitiveDataType::F8 => 1,
+    //        PrimitiveDataType::I128 => 16,
+    //        PrimitiveDataType::I64 => 8,
+    //        PrimitiveDataType::I32 => 4,
+    //        PrimitiveDataType::I16 => 2,
+    //        PrimitiveDataType::I8 => 1,
+    //        PrimitiveDataType::Bool => 1,
+    //        PrimitiveDataType::String => 8
+    //    }
+    //}
 }
 
 #[derive(Debug, Clone)]
@@ -97,8 +98,6 @@ impl PartialEq for DataType {
             // This will need to be changed if proper integer operations are implemented.
             (DataType::PRIMITIVE(_), DataType::PRIMITIVE(_))
             | (DataType::ENVIRONMENTVARIABLE(_), DataType::PRIMITIVE(_))
-            | (DataType::ENVIRONMENTVARIABLE(_), DataType::PRIMITIVE(_))
-            | (DataType::PRIMITIVE(_), DataType::ENVIRONMENTVARIABLE(_))
             | (DataType::PRIMITIVE(_), DataType::ENVIRONMENTVARIABLE(_))
             | (DataType::ENVIRONMENTVARIABLE(_), DataType::ENVIRONMENTVARIABLE(_)) => true,
             (DataType::POINTER(this_inner), DataType::POINTER(other_inner)) => this_inner == other_inner,
