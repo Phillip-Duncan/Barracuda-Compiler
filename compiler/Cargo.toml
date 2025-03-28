@@ -11,6 +11,10 @@ crate-type = [
     "lib"      # Generate Rust Lib for downstream rust dependents. Examples, tests, etc.
 ]
 
+[[bin]]
+name = "barracuda_compiler_bin"
+path = "src/main.rs" # Path to the main.rs file
+
 # Prevents cargo test from interpreting some of the docstrings as tests
 doctest = false
 

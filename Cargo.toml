@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2" # Use the new resolver for workspaces
 
 members = [
     "common",

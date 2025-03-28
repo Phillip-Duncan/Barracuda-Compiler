@@ -11,7 +11,7 @@ strum = "0.24"          # Strum provides enum to string macros
 strum_macros = "0.24"   # strum macro crate
 
 num-traits = "0.2"      # num-traits provides from primitive macros for enums
-num-derive = "0.2"      # num-traits macro ctatr
+num-derive = "0.4.2"      # num-traits macro ctatr
 
 # Procedural Macro to associate constant values for enum variants
 # used to simplify program_code/ops.rs
