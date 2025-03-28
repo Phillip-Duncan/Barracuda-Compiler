@@ -68,7 +68,7 @@ impl BarracudaCodeTextParser {
 }
 
 impl ProgramCodeParser for BarracudaCodeTextParser  {
-    fn parse_str(&self, data: &str, precision: usize) -> Result<ProgramCode, Error> {
+    fn parse_str(&self, data: &str) -> Result<ProgramCode, Error> {
         let code_tokens: Vec<&str> = data.split(self.delimiter.as_str()).collect();
 
         let mut values: Vec<f64> = Vec::new();
@@ -128,8 +128,7 @@ mod tests {
         );
 
         let text = "4.5\n8\nADD\nPRINTFF\n0\nGOTO\n";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
@@ -142,16 +141,14 @@ mod tests {
         );
 
         let text = "4.5\n8\nADD\n1.6e-322\nRCNX\n0\nGOTO\n";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
     #[test]
     fn test_text_parser_invalid_token() {
         let text = "4.5\n8\nADD\nPRINTER\n0\nGOTO\n";
-        let precision = 64;
-        BarracudaCodeTextParser::new().parse_str(text, precision).expect_err("Testing Parser Error");
+        BarracudaCodeTextParser::new().parse_str(text).expect_err("Testing Parser Error");
     }
 
     #[test]
@@ -163,8 +160,7 @@ mod tests {
         );
 
         let text = "4.5,8,ADD,PRINTFF,0,GOTO";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().using_delimiter(String::from(",")).parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().using_delimiter(String::from(",")).parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
@@ -177,8 +173,7 @@ mod tests {
         );
 
         let text = "    4.5   \n   8  \n  ADD   \n\n\n\n     PRINTFF   \n  0   \n     GOTO\n";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
@@ -191,8 +186,7 @@ mod tests {
         );
 
         let text = "# My wonderful program\n    4.5   \n   8  \n  ADD   \n\n\n\n     PRINTFF   \n  0   \n     GOTO\n";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
@@ -205,8 +199,7 @@ mod tests {
         );
 
         let text = "4";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 
@@ -219,8 +212,7 @@ mod tests {
         );
 
         let text = "4.5";
-        let precision = 64;
-        let code = BarracudaCodeTextParser::new().parse_str(text, precision).unwrap();
+        let code = BarracudaCodeTextParser::new().parse_str(text).unwrap();
         assert_eq!(expected_program_code, code)
     }
 }

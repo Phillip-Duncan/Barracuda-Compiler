@@ -255,8 +255,8 @@ impl BarracudaByteCodeGenerator {
                 }
                 _ => panic!("Malformed AST! Node {:?} should not be inside a typed node.", node)
             }
-            ASTNode::CONSTRUCT { identifier, qualifier, expression, .. } => {
-                self.generate_construct_statement(identifier, qualifier, expression);
+            ASTNode::CONSTRUCT { identifier, expression, .. } => {
+                self.generate_construct_statement(identifier, expression);
             }
             ASTNode::EMPTY_CONSTRUCT { identifier, .. } => {
                 self.generate_empty_construct_statement(identifier);
@@ -432,7 +432,7 @@ impl BarracudaByteCodeGenerator {
         position
     }
 
-    fn generate_array_item(&mut self, item: &ASTNode, qualifier: &Box<ASTNode>, position: usize) -> usize {
+    fn generate_array_item(&mut self, item: &ASTNode, position: usize) -> usize {
         self.builder.emit_value(f64::from_be_bytes(position.to_be_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
         self.generate_node(item);
@@ -579,9 +579,9 @@ impl BarracudaByteCodeGenerator {
                     match datatype {
                         DataType::ARRAY(_,_) => {
                             self.builder.emit_op(OP::STK_READ);
-                            self.generate_array_assignment_statement(array_index, expression, datatype, qualifier)
+                            self.generate_array_assignment_statement(array_index, expression, datatype)
                         },
-                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, qualifier, pointer_level)
+                        _ => self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level)
                     }
                 }
                 SymbolType::EnvironmentVariable(global_id, datatype, qualifier, ptr_levels) => {
@@ -629,7 +629,7 @@ impl BarracudaByteCodeGenerator {
                 SymbolType::Parameter(datatype, _) => {
                     let local_param_id = self.symbol_tracker.get_param_id(&identifier_name).unwrap();
                     self.generate_parameter_address(local_param_id);
-                    self.generate_regular_assignment_statement(expression, array_index, datatype, qualifier, pointer_level);
+                    self.generate_regular_assignment_statement(expression, array_index, datatype, pointer_level);
                 }
                 SymbolType::Function { .. } => {
                     panic!("Cannot reassign a value to function '{}'", identifier_name);
@@ -640,7 +640,7 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, mut datatype: DataType, mut qualifier: Qualifier) {
+    fn generate_array_assignment_statement(&mut self, array_index: &Vec<ASTNode>, expression: &ASTNode, mut datatype: DataType) {
         //we have pointer as usize on the stack
         for index in array_index {
             datatype = match datatype {
@@ -675,26 +675,26 @@ impl BarracudaByteCodeGenerator {
         }
     }
 
-    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, qualifier: &Box<ASTNode>, mut position: usize) -> usize {
+    fn generate_array_assignment(&mut self, items: &Vec<ASTNode>, mut position: usize) -> usize {
         for item in items {
             match item {
                 ASTNode::TYPED_NODE { inner, .. } => match inner.as_ref() {
                     ASTNode::ARRAY{items, ..} => position = self.generate_array_assignment(&items, position),
                     _ => {
                         self.builder.emit_op(OP::DUP);
-                        position = self.generate_array_item(&item, &qualifier, position);
+                        position = self.generate_array_item(&item, position);
                     },
                 }
                 _ => {
                     self.builder.emit_op(OP::DUP);
-                    position = self.generate_array_item(&item, &qualifier, position);
+                    position = self.generate_array_item(&item, position);
                 },
             }
         }
         position
     }
 
-    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, mut datatype: DataType, mut qualifier: Qualifier, pointer_level: usize) {
+    fn generate_regular_assignment_statement(&mut self, expression: &ASTNode, array_index: &Vec<ASTNode>, mut datatype: DataType, pointer_level: usize) {
         for _ in 0..pointer_level {
             datatype = match datatype {
                 DataType::POINTER(inner) => *inner,
@@ -704,7 +704,7 @@ impl BarracudaByteCodeGenerator {
         }
         match datatype {
             DataType::ARRAY(_, _) => {
-                self.generate_array_assignment_statement(array_index, expression, datatype, qualifier);
+                self.generate_array_assignment_statement(array_index, expression, datatype);
             }
             _ => {
                 self.generate_node(expression);
