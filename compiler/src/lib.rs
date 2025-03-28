@@ -9,7 +9,7 @@ extern crate barracuda_common;
 use safer_ffi::prelude::*;
 
 use compiler::{Compiler, EnvironmentSymbolContext, PrimitiveDataType, Qualifier};
-use crate::compiler::utils::pack_string_to_f64_array;
+//use crate::compiler::utils::pack_string_to_f64_array;
 
 // Internal Modules
 mod compiler;
@@ -140,7 +140,7 @@ pub fn compile(request: &CompilerRequest) -> CompilerResponse {
     let user_space: Vec<f64> = mut_user_space.iter().chain(const_user_space.iter()).copied().collect();
 
     let mut user_space_size: Vec<u64> = program_code.user_space_size;
-    user_space_size[0] += (env_vars.copy_addresses().len() as u64); // TODO: Make const environment add to constant size whereas mutable adds to mutable size (once const/mut env vars are implemented)
+    user_space_size[0] += env_vars.copy_addresses().len() as u64; // TODO: Make const environment add to constant size whereas mutable adds to mutable size (once const/mut env vars are implemented)
 
     CompilerResponse {
         code_text: compiled_text.try_into().unwrap(),
@@ -666,7 +666,6 @@ mod tests {
     // Tests that if and else work
     #[test]
     fn if_and_else() {
-        let new_line = pack_string_to_f64_array("\n", 64)[0];
 
         let stack = compile_and_merge("if false {print(3);}");
         assert_eq!(vec![Val(0.0), Val(ptr(7)), Instr(GOTO_IF), Val(3.0), 
@@ -762,7 +761,6 @@ mod tests {
     // Tests print statement.
     #[test]
     fn print() {
-        let new_line = pack_string_to_f64_array("\n", 64)[0];
         let stack = compile_and_merge("print(3);");
         assert_eq!(vec![Val(3.0), Op(FIXED(PRINTFF))], stack);
     }
@@ -773,7 +771,6 @@ mod tests {
         let stack = compile_and_merge(
             "while 3 {print(4);}");
 
-        let new_line = pack_string_to_f64_array("\n", 64)[0];
         assert_eq!(vec![
             Val(3.0), Val(ptr(9)), Instr(GOTO_IF), // loop exit condition
             Val(4.0), Op(FIXED(PRINTFF)), // loop body
@@ -784,7 +781,6 @@ mod tests {
     // Tests for loop.
     #[test]
     fn for_loop() {
-        let new_line = pack_string_to_f64_array("\n", 64)[0];
         let stack = compile_and_merge("for (let mut i = 4; 5; i = 6) {print(7);}");
         assert_eq!(vec![
             Val(4.0), // construction 
@@ -1002,7 +998,6 @@ mod tests {
     #[test]
     fn array_and_loop(){
         let stack = compile_and_merge("let mut a = [1,2,3]; for (let mut i = 0; i < 3; i = i + 1) {print(a[i]);}");
-        let new_line = pack_string_to_f64_array("\n", 64)[0];
 
         assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
                         Val(3.0), Op(FIXED(LT)), Val(2.08e-322), Instr(GOTO_IF), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)),
@@ -1553,14 +1548,12 @@ mod tests {
     #[test]
     fn string_literal() {
         let stack = compile_and_merge(r#"let a = "hello world";"#);
-        let packed_string = pack_string_to_f64_array("hello world", 64);
         assert_eq!(vec![Val(ptr(0))], stack);
     }
 
     #[test]
     fn print_string() {
         let stack = compile_and_merge(r#"let a = "hello world"; print(a);"#);
-        let packed_string = pack_string_to_f64_array("hello world", 64);
         assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
                         Op(FIXED(DUP)), Val(0.0), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
                         Op(FIXED(DUP)), Val(5e-324), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
