@@ -317,7 +317,7 @@ impl BarracudaSemanticAnalyser {
                 match index_datatype {
                     DataType::PRIMITIVE(_) | DataType::ENVIRONMENTVARIABLE(_) => {
                         ASTNode::TYPED_NODE { 
-                            datatype: Box::new(DataType::PRIMITIVE(inner_type)).as_ref().clone(), 
+                            datatype: DataType::PRIMITIVE(inner_type), 
                             qualifier: expression.get_qualifier(),
                             inner: Box::new(ASTNode::ARRAY_INDEX { index, expression })
                         }
@@ -604,6 +604,7 @@ impl BarracudaSemanticAnalyser {
             argument_datatypes.push(argument.get_type());
             argument_types.push((argument.get_type(), argument.get_qualifier()));
         }
+        // TODO: Perform a check to see whether an input variable that may be mutable is actually mutated in the function, if not then allow it to be passed into a function with a const parameter qualifier.
         if let ASTNode::IDENTIFIER(name) = identifier.as_ref() {
             if self.functions.contains_key(name) {
                 let function = self.functions.get(name).unwrap();
