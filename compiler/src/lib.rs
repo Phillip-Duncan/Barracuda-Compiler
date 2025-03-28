@@ -628,14 +628,14 @@ mod tests {
     // Checks that function parameters can be assigned to
     #[test]
     fn function_with_parameter_assigned() {
-        let stack = compile_and_merge("fn test_func(mut a) {a = 3;} let b = test_func(4);");
+        let stack = compile_and_merge("fn test_func(mut a) {a = 3;} let mut b = 4; let const c = test_func(b);");
         let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), // get pointer to parameter
                     Val(3.0), Op(FIXED(STK_WRITE))]); // read parameter
         assert_eq!(function_def, stack[..position]);
         assert_eq!(Val(4.0), stack[position]);
-        let position = position + 1;
+        let position = position + 6;
         let (function_call, _) 
             = generate_function_call(position, test_func_location, 1);
         assert_eq!(function_call, stack[position..]);
@@ -912,7 +912,7 @@ mod tests {
     //Check that parameters can also use pointer assign syntax
     #[test]
     fn parameter_pointer_assign() {
-        let stack = compile_and_merge("fn test_func(mut a: *i64) {*a = 3;} let b = 1; let c = test_func(&b);"); // TODO: Investigate this, I don't think this should pass without b being mutable..
+        let stack = compile_and_merge("fn test_func(mut a: *i64) {*a = 3;} let mut b = 1; let c = test_func(&b);"); // TODO: Investigate this, I don't think this should pass without b being mutable..
         let (function_def, test_func_location, position) 
             = generate_function_def_precompiled(0, 
             vec![Val(ptr(1)), Op(FIXED(STK_READ)), Val(ptr(2)), Op(FIXED(SUB_PTR)), Op(FIXED(STK_READ)), // get pointer
@@ -1125,24 +1125,34 @@ mod tests {
     fn qualified_typed_array_access() {
         let stack = compile_and_merge("let const a: [i64; 3] = [1,2,3]; let mut b = a[0];");
         assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)), Op(FIXED(READ_F64))], stack);
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX))], stack);
     }
 
 
     #[test]
     fn complex_qualified_typed_array_access() {
         let stack = compile_and_merge("let mut a: [i64; 3] = [9,9,9]; let const b: [i64; 3] = [1,2,3]; let c = b[0]; let d = a[0]; print(b);");
-        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)),
-                        Op(FIXED(READ_F64))], stack);
+        assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Val(5e-324), Val(5e-324),
+                        Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0), Op(FIXED(DOUBLETOLONGLONG)),
+                        Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Val(1e-323), Val(5e-324),
+                        Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Op(FIXED(DUP)), Val(0.0),
+                        Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Op(FIXED(PRINTFF)), Op(FIXED(DUP)), Val(5e-324),
+                        Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Op(FIXED(PRINTFF)), Op(FIXED(DUP)), Val(1e-323),
+                        Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Op(FIXED(PRINTFF))], stack);
     }
 
     #[test]
     fn complex_qualified_typed_array_access_mut() {
         let stack = compile_and_merge("let const a: [i64; 3] = [9,9,9]; let mut b: [i64; 3] = [1,2,3]; let c = b[0]; let d = a[0]; print(b);");
-        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
-                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUPTR)), Op(FIXED(ADD_PTR)),
-                        Op(FIXED(READ_F64))], stack);
+        assert_eq!(vec![Val(0.0), Val(0.0), Val(1e-323), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Val(0.0), Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)),
+                        Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Val(0.0),
+                        Op(FIXED(DOUBLETOLONGLONG)), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Val(1e-323), Val(5e-324),
+                        Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)), Op(FIXED(DUP)), Val(0.0), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTFF)), Op(FIXED(DUP)), Val(5e-324), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTFF)), Op(FIXED(DUP)), Val(1e-323), Op(FIXED(ADD_PTR)),
+                        Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTFF))], stack);
     }
 
     // Tests for the type system.
@@ -1224,7 +1234,7 @@ mod tests {
 
     #[test]
     fn parameter_type() {
-        compile_and_assert_equal("fn func(mut a) {a = 2;} func(1);", "fn func(mut a: i64) {a = 2;} func(1);");
+        compile_and_assert_equal("fn func(mut a) {a = 2;} let mut b = 1; func(b);", "fn func(mut a: i64) {a = 2;} let mut b=1; func(b);");
     }
 
     #[test]
@@ -1552,11 +1562,20 @@ mod tests {
     }
 
     #[test]
-    fn print_string() {
-        let stack = compile_and_merge(r#"let a = "hello world"; print(a);"#);
+    fn print_mut_string() {
+        let stack = compile_and_merge(r#"let mut a = "hello world"; print(a);"#);
         assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
                         Op(FIXED(DUP)), Val(0.0), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
                         Op(FIXED(DUP)), Val(5e-324), Op(FIXED(ADD_PTR)), Op(FIXED(LDNXPTR)), Op(FIXED(READ_F64)), Op(FIXED(PRINTC)),
+                        Op(FIXED(DROP))], stack);
+    }
+
+    #[test]
+    fn print_const_string() {
+        let stack = compile_and_merge(r#"let const a = "hello world"; print(a);"#);
+        assert_eq!(vec![Val(0.0), Val(5e-324), Val(5e-324), Op(FIXED(STK_READ)), Op(FIXED(ADD_PTR)), Op(FIXED(STK_READ)),
+                        Op(FIXED(DUP)), Val(0.0), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Op(FIXED(PRINTC)),
+                        Op(FIXED(DUP)), Val(5e-324), Op(FIXED(ADD_PTR)), Op(FIXED(LDCUX)), Op(FIXED(PRINTC)),
                         Op(FIXED(DROP))], stack);
     }
 

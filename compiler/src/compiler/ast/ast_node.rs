@@ -5,10 +5,11 @@ use super::scope::ScopeId;
 use std::borrow::BorrowMut;
 use super::qualifiers::Qualifier;
 
-
+#[cfg_attr(doctest, doc = " ````no_test")] // Ignore doctests for this module
 #[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum ASTNode {
+    ///
     /// Identifier is a string sequence representative of a symbol. That is
     /// a variable, symbol or constant.
     /// # Example:

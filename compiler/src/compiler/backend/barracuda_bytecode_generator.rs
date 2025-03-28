@@ -163,7 +163,6 @@ impl BarracudaByteCodeGenerator {
     // Generate code to set stack pointer to the value on top of the stack.
     // Must add one as VM RCSTK_PTR is off by one.
     fn generate_set_stack_ptr(&mut self) {
-        println!("Generating set stack pointer");
         self.builder.emit_value(f64::from_be_bytes(1_u64.to_be_bytes()));
         self.builder.emit_op(OP::ADD_PTR);
         self.builder.emit_op(OP::RCSTK_PTR);
